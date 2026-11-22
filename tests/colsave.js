@@ -1,0 +1,1 @@
+() => { const A = window.__aoh; const s = A.serialize(); const w = A.sanitizeWorld(s); return JSON.stringify([(A.W.colonies||[]).length, w.colonies.length, w.colonies.map(k => k.name + (k.free ? '*' : '')).join(','), (w.megas||[]).length, Math.round(w.dyson.total), w.spaceRes.length, w.bases.length]); }

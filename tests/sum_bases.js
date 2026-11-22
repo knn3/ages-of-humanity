@@ -1,0 +1,2 @@
+() => { const A = window.__aoh, W = A.W; const ev = W.chron.filter(e => /Base on|passes a million|Life support|abandoned/.test(e.h)).map(e => e.h.replace(/<[^>]+>/g, ''));
+  return JSON.stringify({ topEra: Math.max(...W.civs.filter(c => c.alive).map(c => c.era)), bases: W.bases.map(b => `${b.name}/${b.body}/${A.W.civs.find(c => c.id === b.civ).name}/${(b.pop/1e6).toFixed(2)}M`), founded: ev.filter(e => /found/.test(e)).length, million: ev.filter(e => /million/.test(e)).length, failures: ev.filter(e => /Life support/.test(e)).length, sample: ev.slice(0, 2) }); }

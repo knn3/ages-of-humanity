@@ -1,0 +1,1 @@
+() => { const W = window.__aoh.W; return JSON.stringify({ flares: W.chron.filter(e => /great flare/.test(e.h)).length, comets: W.chron.filter(e => /comet/.test(e.h)).length, cascades: W.chron.filter(e => /smashes into satellite/.test(e.h)).length, total: W.chron.length }); }

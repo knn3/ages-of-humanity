@@ -1,0 +1,2 @@
+() => { const A = window.__aoh, W = A.W; const nm = id => { const c = W.civs.find(c => c.id === id); return c ? c.name : '-'; };
+  return JSON.stringify({ eras: W.civs.filter(c => c.alive).map(c => c.name + ':' + c.era + '/' + (c.keyState || '')), res: W.spaceRes.map(r => r.type + '>' + nm(r.owner)), claims: W.chron.filter(e => /take control/.test(e.h)).length, stellar: W.chron.filter(e => /enter the Stellar|enter the Galactic/.test(e.h)).map(e => e.y + ' ' + e.h.replace(/<[^>]+>/g, '').slice(0, 40)).reverse().slice(0, 3) }); }
