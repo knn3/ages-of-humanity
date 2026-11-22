@@ -218,6 +218,7 @@ h1,h2,h3{text-wrap:balance}
 .planet .cat{margin:0 0 4px}
 .lu{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--dim)}
 .chip.green{background:#1b2b1c;color:#9fdc96}
+.chip.merged{background:#16303a;color:#8ff0ff}
 .log[data-filter="era"] li:not(.k-era),.log[data-filter="event"] li:not(.k-event),.log[data-filter="react"] li:not(.k-react),.log[data-filter="war"] li:not(.k-war),.log[data-filter="world"] li:not(.k-world):not(.k-rule){display:none}
 
 .form{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin:10px 0 14px}
@@ -463,8 +464,12 @@ const TRAITS = {
   Warlike:    { w: { machinearmy: 6, raid: 3, crackdown: 2.5, mobilize: 3, expand: 2.5, exploit: 3 }, tech: .96, mil: 25, cul: 0, note: 'Takes what it needs by force' },
   Mercantile: { w: { sellai: 6, trade: 3.5, ally: 3, reform: 1.6, celebrate: 1.3, exploit: 2.2 }, tech: 1.05, mil: 0, cul: 4, note: 'Trades its way out of trouble' },
   Devout:     { w: { banai: 6, pray: 3.5, celebrate: 2, isolate: 2, rebuild: 1.5, conserve: 3.2 }, tech: .93, mil: 5, cul: 14, note: 'Turns to faith in hard times' },
-  Curious:    { w: { raceai: 6, innovate: 3.5, reform: 2, trade: 1.3, conserve: 1.6 }, tech: 1.16, mil: 0, cul: 6, note: 'Invents its way forward' }
+  Curious:    { w: { raceai: 6, innovate: 3.5, reform: 2, trade: 1.3, conserve: 1.6 }, tech: 1.16, mil: 0, cul: 6, note: 'Invents its way forward' },
+  // AGI-05 a people that has merged with its machines: one mind, calm and fast, rarely at war
+  Merged:     { w: { innovate: 4, reform: 2.5, trade: 3, conserve: 2.5, ally: 2, appease: 2.5 }, tech: 1.4, mil: 8, cul: 12, note: 'One mind with its machines' }
 };
+// the four characters a people can be born with (Merged is only reached by merging)
+const BASE_TRAITS = ['Warlike', 'Mercantile', 'Devout', 'Curious'];
 const GOVT = [['Band', 'Band'], ['Chiefdom', 'Tribal Council'], ['Chiefdom', 'Village Council'], ['Kingdom', 'City-state'], ['Kingdom', 'Tribal Assembly'], ['Empire', 'Republic'], ['Feudal Kingdom', 'League of Free Cities'], ['Absolute Monarchy', 'Merchant Republic'], ['Empire', 'Parliament'], ['Dictatorship', 'Democracy'], ['Surveillance State', 'Digital Democracy'], ['AI Directorate', 'Global Assembly'], ['Orbital Directorate', 'Planetary Federation'], ['Stellar Hegemony', 'Solar Commonwealth'], ['Galactic Empire', 'Galactic Concord']];
 const NAMES = ['Arvani', 'Keshet', 'Toloma', 'Brinnar', 'Usari', 'Halvik', 'Ombra', 'Senet', 'Vardu', 'Ilyan', 'Qoro', 'Meret'];
 const COLORS = ['#e8875c', '#62b9e0', '#dcc057', '#ad94e6', '#72c794', '#e87ba0', '#4fd1c5', '#c9a27c'];
@@ -567,6 +572,7 @@ EVENTS.push({ id: 'flare', name: 'Solar Flare', g: '✹', cat: 'Space', scope: '
   { id: 'comet', name: 'Rogue Comet', g: '☄', cat: 'Space', scope: 'global', special: 'comet', sub: 'A great comet crosses the sky' });
 EVENTS.push({ id: 'supervolcano', name: 'Supervolcano', g: '▲', cat: 'Nature', scope: 'local', r: 900, special: 'supervolcano', sub: 'A world-scale eruption' },
   { id: 'asteroid', name: 'Killer Asteroid', g: '☄', cat: 'Space', scope: 'global', special: 'asteroid', sub: 'A countdown to impact' });
+EVENTS.push({ id: 'merge', name: 'Merge with the Machines', g: '⌬', cat: 'Modern', scope: 'target', minEra: 11, special: 'merge', sub: 'A people becomes one with its AI' });
 EVENTS.push({ id: 'uprising', name: 'Machine Uprising', g: '⛭', cat: 'Modern', scope: 'target', minEra: 10, special: 'uprising', sub: 'The machines become a people' });
 EVENTS.push({ id: 'bioplague', name: 'Engineered Plague', g: '☣', cat: 'Modern', scope: 'target', minEra: 11, special: 'bioplague', sub: 'A lab-made pandemic' });
 EVENTS.push({ id: 'broadcast', name: 'Broadcast the Coordinates', g: '⌁', cat: 'Futures', scope: 'global', minEra: 12, special: 'broadcast', sub: 'Reveal both worlds to the galaxy' });
@@ -590,9 +596,10 @@ const STRESS = {
   boom: ['celebrate', 'expand', 'trade', 'innovate'],
   threat: ['mobilize', 'ally', 'appease'],
   ecology: ['conserve', 'innovate', 'exploit', 'migrate', 'pray'],
-  ai: ['raceai', 'banai', 'machinearmy', 'sellai']
+  ai: ['raceai', 'banai', 'machinearmy', 'sellai', 'mergeai']
 };
 const RESP = {
+  mergeai: { lab: 'merges with its machines', eff: { stability: 8, culture: 6 }, txt: '{Civ} wire their minds to their machines. Where the people end and the machines begin, no one can say any more.' },
   raceai: { lab: 'races ahead', eff: { tech: 14, stability: -4 }, txt: '{Civ} pour their wealth into ever smarter machines and let them design the next ones.', again: '{Civ} race on, giving their machines more of the work and more of the say.' },
   banai: { lab: 'bans the machines', eff: { culture: 8, stability: 8 }, txt: '{Civ} ban thinking machines from their courts, temples and schools. Progress slows, but the people are calmer.', again: '{Civ} smash the machines that slipped back in and renew the ban.' },
   machinearmy: { lab: 'builds a machine army', eff: { military: 25 }, txt: '{Civ} build armies of drones and robot soldiers that never tire. Their neighbours watch in fear.', again: '{Civ} add new swarms of drones to their machine army.' },
@@ -633,6 +640,7 @@ const SIZES = {
   sky: [22, 30, 110, 175], glass: [20, 26, 70, 105], dc: [40, 52, 16, 22], wind: [16, 16, 70, 78], solar: [30, 42, 8, 8], cell: [10, 10, 48, 56],
   arcology: [50, 60, 190, 230], spire: [12, 16, 150, 210], vertfarm: [22, 28, 90, 130], fusion: [40, 48, 30, 36], dome2: [40, 50, 26, 32], pad: [34, 38, 90, 96],
   tether: [30, 34, 60, 70], hab: [24, 30, 80, 140], massdriver: [80, 100, 40, 52], beam: [36, 42, 40, 46], dish: [26, 30, 26, 34], gate: [58, 64, 62, 70], crystal: [14, 22, 120, 220], grove: [30, 44, 30, 46],
+  nnode: [10, 14, 110, 170], nhub: [34, 42, 26, 34],
   mcore: [26, 32, 130, 175], mfab: [34, 46, 22, 30], mstack: [10, 12, 70, 92], mpylon: [14, 16, 60, 84]
 };
 const PLAN = [
@@ -777,9 +785,9 @@ function log(h, kind = 'world') {
 function makeCiv(x, opts = {}) {
   const used = new Set(W.civs.map(c => c.name)), usedC = new Set(alive().map(c => c.color));
   const era = opts.era || 0;
-  if (!opts.trait) opts.trait = pick(Object.keys(TRAITS));
+  if (!opts.trait) opts.trait = pick(BASE_TRAITS);
   const c = { id: W.nextId++, name: opts.name || NAMES.find(n => !used.has(n)) || 'People ' + (W.civs.length + 1), color: COLORS.find(k => !usedC.has(k)) || pick(COLORS),
-    trait: opts.trait || pick(Object.keys(TRAITS)), x: Math.round(x), era, tech: opts.tech ?? rand(0, 15), pop: opts.pop || rand(1300, 1900),
+    trait: opts.trait || pick(BASE_TRAITS), x: Math.round(x), era, tech: opts.tech ?? rand(0, 15), pop: opts.pop || rand(1300, 1900),
     food: 62, culture: 30, stability: 62, military: 18, govt: Math.random() < .5 ? 0 : 1, l: x - 150, r: x + 150, alive: true, mods: [], ruin: 0,
     reached: {}, nuclear: false, policy: DEFPOL[opts.trait] || 'balance', tmpPol: null, eco: {}, seed: (Math.random() * 1e9) | 0, unrest: 0, lastReact: -99, nextCheck: rand(4, 8), expandUntil: 0, threshold: false, keyState: 'none', fell: null, fellTo: null, bunker: 0, closed: 0, scav: 0, mach: 0, machSaid: 0, _: {} };
   c.reached[era] = Math.round(W.year);
@@ -808,7 +816,7 @@ function newWorld(seed) {
   let vx = 0, tries = 0; do { vx = randLandX(); tries++; } while (starts.some(s => Math.abs(s - vx) < 450) && tries < 60);
   addEl('volcano', vx);
   recomputeTerrain();
-  const traits = Object.keys(TRAITS).sort(() => Math.random() - .5);
+  const traits = [...BASE_TRAITS].sort(() => Math.random() - .5);
   starts.forEach((s, k) => makeCiv(s, { trait: traits[k % traits.length] }));
   initNature();
   resetVisuals();
@@ -898,7 +906,7 @@ function updateCiv(c, dt) {
   const nW = warsOf(c).length, p = c.pop / K;
   const foodT = clamp(95 - 45 * p, 3, 100) + mFood - Math.abs(t) * 4 - nW * 6 + (pol === 'exploit' ? 5 : pol === 'protect' ? -4 : 0);
   c.food = clamp(c.food + (foodT - c.food) * .2 * dt, 0, 100);
-  if (c.food >= 35) c.pop += .075 * (c.food - 35) / 65 * c.pop * (1 - p) * (1 - (c._.sick || 0)) * dt;
+  if (c.food >= 35) c.pop += .075 * (c.food - 35) / 65 * c.pop * (1 - p) * (1 - (c._.sick || 0)) * (c.merged ? MERGE_BIRTHS : 1) * dt;
   else c.pop -= .03 * (35 - c.food) / 35 * c.pop * dt;
   if (p > 1.05) c.pop -= .03 * (p - 1) * c.pop * dt;
   c.pop = Math.max(20, c.pop);
@@ -914,7 +922,7 @@ function updateCiv(c, dt) {
   addTech(c, TECH_BASE * mult * dt);
   const culT = 32 + tr.cul + r.cul + (c.food - 50) * .12 + (c.govt === 1 ? 6 : 0) + (pol === 'protect' ? 5 : 0);
   c.culture = clamp(c.culture + (culT - c.culture) * .05 * dt, 0, 100);
-  const stT = 52 + (c.food - 50) * .45 + (c.culture - 40) * .12 - nW * 10 - (nat && nat.fr < .15 && nat.s < .3 ? 6 : 0) - (c.era >= 8 ? W.pollution * .1 : 0) + (c.govt === 0 ? 5 : 0) + r.stab + mStab - c.ruin * 14;
+  const stT = 52 + (c.food - 50) * .45 + (c.culture - 40) * .12 - nW * 10 - (nat && nat.fr < .15 && nat.s < .3 ? 6 : 0) - (c.era >= 8 ? W.pollution * .1 : 0) + (c.govt === 0 ? 5 : 0) + r.stab + mStab - c.ruin * 14 + (c.merged ? 8 : 0);
   c.stability = clamp(c.stability + (stT - c.stability) * .07 * dt, 0, 100);
   const threat = alive().some(o => o !== c && relGet(c, o) < -40) ? 8 : 0;
   c.military = clamp(c.military + (14 + tr.mil + nW * 30 + c.era * 2.5 + threat - c.military) * .08 * dt, 0, 100);
@@ -1082,7 +1090,8 @@ function chooseResponse(c, s) {
       case 'mobilize': if (!warsOf(c).length) w *= .6; break;
       case 'conserve': w *= (policyOf(c) === 'protect' ? 2 : 1) * (c.era >= 8 ? 1.6 : 1); break;
       case 'exploit': w *= (policyOf(c) === 'exploit' ? 1.5 : 1) * (c.era >= 10 ? .6 : 1); break;
-      case 'raceai': case 'banai': case 'machinearmy': case 'sellai': w = tw[n] || .25; if (n === 'sellai' && !alive().some(o => o !== c && contact(c, o))) w = 0; break;
+      case 'mergeai': w = canMerge(c) ? MERGE_W[c.trait] || 0 : 0; break;
+      case 'raceai': case 'banai': case 'machinearmy': case 'sellai': w = c.merged ? 0 : tw[n] || .25; if (n === 'sellai' && !alive().some(o => o !== c && contact(c, o))) w = 0; break;
     }
     ws.push(w); tot += w;
   }
@@ -1100,6 +1109,7 @@ function migrateCiv(c) {
   c.pop *= .95;
 }
 const RUN = {
+  mergeai(c) { mergeCiv(c, 'choice'); return null; },
   raceai(c) { machNudge(c, 8); return null; },
   banai(c) { c.aiBan = W.simTime + 90; c.mach = Math.max(0, (c.mach || 0) - 15); c.mods.push({ until: W.simTime + 90, food: 0, techMul: .85, stab: 0, name: 'Machines banned' }); return null; },
   machinearmy(c) { machNudge(c, 5); c.mods.push({ until: W.simTime + 60, food: 0, techMul: 1, stab: 0, name: 'Machine army' }); for (const o of alive()) if (o !== c && contact(c, o)) { relAdd(c, o, -4); queueReaction(o, 'threat'); } return null; },
@@ -1201,7 +1211,8 @@ function applyEvent0(ev, x, opts) {
   return true;
 }
 const SPECIAL = {
-  uprising: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.era < 10) { toast('Only a people in the Information Age or later has machines that could rise.'); return false; } if (W.mw) { toast(W.mw.done ? 'The machines have already risen once in this cycle.' : 'The machines are already at war.'); return false; } if (W.care) { toast('The caretakers already run the world.'); return false; } if (alive().length >= 8) { toast('Eight peoples is the most this world holds.'); return false; } return machineRise(c, 'event'); } },
+  merge: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} are already one with their machines.`); return false; } if (c.era < 11) { toast('Only a people in the Future Age or later can merge with its machines.'); return false; } return mergeCiv(c, 'event'); } },
+  uprising: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} and their machines are one mind: there is nothing to rise.`); return false; } if (c.era < 10) { toast('Only a people in the Information Age or later has machines that could rise.'); return false; } if (W.mw) { toast(W.mw.done ? 'The machines have already risen once in this cycle.' : 'The machines are already at war.'); return false; } if (W.care) { toast('The caretakers already run the world.'); return false; } if (alive().length >= 8) { toast('Eight peoples is the most this world holds.'); return false; } return machineRise(c, 'event'); } },
   broadcast: { run() { if (!W.tb) { toast('There is no one to deter yet: start the Three-Sun Signal first.'); return false; } if (W.tb.strikeT) { toast('The coordinates are already out.'); return false; } return tbBroadcast(W.tb.deter ? civById(W.tb.deter.holder) : null); } },
   flare: { run() {
     W.flareUntil = W.simTime + 40;
@@ -1424,7 +1435,7 @@ const SMOG = [0, 0, 0, 0, 0, 0, 0, 0, .55, .5, .25, .05];
   ALIEN_FX.push({ tech: 14, culture: 8 });
 })();
 const POLICY = { exploit: { name: 'Exploit', mul: 1.5, regrow: .8, note: 'More food and faster growth, and nature pays for it' }, balance: { name: 'Balance', mul: 1, regrow: 1, note: 'Take what the land can give back' }, protect: { name: 'Protect', mul: .4, regrow: 1.6, note: 'Forests and animals recover; a little less food' } };
-const DEFPOL = { Warlike: 'exploit', Mercantile: 'exploit', Devout: 'protect', Curious: 'balance' };
+const DEFPOL = { Warlike: 'exploit', Mercantile: 'exploit', Devout: 'protect', Curious: 'balance', Merged: 'balance' };
 const cellOf = x => clamp(Math.floor(x / CELL), 0, NCELL - 1);
 function policyOf(c) { return c.tmpPol && c.tmpPol.until > W.simTime ? c.tmpPol.p : (POLICY[c.policy] ? c.policy : 'balance'); }
 function refreshCaps() {
@@ -1632,7 +1643,7 @@ function colonyTick(dt) {
     if (b.pop >= (b.body === 'mars' ? 5e7 : 1.5e7) && W.colonies.length < 5 && Math.random() < dt * .004) {
       const used = new Set(W.colonies.map(k => k.name)), usedC = new Set(W.colonies.map(k => k.color).concat(W.civs.map(o => o.color)));
       const k = { id: W.nextId++, name: COL_NAMES.find(n => !used.has(n)) || 'Colony ' + (W.colonies.length + 1), color: COL_COLORS.find(x => !usedC.has(x)) || pick(COL_COLORS),
-        trait: pick(Object.keys(TRAITS)), body: b.body, base: b.name, pop: b.pop, parent: c.id, free: false, tension: 0, war: null, era: c.era, tech: 0, born: Math.round(W.year) };
+        trait: pick(BASE_TRAITS), body: b.body, base: b.name, pop: b.pop, parent: c.id, free: false, tension: 0, war: null, era: c.era, tech: 0, born: Math.round(W.year) };
       W.colonies.push(k); W.bases.splice(W.bases.indexOf(b), 1);
       log(fillT(`The settlers of ${b.name} on ${BODY[b.body].name} no longer call themselves {civ}. A new people is born: the ${k.name}.`, names(c)), 'world');
       banner(`The ${k.name}`, `A new people on ${BODY[b.body].name}`, k.color);
@@ -1903,7 +1914,7 @@ function showEpilogue() {
   const row = (a, b) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`;
   const canRise = E.kind === 'doom' && cs.length;
   openModal(`<div class="epi-in"><p class="kind">${esc(ENDKIND[E.kind])} · ${esc(fmtYear(F.endY))}${F.cycle > 1 ? ' · ' + esc(ORD[Math.min(7, F.cycle)] || F.cycle + 'th') + ' cycle' : ''}</p><h3 id="dlgTitle">${esc(E.name)}</h3><p class="story">${esc(E.text)}</p>
-    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
+    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}${alive().some(c => c.merged) ? row('Merged with their machines', alive().filter(c => c.merged).map(c => c.name).join(', ')) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
     <div class="row"><button class="btn" type="button" data-close>Keep watching</button>${canRise ? '<button class="btn primary" type="button" id="epiRise" autofocus>Begin again from the ruins</button>' : ''}<button class="btn${canRise ? '' : ' primary'}" type="button" id="epiNew"${canRise ? '' : ' autofocus'}>New world</button></div></div>`);
   const dlg = $('#dialog'); dlg.classList.add('epi'); dlg.classList.toggle('doom', E.kind === 'doom'); dlg.classList.toggle('goal', E.kind === 'goal');
   const clean = () => { if (!dlg.classList.contains('epi')) return; dlg.classList.remove('epi', 'doom', 'goal'); if (UI.paused) togglePause(); };
@@ -1915,6 +1926,7 @@ function riseAgain() {
   const F = W.fates, cyc = F.cycle + 1, hist = F.hist;
   for (const c of alive()) if (c.machine) { c.alive = false; c.fell = Math.round(W.year); log(fillT('Without their makers’ power grids, the machines of {civ} rust where they stand.', names(c)), 'world'); }
   let nr = F.ruined || 0; if (!nr) for (const c of alive()) nr += leaveRuins(c, 5);
+  for (const c of alive()) if (c.merged) { c.merged = false; c.trait = BASE_TRAITS.includes(c.oldTrait) ? c.oldTrait : 'Curious'; c.oldTrait = null; log(fillT('With the machines gone, the {civ} wake up alone in their own heads, and remember what it was to be one mind.', names(c)), 'world'); }
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
   W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
@@ -2088,7 +2100,7 @@ function sanitizeFates(d) {
 // END-04 once heat above TIP_T degrees adds up to TIP_HOLD degree-seconds the warming feeds itself and the seas rise up to SEA_MAX
 // END-05 a lab-made plague spreads along contacts; closed borders slow it; if too few survive the cycle ends
 const RISE_WAIT = 40, RUIN_GROW = 700, TIP_T = 1.6, TIP_HOLD = 4, SEA_MAX = 34;
-const RUIN_KIND = { sky: 'tower', glass: 'tower', apart: 'tower', block: 'tower', spire: 'tower', arcology: 'tower', hab: 'tower', tv: 'tower', radio: 'tower', chimney: 'tower', vertfarm: 'tower', crystal: 'tower', mcore: 'tower', mstack: 'tower', mpylon: 'tower', mfab: 'wall',
+const RUIN_KIND = { sky: 'tower', glass: 'tower', apart: 'tower', block: 'tower', spire: 'tower', arcology: 'tower', hab: 'tower', tv: 'tower', radio: 'tower', chimney: 'tower', vertfarm: 'tower', crystal: 'tower', nnode: 'tower', nhub: 'dome', mcore: 'tower', mstack: 'tower', mpylon: 'tower', mfab: 'wall',
   cooling: 'dome', dome: 'dome', dome2: 'dome', fusion: 'dome', temple: 'dome', church: 'dome', ziggurat: 'dome', beam: 'dome', gate: 'dome', castle: 'wall', fort: 'wall', factory: 'wall', aqueduct: 'wall' };
 const RUIN_NAME = { tower: 'Rusted tower', dome: 'Broken dome', wall: 'Fallen walls', road: 'Buried highway' };
 const ruinOv = r => clamp((W.simTime - r.t0) / RUIN_GROW, 0, 1);
@@ -2256,6 +2268,7 @@ function machTick(c, dt) {
   const r = machRate(c);
   if (r > 0) machAdd(c, r * dt); else if (c.mach > 0 && c.era < 10) c.mach = Math.max(0, c.mach - .5 * dt);
   // AGI-02: as the machines grow, the question of what to do with them comes back now and then
+  if (c.merged) { c.mach = 100; return; }
   if (c.era >= 10 && (c.mach || 0) >= 15) { if (c.aiNext == null) c.aiNext = W.simTime + rand(20, 50); else if (W.simTime >= c.aiNext) { c.aiNext = W.simTime + rand(50, 90); queueReaction(c, 'ai'); } }
 }
 // AGI-03 the caretaker ending: when the Waking Machines end the world, the machines quietly take charge.
@@ -2334,6 +2347,42 @@ function sanitizeCare(d, w) {
   const era = {}; if (d.era && typeof d.era === 'object') for (const [k, v] of Object.entries(d.era)) if (/^\d+$/.test(k) && ids.has(+k)) era[k] = n(v, 0, MAXERA) | 0;
   return { t0: n(d.t0, -1e9, 1e12, w.simTime), y0: n(d.y0, -60000, 1e6, Math.round(w.year)) | 0, free: (Array.isArray(d.free) ? d.free : []).filter(id => ids.has(id)).slice(0, 40), next: n(d.next, -1e9, 1e12, w.simTime + 30), said: n(d.said, 0, 999) | 0, wars0: n(d.wars0, 0, 1e6) | 0, forest0: n(d.forest0, 0, 1), era };
 }
+// AGI-05 the merge: during The Waking Machines, a people whose machines run almost everything (meter MERGE_MIN+, Future Age on) may answer AI pressure by joining minds with them.
+// Its character becomes Merged (see TRAITS): faster progress, fewer births (MERGE_BIRTHS), calmer and rarely at war. No more AI pressure, and its machines can never rise.
+// It looks different: people with glowing implants, neural towers and hubs among its buildings, linked by light at night.
+const MERGE_MIN = 85, MERGE_BIRTHS = .5, MERGE_W = { Curious: 3, Mercantile: 2, Warlike: 1, Devout: 0 };
+const canMerge = c => !!(c && c.alive && !c.merged && !c.machine && c.era >= 11 && (c.mach || 0) >= MERGE_MIN && !((c.aiBan || 0) > W.simTime) && W.fates.active.some(a => a.id === 'agi'));
+function mergeCiv(c, why) {
+  if (!c || !c.alive || c.merged || c.machine) return false;
+  c.oldTrait = BASE_TRAITS.includes(c.trait) ? c.trait : 'Curious'; c.trait = 'Merged'; c.merged = true; c.mach = 100; c.machSaid = MACH_SAY.length; c.aiNext = null;
+  c.stability = Math.min(100, c.stability + 12); c.culture = Math.min(100, c.culture + 8);
+  if (why !== 'choice') log(fillT('{Civ} wire their minds to their machines. Where the people end and the machines begin, no one can say any more.', names(c)), 'world');
+  log(fillT(`Once ${c.oldTrait.toLowerCase()}, {civ} now think as one mind with their machines. Their children are fewer, their cities hum with light, and their old quarrels seem very small.`, names(c)), 'world');
+  banner(`The ${c.name} merge`, 'One mind with their machines', '#8ff0ff');
+  floater(c.x, 'merged', '#8ff0ff', true); c._.sig = null; buildCivCards(true);
+  return true;
+}
+// a neural city: the age's own buildings (no fields: the machines grow the food) with neural towers and hubs among them
+const NPLANS = {};
+function neuralPlan(era) {
+  if (NPLANS[era]) return NPLANS[era];
+  const base = PLAN[era].fill.filter(t => t !== 'field');
+  return NPLANS[era] = { mark: 'nhub', fill: ['nnode', 'nnode', 'nnode', 'nhub', ...base] };
+}
+function drawNeural(o) {
+  for (const c of V.alive) {
+    if (!c.merged || !c._.items) continue;
+    const ns = c._.items.filter(b => b.t === 'nnode' || b.t === 'nhub').map(b => [b.x + b.w / 2, b.t === 'nnode' ? b.base - b.h : b.base - b.h * .45]).sort((a, b) => a[0] - b[0]);
+    o.lineWidth = 1;
+    for (let i = 0; i < ns.length - 1; i++) {
+      const [x1, y1] = ns[i], [x2, y2] = ns[i + 1]; if (x2 - x1 > 260) continue;
+      const mx = (x1 + x2) / 2, my = Math.min(y1, y2) - 22 - (x2 - x1) * .12;
+      o.strokeStyle = `rgba(90,240,255,${(.16 + .2 * V.N).toFixed(3)})`; o.beginPath(); o.moveTo(x1, y1); o.quadraticCurveTo(mx, my, x2, y2); o.stroke();
+      const t = (V.t * .5 + i * .37) % 1, px = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * mx + t * t * x2, py = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * my + t * t * y2;
+      o.fillStyle = 'rgba(200,252,255,.9)'; o.beginPath(); o.arc(px, py, 1.3, 0, 6.2832); o.fill();
+    }
+  }
+}
 // AGI-04 the war against the machines: during The Waking Machines, the machines of a people with a meter of MW_MIN+ can break away and become a people of their own.
 // The machine people has no births (it builds units in factories, faster on wider land), needs no food, makes no choices and never makes peace.
 // It fights the humans for land; the humans set their own wars aside. Share = the machines' part of the land held on their own continent (they cannot cross the sea to settle).
@@ -2344,7 +2393,7 @@ const MW_TRAIT = { Warlike: 2.5, Mercantile: 1, Curious: .8, Devout: .5 }, MW_NA
 const MW_WON = 'The war against the machines is won. The peoples bury their dead, tear out the last machine cores, and swear they will never again let a machine think for them.';
 const mwRateOf = c => MW_RATE * (MW_TRAIT[c.trait] || 1) * (c.mods.some(m => m.name === 'Machine army' && m.until > W.simTime) ? 2 : 1) * (c.stability < 35 ? 2 : 1);
 function machineRise(p, why) {
-  if (!p || !p.alive || p.machine || W.mw || W.care || alive().length >= 8) return false;
+  if (!p || !p.alive || p.machine || p.merged || W.mw || W.care || alive().length >= 8) return false;
   const L = landOf(p.x), half = Math.max(80, (p.r - p.l) / 2), side = (p.r - p.x) >= (p.x - p.l) ? 1 : -1;
   const mx = clamp(p.x + side * Math.max(180, half * .9), L.l + 90, L.r - 90);
   const used = new Set(W.civs.map(c => c.name));
@@ -2378,7 +2427,7 @@ function mwTick(dt) {
   const F = W.fates;
   if (!W.mw) {
     if (W.care || F.ended || !F.active.some(a => a.id === 'agi') || alive().length >= 8) return;
-    for (const c of alive()) if (!c.machine && c.era >= 10 && (c.mach || 0) >= MW_MIN && Math.random() < mwRateOf(c) * dt) { machineRise(c, 'pressure'); return; }
+    for (const c of alive()) if (!c.machine && !c.merged && c.era >= 10 && (c.mach || 0) >= MW_MIN && Math.random() < mwRateOf(c) * dt) { machineRise(c, 'pressure'); return; }
     return;
   }
   const M = W.mw; if (M.done) return;
@@ -2507,6 +2556,7 @@ function crisisChips(c) {
   if (c._.drown > .02) out.push(`<span class="chip missing">Coasts drowned ${Math.round(c._.drown * 100)}%</span>`);
   if (c._.scav) out.push('<span class="chip own">Scavenging ruins</span>');
   if (c.machine) out.push('<span class="chip war">Machine people</span>');
+  if (c.merged) out.push(`<span class="chip merged">Merged${c.oldTrait ? ' (once ' + esc(c.oldTrait) + ')' : ''}</span>`);
   if (W.care && c.alive) out.push(careOf(c) ? '<span class="chip green">In the machines’ care</span>' : '<span class="chip mod">Outside the machines’ care</span>');
   return out;
 }
@@ -2564,13 +2614,13 @@ const hasRes = (c, t) => W.elements.some(e => e.type === t && e.x >= c.l && e.x 
 function coastSide(c) { const L = landOf(c.x); return (c.l <= L.l + 220 ? 1 : 0) + (c.r >= L.r - 220 ? 2 : 0); }
 function ensureLayout(c) {
   const tier = tierOf(c), st = sitesOf(c);
-  const sig = `${c.machine ? 'M' : ''}${c.era}|${tier}|${st.join(',')}|${Math.round(c.l / 90)}|${Math.round(c.r / 90)}|${V.tver}|${hasRes(c, 'uranium')}|${coastSide(c)}`;
+  const sig = `${c.machine ? 'M' : c.merged ? 'N' : ''}${c.era}|${tier}|${st.join(',')}|${Math.round(c.l / 90)}|${Math.round(c.r / 90)}|${V.tver}|${hasRes(c, 'uranium')}|${coastSide(c)}`;
   if (c._.sig === sig) return;
   c._.sig = sig;
   buildLayout(c, tier, st);
 }
 function buildLayout(c, tier, st) {
-  const items = [], plan = c.machine ? MPLAN : PLAN[c.era], hasU = hasRes(c, 'uranium'), sea = seaY();
+  const items = [], plan = c.machine ? MPLAN : c.merged ? neuralPlan(c.era) : PLAN[c.era], hasU = hasRes(c, 'uranium'), sea = seaY();
   let capTop = gy(c.x) - 30;
   st.forEach((sx, k) => {
     const rng = mulberry32((c.seed + k * 977 + c.era * 131 + tier * 17) >>> 0);
@@ -2720,6 +2770,12 @@ const DRAW = {
   clock(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .85, w, h * .85, '#b5a88f'); P([x - 1, y - h * .85, x + w / 2, y - h, x + w + 1, y - h * .85], '#4f5a52'); Ci(x + w / 2, y - h * .7, 3, '#efe8d6'); Ln(x + w / 2, y - h * .7, x + w / 2, y - h * .7 - 2.4, '#222', .8); Ln(x + w / 2, y - h * .7, x + w / 2 + 2, y - h * .7, '#222', .8); win(b, x + w / 2 - 1.5, y - h * .45, 3, 5, 0, LIT[5]); },
   dome(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .45, w, h * .45, '#d3c6ad'); R(x + w * .2, y - h * .6, w * .6, h * .15, '#c7b99e'); El(x + w / 2, y - h * .6, w * .3, h * .3, '#6fa595', Math.PI, 6.2832); R(x + w / 2 - 2, y - h, 4, h * .1, '#c7b99e'); for (let i = 0; i < 5; i++) R(x + 4 + i * ((w - 10) / 4), y - h * .4, 2, h * .4 - 3, '#e6dcc6'); let i = 0; for (let xx = x + w * .25; xx < x + w * .75; xx += 6) win(b, xx, y - h * .55, 3, 5, i++, LIT[5]); },
   row(b) { const { x, w, h } = b, y = b.base; R(x, y - h, w, h, '#8e4532'); for (let xx = x + 4; xx < x + w - 2; xx += 10) R(xx, y - h - 4, 3, 4, '#6f3627'); let i = 0; for (let yy = y - h + 4; yy < y - 7; yy += 7) for (let xx = x + 2; xx < x + w - 3; xx += 6) win(b, xx, yy, 3, 4, i++, LIT[6]); },
+  nnode(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; P([x, y, cx - 1.5, y - h, cx + 1.5, y - h, x + w, y], '#1f3a44'); P([cx, y, cx, y - h, cx + 1.5, y - h, x + w, y], '#28495a');
+    const pu = .55 + .45 * Math.sin(V.t * 2 + b.s); Ln(cx, y - 4, cx, y - h + 4, `rgba(100,240,255,${(.35 + .4 * pu).toFixed(2)})`, 1);
+    for (let k = 1; k < 5; k++) { const yy = y - h * k / 5; Ci(cx, yy, 1.4, '#7ff6ff'); GL.push({ x: cx, y: yy, r: 5, c: '90,240,255', a: .35 * pu }); } Ci(cx, y - h, 2.2, '#c8fbff'); GL.push({ x: cx, y: y - h, r: 12, c: '90,240,255', a: .55 * pu }); },
+  nhub(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; El(cx, y, w / 2, h, '#24414d', Math.PI, 2 * Math.PI); g.strokeStyle = 'rgba(110,235,255,.55)'; g.lineWidth = .8;
+    for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(cx + k * w / 6, y); g.quadraticCurveTo(cx + k * w / 12, y - h * 1.1, cx, y - h); g.stroke(); }
+    const pu = .5 + .5 * Math.sin(V.t * 1.7 + b.s); Ci(cx, y - h * .45, 3, '#9ff8ff'); GL.push({ x: cx, y: y - h * .45, r: 16, c: '90,240,255', a: .5 * pu }); },
   mcore(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; P([x, y, x + w * .26, y - h, x + w * .74, y - h, x + w, y], '#2c3036'); P([x + w * .5, y, x + w * .5, y - h, x + w * .74, y - h, x + w, y], '#363b42');
     for (let k = 1; k < 6; k++) R(x + w * .18 + k * .4, y - h * k / 6, w * .64 - k * .8, 1, '#4a5058'); const ey = y - h * .82, pu = .6 + .4 * Math.sin(V.t * 1.6 + b.s); Ci(cx, ey, 3.2, '#ff5a4a'); GL.push({ x: cx, y: ey, r: 18, c: '255,80,70', a: .55 * pu }); R(cx - .7, y - h * .7, 1.4, h * .62, 'rgba(255,90,74,.55)'); },
   mfab(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .62, w, h * .62, '#454b52'); const n = Math.max(3, Math.floor(w / 10)), tw = w / n; for (let i = 0; i < n; i++) P([x + i * tw, y - h * .62, x + i * tw, y - h, x + (i + 1) * tw, y - h * .62], '#5a6168');
@@ -2796,6 +2852,7 @@ function drawAgent(a, c) {
   const era = c.era, y = gy(a.x);
   if (a.kind === 'drone') { const yy = y - a.alt - Math.sin(V.t * 2.2 + a.ph) * 3; P([a.x - 5, yy, a.x, yy - 2.5, a.x + 5, yy, a.x, yy + 2], '#3a3f46'); Ln(a.x - 7, yy - 2, a.x + 7, yy - 2, '#5d646c', 1); Ci(a.x, yy, 1.1, '#ff5a4a'); GL.push({ x: a.x, y: yy, r: 5, c: '255,80,70', a: .5 }); return; }
   if (a.kind === 'bot') { const s = Math.sin(a.ph) * 2; Ln(a.x - 1.5, y - 4, a.x - 1.5 + s, y, '#2e3238', 1.4); Ln(a.x + 1.5, y - 4, a.x + 1.5 - s, y, '#2e3238', 1.4); R(a.x - 2.6, y - 10, 5.2, 6, '#5a6068'); R(a.x - 2, y - 13.4, 4, 3.2, '#454a51'); R(a.x - 1 + a.dir * .6, y - 12.4, 2, 1, '#ff5a4a'); return; }
+  if (a.kind === 'walk' && c.merged) { drawPerson(a, era, '#d6eef4', null); const yy = y - 11; Ci(a.x + a.dir * .9, yy, .8, '#6ff3ff'); GL.push({ x: a.x, y: yy, r: 4, c: '90,240,255', a: .55 }); return; }
   if (a.kind === 'walk') { drawPerson(a, era, null, era === 0 && a.spear ? 'spear' : null); return; }
   if (a.kind === 'cart') { const d = a.dir; El(a.x + d * 9, y - 4, 5, 3, '#6b5038'); for (const lx of [-3, 3]) R(a.x + d * 9 + lx, y - 2, 1, 2, '#6b5038'); R(a.x - 6, y - 7, 11, 4, '#8a6a48'); Ci(a.x - 1, y - 2, 2.2, '#4a3424'); return; }
   if (a.kind === 'rider') { const d = a.dir; El(a.x, y - 5, 6, 2.8, '#5a3e28'); El(a.x + d * 6, y - 8, 2.2, 1.8, '#5a3e28'); const s = Math.sin(a.ph) * 2; Ln(a.x - 4, y - 3, a.x - 4 + s, y, '#5a3e28', 1); Ln(a.x + 4, y - 3, a.x + 4 - s, y, '#5a3e28', 1); R(a.x - 1.5, y - 13, 3, 5, a.cl); Ci(a.x, y - 14.5, 1.6, a.sk); return; }
@@ -3190,6 +3247,7 @@ function drawLights(o) {
   o.globalCompositeOperation = 'lighter';
   for (const q of GL) { const gr = o.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r); gr.addColorStop(0, `rgba(${q.c},${q.a})`); gr.addColorStop(1, `rgba(${q.c},0)`); o.fillStyle = gr; o.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2); }
   if (W.care) drawCaretakers(o);
+  drawNeural(o);
   for (const p of V.P) { if (!p.gl) continue; const a = p.a * (p.life / p.max); o.fillStyle = rgb(p.c, a); o.beginPath(); o.arc(p.x, p.y, p.r, 0, 6.2832); o.fill(); }
   for (const f of V.flashes) { const age = (V.t - f.t0) / f.dur; if (age < 0 || age > 1) continue; const r = f.r * (.4 + age), gr = o.createRadialGradient(f.x, f.y, 0, f.x, f.y, r); gr.addColorStop(0, `rgba(255,240,200,${1 - age})`); gr.addColorStop(1, 'rgba(255,140,60,0)'); o.fillStyle = gr; o.fillRect(f.x - r, f.y - r, r * 2, r * 2); }
   for (const n of V.nukes) { const age = V.t - n.t0; if (age < 0 || age > 3) continue; const r = 40 + age * 70, gyv = gy(n.x), gr = o.createRadialGradient(n.x, gyv - 30, 0, n.x, gyv - 30, r); gr.addColorStop(0, `rgba(255,250,230,${Math.max(0, 1 - age / 3)})`); gr.addColorStop(1, 'rgba(255,120,40,0)'); o.fillStyle = gr; o.fillRect(n.x - r, gyv - 30 - r, r * 2, r * 2); }
@@ -3830,6 +3888,7 @@ const EVINFO = {
   plague: 'Disease kills many and spreads to trading partners. Later ages fight it far better.',
   supervolcano: 'A world-scale eruption. The land around it is buried and a volcanic winter hides the Sun for years. If humanity falls below 30% of its size, the world collapses and begins again. Happens on its own very rarely where there is a Volcano.',
   asteroid: 'A rock kilometres across is found on a collision course, with a countdown. Peoples with space technology (from the Future Age) launch missions to push it aside: earlier tries, more advanced and Curious peoples and space bases do better; a failed try can still chip it smaller. Happens on its own very rarely once someone has telescopes (the Modern Age). If it strikes: a huge crater, fire and an impact winter that can end the world.',
+  merge: 'The people you click wire their minds to their machines and become one. Their character becomes Merged: progress ×1.4, fewer births, calmer, rarely warlike, and they no longer face the question of what to do with their machines. Their machines can never rise against them. Their people get glowing implants and their cities grow neural towers and hubs linked by light. Needs the Future Age. Happens on its own during The Waking Machines, as an answer to AI pressure, for peoples whose machines run almost everything (meter 85+): most often Curious ones, sometimes Mercantile. Warlike peoples rarely let their machines get that far, and Devout peoples never choose it.',
   uprising: 'The thinking machines of the people you click stop taking orders and become a people of their own: no births, factories instead of farms, drones instead of armies. They take part of the land and fight every human people for the rest; the humans set their own wars aside. Needs the Information Age. Once per cycle. Happens on its own during The Waking Machines, most often among Warlike peoples with machine armies. The machines win by taking most of their continent or overrunning two peoples (The Iron Dominion); the humans win by destroying them, or by cutting their power if the war drags on and the machines hold less than half their continent.',
   bioplague: 'A virus made in a laboratory escapes. It spreads along every contact between peoples and kills far more than any natural plague. Peoples that close their borders fare better. If too few people survive, the world collapses and begins again.',
   wildfire: 'Fire races through forests and farms. Thick forests in a warm world burn more often.',
@@ -3991,7 +4050,7 @@ function buildCivCards(force) {
   const sig = W.civs.map(c => c.id + (c.alive ? 'a' : 'd')).join(',');
   if (!force && sig === V.cardSig) return; V.cardSig = sig;
   const list = [...W.civs].sort((a, b) => (b.alive - a.alive) || (a.x - b.x));
-  const traitOpts = c => Object.keys(TRAITS).map(t => `<option value="${t}"${t === c.trait ? ' selected' : ''}>${t}</option>`).join('');
+  const traitOpts = c => [...BASE_TRAITS, ...(c.merged ? ['Merged'] : [])].map(t => `<option value="${t}"${t === c.trait ? ' selected' : ''}>${t}</option>`).join('');
   const stat = (k, label) => `<dt>${label}</dt><dd class="bar"><i data-f="${k}b"></i></dd><dd class="v" data-f="${k}"></dd>`;
   $('#civs').innerHTML = list.map(c => c.alive ? `<article class="civ${UI.sel === c.id ? ' sel' : ''}" data-id="${c.id}" style="--c:${c.color}">
     <header><input class="cn" id="cn-${c.id}" value="${esc(c.name)}" maxlength="20" aria-label="Name of this people"><select id="ct-${c.id}" aria-label="Character of the ${esc(c.name)}">${traitOpts(c)}</select></header>
@@ -4020,7 +4079,7 @@ function updateCivCards() {
     const c = civById(+card.dataset.id); if (!c || !c.alive) continue;
     const f = k => card.querySelector(`[data-f="${k}"]`);
     f('era').textContent = ERAS[c.era].name;
-    f('govt').textContent = c.machine ? 'Machine mind · No births · Energy ' + fmtK(energyOf(c)) : GOVT[c.era][c.govt] + ' · ' + (TRAITS[c.trait] || {}).note + ' · Energy ' + fmtK(energyOf(c));
+    f('govt').textContent = c.machine ? 'Machine mind · No births · Energy ' + fmtK(energyOf(c)) : c.merged ? 'Neural Commonwealth · One mind with its machines · Energy ' + fmtK(energyOf(c)) : GOVT[c.era][c.govt] + ' · ' + (TRAITS[c.trait] || {}).note + ' · Energy ' + fmtK(energyOf(c));
     f('prog').style.width = (c.era === MAXERA ? 100 : c.tech).toFixed(1) + '%';
     let nx;
     if (c.machine) nx = 'Builds drones instead of children and factories instead of farms.';
@@ -4318,7 +4377,7 @@ function sanitizeWorld(d) {
   w.year = n(d.year, -60000, 1e6, ERAS[0].start); w.nextId = n(d.nextId, 1, 1e9, 1) | 0; w.tempShift = clamp(w.tempShift, -12, 12); w.pollution = clamp(w.pollution, 0, 100); w.topEra = clamp(w.topEra | 0, 0, MAXERA); w.thresholdNoted = !!d.thresholdNoted;
   w.elements = (Array.isArray(d.elements) ? d.elements : []).filter(e => e && (ELEMENTS[e.type] || (typeof e.type === 'string' && /^c:[\w]+$/.test(e.type)))).slice(0, 160).map(e => ({ id: n(e.id, 0, 1e9) | 0, type: e.type, x: n(e.x, 0, WORLD_W) }));
   w.craters = (Array.isArray(d.craters) ? d.craters : []).slice(0, 12).map(c => ({ x: n(c.x, 0, WORLD_W), r: n(c.r, 10, 120, 70), d: n(c.d, 0, 60, 34) }));
-  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, mach: n(c.mach, 0, 100), machSaid: n(c.machSaid, 0, MACH_SAY.length) | 0, aiBan: n(c.aiBan, 0, 1e12), machine: !!c.machine, mParent: c.mParent == null ? null : n(c.mParent, 0, 1e9) | 0, _: {} }));
+  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, mach: n(c.mach, 0, 100), machSaid: n(c.machSaid, 0, MACH_SAY.length) | 0, aiBan: n(c.aiBan, 0, 1e12), merged: c.trait === 'Merged' || (!!c.merged && TRAITS[c.trait] != null && c.trait === 'Merged'), oldTrait: BASE_TRAITS.includes(c.oldTrait) ? c.oldTrait : null, machine: !!c.machine, mParent: c.mParent == null ? null : n(c.mParent, 0, 1e9) | 0, _: {} }));
   const ids = new Set(w.civs.map(c => c.id));
   w.wars = (Array.isArray(d.wars) ? d.wars : []).filter(x => x && ids.has(x.a) && ids.has(x.b)).map(x => ({ a: x.a, b: x.b, t: n(x.t, 0, 1e9), adv: n(x.adv, -20, 20) }));
   w.rel = {}; for (const [k, v] of Object.entries(d.rel || {})) if (/^\d+-\d+$/.test(k)) w.rel[k] = n(v, -100, 100);
@@ -4401,7 +4460,7 @@ function eraseNear(x) {
   const ci = W.craters.findIndex(c => Math.abs(c.x - x) < c.r); if (ci >= 0) { W.craters.splice(ci, 1); recomputeTerrain(); log('A crater is filled in.', 'world'); return; }
   toast('Nothing to remove here.');
 }
-const BNAME = { tent: 'Hide tent', fire: 'Campfire', rack: 'Drying rack', totem: 'Totem pole', hut: 'Hut', granary: 'Granary', field: 'Field', pen: 'Animal pen', henge: 'Stone circle', kiln: 'Kiln', temple0: 'Shrine', mud: 'Mud-brick house', mud2: 'Mud-brick house', wall: 'Town wall', ziggurat: 'Ziggurat', roundhouse: 'Roundhouse', forge: 'Forge', fort: 'Hill fort', villa: 'Villa', insula: 'Apartment block', aqueduct: 'Aqueduct', temple: 'Temple', timber: 'Timber house', church: 'Church', windmill: 'Windmill', castle: 'Castle', town: 'Town house', clock: 'Clock tower', dome: 'Domed cathedral', row: 'Row houses', factory: 'Factory', chimney: 'Mill chimney', station: 'Railway station', apart: 'Apartment block', hangar: 'Hangar', radio: 'Radio mast', block: 'Office block', house: 'House', cooling: 'Power station', tv: 'TV tower', rocket: 'Rocket', sky: 'Skyscraper', glass: 'Glass tower', dc: 'Data centre', wind: 'Wind turbine', solar: 'Solar farm', cell: 'Phone mast', arcology: 'Arcology', spire: 'Spire', vertfarm: 'Vertical farm', fusion: 'Fusion plant', dome2: 'Habitat dome', pad: 'Launch pad', tether: 'Space elevator', hab: 'Habitat tower', massdriver: 'Mass driver', beam: 'Power receiver', dish: 'Deep-space dish', gate: 'Star gate', crystal: 'Crystal spire', grove: 'Garden grove', mcore: 'Machine core', mfab: 'Drone factory', mstack: 'Exhaust stack', mpylon: 'Relay pylon' };
+const BNAME = { tent: 'Hide tent', fire: 'Campfire', rack: 'Drying rack', totem: 'Totem pole', hut: 'Hut', granary: 'Granary', field: 'Field', pen: 'Animal pen', henge: 'Stone circle', kiln: 'Kiln', temple0: 'Shrine', mud: 'Mud-brick house', mud2: 'Mud-brick house', wall: 'Town wall', ziggurat: 'Ziggurat', roundhouse: 'Roundhouse', forge: 'Forge', fort: 'Hill fort', villa: 'Villa', insula: 'Apartment block', aqueduct: 'Aqueduct', temple: 'Temple', timber: 'Timber house', church: 'Church', windmill: 'Windmill', castle: 'Castle', town: 'Town house', clock: 'Clock tower', dome: 'Domed cathedral', row: 'Row houses', factory: 'Factory', chimney: 'Mill chimney', station: 'Railway station', apart: 'Apartment block', hangar: 'Hangar', radio: 'Radio mast', block: 'Office block', house: 'House', cooling: 'Power station', tv: 'TV tower', rocket: 'Rocket', sky: 'Skyscraper', glass: 'Glass tower', dc: 'Data centre', wind: 'Wind turbine', solar: 'Solar farm', cell: 'Phone mast', arcology: 'Arcology', spire: 'Spire', vertfarm: 'Vertical farm', fusion: 'Fusion plant', dome2: 'Habitat dome', pad: 'Launch pad', tether: 'Space elevator', hab: 'Habitat tower', massdriver: 'Mass driver', beam: 'Power receiver', dish: 'Deep-space dish', gate: 'Star gate', crystal: 'Crystal spire', grove: 'Garden grove', nnode: 'Neural tower', nhub: 'Neural hub', mcore: 'Machine core', mfab: 'Drone factory', mstack: 'Exhaust stack', mpylon: 'Relay pylon' };
 const BKIND = { home: 'tent hut mud mud2 roundhouse villa insula timber town row apart house hab', food: 'rack granary field pen vertfarm grove', faith: 'totem henge temple0 ziggurat temple church dome', defence: 'wall fort castle', work: 'fire kiln forge windmill factory chimney hangar block sky glass arcology spire', power: 'cooling wind solar fusion beam', links: 'aqueduct clock station radio tv cell dc dish', space: 'rocket pad tether massdriver gate crystal dome2' };
 const BKIND_TXT = { home: 'Homes', food: 'Food', faith: 'Faith and gathering', defence: 'Defence', work: 'Work and industry', power: 'Power', links: 'Transport and communication', space: 'Space and the far future' };
 const bkindOf = t => Object.keys(BKIND).find(k => BKIND[k].split(' ').includes(t)) || 'work';
@@ -4649,7 +4708,7 @@ function initDOM() {
     const card = e.target.closest('.civ[data-id]'); if (!card) return; const c = civById(+card.dataset.id); if (!c) return;
     if (e.target.classList.contains('cn')) { const v = e.target.value.trim().slice(0, 20); if (v && v !== c.name) { const old = c.name; c.name = v; log(`The ${esc(old)} now call themselves ${nm(c)}.`, 'world'); } else e.target.value = c.name; }
     else if (e.target.classList.contains('lusel') && POLICY[e.target.value]) { c.policy = e.target.value; c.tmpPol = null; log(fillT({ exploit: '{Civ} decide to exploit their land to the full.', balance: '{Civ} decide to take only what their land can give back.', protect: '{Civ} decide to protect their forests and wild animals.' }[c.policy], names(c)), 'nature'); }
-    else if (e.target.tagName === 'SELECT' && TRAITS[e.target.value]) { c.trait = e.target.value; log(fillT(`{Civ} grow ${c.trait.toLowerCase()}. ${TRAITS[c.trait].note}.`, names(c)), 'world'); }
+    else if (e.target.tagName === 'SELECT' && TRAITS[e.target.value]) { if (c.merged && e.target.value !== 'Merged') { c.merged = false; c.oldTrait = null; } c.trait = e.target.value; log(fillT(`{Civ} grow ${c.trait.toLowerCase()}. ${TRAITS[c.trait].note}.`, names(c)), 'world'); }
   });
   cb.addEventListener('click', e => { const b = e.target.closest('[data-act="focus"]'); if (!b) return; const c = civById(+b.closest('.civ').dataset.id); if (c) { V.camY = null; V.gdy = 0; let t = c.x - V.vw / 2; if (V.b) t += Math.round((V.cam - t) / WORLD_W) * WORLD_W; V.camTarget = t; selectCiv(c.id); } });
   $('#filters').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (!b) return; $$('#filters [data-filter]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); $('#log').dataset.filter = b.dataset.filter; });
@@ -4694,7 +4753,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

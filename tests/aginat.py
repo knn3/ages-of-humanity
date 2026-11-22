@@ -1,5 +1,6 @@
 # "Real data" runs for the AGI takeover epic: natural worlds (nothing forced) run for SECONDS of sim time,
 # tracking machine autonomy per people, when it crosses 30/60/90, and whether the Waking Machines start and end the world.
+# AGI-05: records each merge (when, the old character, age, how it ended up).
 # AGI-04: records each machine uprising (when, whose machines, outcome, how long, peoples overrun, largest share of land).
 # AGI-03: after the takeover the world runs on for CARE seconds (env CARE, default 400) to see the caretakers at work.
 # usage: python aginat.py [N=12] [SECONDS=3000]   (GAME=/path/to/index.html to run another build)
@@ -14,13 +15,14 @@ SEC = float(sys.argv[2]) if len(sys.argv) > 2 else 3000
 CARE = float(os.environ.get('CARE', 400))
 RUN = r'''([seed, sec, care]) => { const A = window.__aoh; A.newWorld(seed); const W = () => A.W, has = !!A.machAdd;
   const o = { maxMach: 0, avgAtEdge: null, cross: {}, aiEvents: 0, fates: [], endings: [], cycles: 1, byTrait: {}, saidLines: 0, answers: {}, wars: 0, endMach: {} };
-  let ended = null, nh = 0, top = null, nw = 0, mwRec = null; o.mw = [];
+  let ended = null, nh = 0, top = null, nw = 0, mwRec = null; o.mw = []; o.merges = []; const mseen = new Set();
   const ANS = [['race', /smarter machines|race on, giving/], ['ban', /ban thinking machines|renew the ban/], ['army', /drones and robot soldiers|swarms of drones/], ['sell', /sell their thinking machines|new generation of machines/]];
   for (let i = 0; i < sec * 10; i++) { A.step(0.1); const w = W();
     for (const e of w.chron) { if (e === top) break; for (const [k, re] of ANS) if (re.test(e.h)) { let c = null, bi = 1e9; for (const x of w.civs) { const j = e.h.indexOf(x.name); if (j >= 0 && j < bi) { bi = j; c = x; } } const key = k + ':' + (c ? c.trait.slice(0, 3) : '?'); o.answers[key] = (o.answers[key] || 0) + 1; } } top = w.chron[0];
     if (w.wars.length > nw) o.wars += w.wars.length - nw; nw = w.wars.length;
     if (w.mw && !mwRec) { const p = w.civs.find(c => c.id === w.mw.parent); mwRec = { t: Math.round(w.simTime), trait: p ? p.trait.slice(0, 3) : '?', era: p ? p.era : null, why: w.mw.why, maxShare: 0, out: null }; o.mw.push(mwRec); }
     if (mwRec && w.mw) { mwRec.maxShare = Math.max(mwRec.maxShare, w.mw.share || 0); if (w.mw.done && !mwRec.out) { mwRec.out = w.mw.done; mwRec.dur = Math.round(w.simTime - w.mw.t0); mwRec.kills = w.mw.kills || 0; } }
+    if (i % 10 === 0) for (const c of w.civs) if (c.alive && c.merged && !mseen.has(c.id + ':' + w.fates.cycle)) { mseen.add(c.id + ':' + w.fates.cycle); o.merges.push({ t: Math.round(w.simTime), was: (c.oldTrait || '?').slice(0, 3), era: c.era, agi: w.fates.active.some(a => a.id === 'agi') }); }
     if (mwRec && !w.mw) { if (!mwRec.out) mwRec.out = 'fell with the world'; mwRec = null; }
     if (has && i % 10 === 0) for (const c of w.civs) if (c.alive) { o.maxMach = Math.max(o.maxMach, c.mach || 0);
       for (const t of [30, 60, 90]) if ((c.mach || 0) >= t && o.cross[t] == null) o.cross[t] = { t: Math.round(w.simTime), era: c.era, trait: c.trait };
@@ -76,6 +78,9 @@ async def main():
     print('endings:', ends, '| save ok', sum(1 for _, o in out if o['saveOk'] is True))
     cw = [(s, o['care']) for s, o in out if o.get('care')]
     for s, q in cw: print(f'  caretakers seed {s}:', json.dumps(q))
+    mg = [(s, m) for s, o in out for m in o.get('merges', [])]
+    if mg: print(f"merges {len(mg)} in {len(set(s for s, _ in mg))} worlds | old characters {dict((k, [m['was'] for _, m in mg].count(k)) for k in sorted(set(m['was'] for _, m in mg)))} | ages {sorted(m['era'] for _, m in mg)} | during the Waking Machines {sum(1 for _, m in mg if m['agi'])} | first at {sorted(m['t'] for _, m in mg)[:12]}")
+    else: print('merges 0')
     ups = [(s, u) for s, o in out for u in o.get('mw', [])]
     for s, u in ups: print(f'  uprising seed {s}:', json.dumps(u))
     if ups:

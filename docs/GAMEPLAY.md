@@ -42,7 +42,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03), war against the machines and The Iron Dominion (AGI-04); rest of the AGI epic to come |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03), war against the machines and The Iron Dominion (AGI-04), the merge (AGI-05); grey spread (AGI-06) to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -141,3 +141,16 @@ Real data (36 natural worlds, 3,000 s):
 - Endings: Iron Dominion 3, caretakers 4.
 
 The first versions never let the machines win. Share was counted across all four continents, so it never passed 0.18. Warlike peoples could never rise: their meter is capped at 78, below the first threshold of 80. Each human that joined the war counted as a separate war, which pushed Collapse to end the world in 6 of 12 wars.
+
+## The merge (AGI-05)
+
+During The Waking Machines, a people in the Future Age or later whose meter is 85+ (and with no ban in force) can answer AI pressure by merging with its machines (`mergeai`). The weights are Curious 3, Mercantile 2, Warlike 1 and Devout 0; Warlike peoples cap at 78, so they only get there after an AI Awakening. The player can also click **Merge with the Machines** (Modern events, Future Age on).
+
+- **Character:** it becomes **Merged**, a fifth character that no people is born with (`BASE_TRAITS` holds the four birth characters). Its old one is kept (`c.oldTrait`). Merged means progress ×1.4, half the births, stability +8, culture +12 and military +8. It answers stress calmly: innovate, trade, reform, conserve, ally, appease. It faces no more AI pressure, and its machines can never rise (no uprising, and the event refuses). It keeps its land policy.
+- **Looks:** people in pale suits with glowing cyan implants. Neural towers (glowing spines and nodes) and neural hubs (lattice domes) appear among the age's own buildings. The hub is the centrepiece and there are no fields. At night the towers are linked by arcs of light with pulses running along them.
+- **UI:** a "Merged (once Curious)" chip, "Neural Commonwealth · One mind with its machines" on the card, and "Merged" in the character menu (switching to another character unmerges). The epilogue lists the merged peoples.
+- **A new cycle:** merged peoples wake up alone and get their old character back.
+
+Real data (36 natural worlds, 3,000 s, final tuning): 21 merges in 18 worlds (19 Curious, 2 Mercantile), all during The Waking Machines, in the Future to Galactic Ages. Uprisings: 11 (the machines won 1, the humans 7). Other futures and wars stayed within the noise.
+
+The first version allowed merging at any time and set the 'protect' land policy. That gave 45 merges in 31 of 36 worlds, and Garden futures tripled (8 to 24, with 9 Garden endings). Merging was then limited to The Waking Machines, peoples keep their policy, and the Curious weight went from 5 to 3. Taking Curious peoples out of the uprisings lowers how often the machines win (3 of 12 before AGI-05, 0–1 after); this is a point for the FND-08 balance pass.
