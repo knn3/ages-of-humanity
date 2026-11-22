@@ -14,6 +14,7 @@ Guide for any AI agent (or person) picking up this project. Read this first, the
 
 | What | Where |
 |---|---|
+| Source repo (GitHub, private) | https://github.com/knn3/ages-of-humanity — branch `main` |
 | Game (live, private to the owner) | https://claude.ai/artifact/GFVdMcCoxYPrnCGJKF9ihw — artifact slug `7b7f2273-f157-4b5c-be02-fa01dc003a2a` |
 | Ticket tracker (live Claude Sheet) | https://claude.ai/artifact/PgA5BkivNH23ZXc4Ezp73S — slug `b7a0a602-065d-4887-b6d5-d498c12aaead`, workbook node `521317ae-02b8` |
 | Offline tickets | `tickets/tickets.xlsx` (Tickets + Epics sheets), `tickets/tickets.csv` |
