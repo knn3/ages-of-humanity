@@ -772,7 +772,7 @@ function makeCiv(x, opts = {}) {
   const c = { id: W.nextId++, name: opts.name || NAMES.find(n => !used.has(n)) || 'People ' + (W.civs.length + 1), color: COLORS.find(k => !usedC.has(k)) || pick(COLORS),
     trait: opts.trait || pick(Object.keys(TRAITS)), x: Math.round(x), era, tech: opts.tech ?? rand(0, 15), pop: opts.pop || rand(1300, 1900),
     food: 62, culture: 30, stability: 62, military: 18, govt: Math.random() < .5 ? 0 : 1, l: x - 150, r: x + 150, alive: true, mods: [], ruin: 0,
-    reached: {}, nuclear: false, policy: DEFPOL[opts.trait] || 'balance', tmpPol: null, eco: {}, seed: (Math.random() * 1e9) | 0, unrest: 0, lastReact: -99, nextCheck: rand(4, 8), expandUntil: 0, threshold: false, keyState: 'none', fell: null, fellTo: null, bunker: 0, closed: 0, scav: 0, _: {} };
+    reached: {}, nuclear: false, policy: DEFPOL[opts.trait] || 'balance', tmpPol: null, eco: {}, seed: (Math.random() * 1e9) | 0, unrest: 0, lastReact: -99, nextCheck: rand(4, 8), expandUntil: 0, threshold: false, keyState: 'none', fell: null, fellTo: null, bunker: 0, closed: 0, scav: 0, mach: 0, machSaid: 0, _: {} };
   c.reached[era] = Math.round(W.year);
   W.civs.push(c); return c;
 }
@@ -898,6 +898,7 @@ function updateCiv(c, dt) {
   mult *= SPACE_PACE[c.era] || 1;
   if (c.era >= 12) mult *= 1 + .05 * Math.min(4, basesOf(c).length);
   { const rb = ruinBonus(c); if (rb > 1) mult *= rb; }
+  if ((c.mach || 0) > 50) mult *= 1 + (c.mach - 50) / 400;
   c._.mult = mult;
   addTech(c, TECH_BASE * mult * dt);
   const culT = 32 + tr.cul + r.cul + (c.food - 50) * .12 + (c.govt === 1 ? 6 : 0) + (pol === 'protect' ? 5 : 0);
@@ -908,6 +909,7 @@ function updateCiv(c, dt) {
   c.military = clamp(c.military + (14 + tr.mil + nW * 30 + c.era * 2.5 + threat - c.military) * .08 * dt, 0, 100);
   c.ruin = Math.max(0, c.ruin - .012 * dt);
   crisisCiv(c, dt);
+  machTick(c, dt);
   if (!c.nuclear && (c.era >= 10 || (c.era === 9 && c.tech >= 45)) && (r.keys.has('uranium') || alive().some(o => o !== c && contact(c, o) && !atWar(c, o) && relGet(c, o) >= -20 && o._.res && o._.res.keys.has('uranium')))) {
     c.nuclear = true;
     log(fillT(c.era >= 10 ? '{Civ} build their first nuclear weapons.' : '{Civ} test their first atomic bomb. The world will never be the same.', names(c)), 'war');
@@ -1165,6 +1167,7 @@ function applyEvent0(ev, x, opts) {
     applyFx(c, ev.fx, sc);
     if (ev.over) c.mods.push({ until: W.simTime + ev.over.dur, food: (ev.over.food || 0) * k, techMul: ev.over.techMul ? 1 + (ev.over.techMul - 1) * k : 1, stab: (ev.over.stab || 0) * k, name: ev.name });
     if (ev.ruin) c.ruin = Math.max(c.ruin, ev.ruin * k);
+    if (ev.id === 'ai') machAdd(c, 20 * k);
     if (perCiv && (ev.scope === 'global' || i === 0)) log(fillT(custom ? tmpl : txt(ev.text, c.era), names(c)), ek);
     queueReaction(c, stressOf(ev.fx, ev.over, sc));
   });
@@ -1884,7 +1887,7 @@ function showEpilogue() {
 function riseAgain() {
   const F = W.fates, cyc = F.cycle + 1, hist = F.hist;
   let nr = F.ruined || 0; if (!nr) for (const c of alive()) nr += leaveRuins(c, 5);
-  for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; }
+  for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; }
   W.wars = []; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
   W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
@@ -1896,7 +1899,7 @@ function riseAgain() {
 const FATE_UI = {
   threebody: ['answering the signal from the stars, and Curious peoples', 'Fleet due in {n}'],
   collapse: ['pollution, climate swings, war, nuclear war and unrest', 'Crisis peaks in {n}'],
-  agi: ['each AI Awakening, and Curious peoples. Devout peoples hold it back', 'Turning point in {n}'],
+  agi: ['machine autonomy (it rises in the Information and Future Ages), each AI Awakening, and Curious peoples. Devout peoples hold it back', 'Turning point in {n}'],
   wandering: ['time: it grows slowly once peoples reach space', 'The Sun’s verdict in {n}'],
   ascension: ['calm, prosperous, Curious and Mercantile peoples. War holds it back', 'Upload wave peaks in {n}'],
   garden: ['peoples that protect healthy land, and low pollution', 'Movement peaks in {n}'],
@@ -1928,7 +1931,7 @@ const FATES = {
     end: 'The world steps back from the edge. The fear of collapse fades, though the scars remain.',
     stress: c => c.food < 45 ? 'food' : 'loss' },
   agi: { name: 'The Waking Machines', span: 160,
-    drive: x => Math.max(0, .18 + .15 * (x.top >= 13) + .6 * x.share.Curious + .55 * Math.min(2, x.ai) - .6 * x.share.Devout),
+    drive: x => Math.max(0, .08 + .1 * (x.top >= 13) + .4 * x.share.Curious + .45 * Math.min(2, x.ai) - .6 * x.share.Devout + .35 * clamp((x.mach - 25) / 45, 0, 1) + .2 * clamp((x.machAvg - 15) / 45, 0, 1)),
     start: 'Thinking machines begin to make decisions no one asked them to make. Some call it a miracle; others start to be afraid.',
     end: 'The machines are reined in. For now, they remain tools.',
     stress: c => c.trait === 'Curious' || c.trait === 'Mercantile' ? 'boom' : c.trait === 'Warlike' ? 'threat' : 'unrest' },
@@ -1994,6 +1997,7 @@ function fateCtx() {
   const green = cs.filter(c => policyOf(c) === 'protect' && c._.nat && c._.nat.fr > .5).length / n;
   return { share, n: cs.length, stab: avg('stability'), food: avg('food'), poll: W.pollution, temp: W.tempShift, wars: W.wars.length,
     nuked: W.nukeT != null && W.simTime - W.nukeT < 90, ai: W.fates.ai || 0, sig: !!(W.sig && W.sig.era >= 10 && W.simTime - W.sig.t < 400),
+    mach: cs.reduce((a, c) => Math.max(a, c.mach || 0), 0), machAvg: avg('mach') || 0,
     since: W.simTime - W.fates.edgeT, top: maxEra(), edge: cs.filter(c => c.era > FUTURE).length, acts: W.acts || 0, peace: W.simTime - (W.lastWarT || 0), green };
 }
 function fateDrives() { const x = fateCtx(), out = {}; for (const id in FATES) out[id] = Math.max(0, FATES[id].drive(x)); return out; }
@@ -2200,6 +2204,23 @@ function endTick(dt) {
   if (W.pandemic) pandemicTick(dt);
   if (W.rock) rockTick();
   keepersTick(dt);
+}
+// AGI-01 machine autonomy: how much each people has handed over to thinking machines (0-100).
+// It rises with Information and Future Age progress, faster for Curious peoples, slower for Devout ones, and jumps with each AI Awakening.
+const MACH_TRAIT = { Curious: 1.7, Mercantile: 1.15, Warlike: 1, Devout: .35 }, MACH_CAP = { Curious: 100, Mercantile: 88, Warlike: 78, Devout: 45 };
+const MACH_SAY = [[30, '{Civ} hand their power grids, markets and traffic to thinking machines.'], [60, 'The machines of the {civ} now write most of their laws. Few people still understand them.'], [90, 'Among the {civ}, the machines decide almost everything now. The humans mostly agree.']];
+function machRate(c) {
+  if (c.era < 10) return 0;
+  const base = c.era === 10 ? .03 + .09 * c.tech / 100 : c.era === 11 ? .12 + .08 * c.tech / 100 : .14;
+  const ai = c.mods.some(m => m.name === 'AI Awakening' && m.until > W.simTime) ? 3 : 1;
+  // the rise slows as it nears what each character will accept
+  return base * (MACH_TRAIT[c.trait] || 1) * ai * Math.max(0, 1 - (c.mach || 0) / (MACH_CAP[c.trait] || 80));
+}
+function machSay(c) { while ((c.machSaid || 0) < MACH_SAY.length && c.mach >= MACH_SAY[c.machSaid || 0][0]) { log(fillT(MACH_SAY[c.machSaid || 0][1], names(c)), 'world'); c.machSaid = (c.machSaid || 0) + 1; } }
+function machAdd(c, v) { c.mach = clamp((c.mach || 0) + v, 0, 100); machSay(c); }
+function machTick(c, dt) {
+  const r = machRate(c);
+  if (r > 0) machAdd(c, r * dt); else if (c.mach > 0) c.mach = Math.max(0, c.mach - .5 * dt);
 }
 // END-07 seed vaults and libraries: elements that carry crops and knowledge through a collapse into the next cycle
 const keepersOf = c => { const k = { vault: null, lib: null }; for (const e of W.elements) { if (e.x < c.l || e.x > c.r) continue; if (e.type === 'seedvault') k.vault = e; else if (e.type === 'library') k.lib = e; } return k; };
@@ -3628,7 +3649,7 @@ const EVINFO = {
   alien: 'A signal from space. Each age reads it its own way.',
   climate: 'The world warms and pollution rises. Stay too hot for too long and the warming feeds itself: the seas rise and drown the coasts until the air is cleaned or the Sun is dimmed.',
   internet: 'Ideas spread at lightning speed for a while, and society is shaken.',
-  ai: 'Thinking machines race progress ahead but unsettle society. Each use brings the machines closer to waking.',
+  ai: 'Thinking machines race progress ahead but unsettle society. Each use hands the machines more of the people’s decisions (machine autonomy) and brings them closer to waking.',
   broadcast: 'Only during the Three-Sun Signal. Sends the location of Hevar and of humanity’s world to the whole galaxy. A strike will follow.',
   flare: 'A storm from the Sun. Peoples from the Modern Age on lose some progress and stability, and satellites go dark for a while.',
   cstrike: 'A rock from space hits a base or an off-world people. Needs a colony in space.',
@@ -3772,7 +3793,7 @@ function buildCivCards(force) {
     <div class="line"><span class="chip" data-f="era"></span><span data-f="govt"></span></div>
     <div class="prog"><i data-f="prog"></i></div>
     <div class="line" data-f="next"></div>
-    <dl class="stats">${stat('pop', 'Population')}${stat('food', 'Food')}${stat('culture', 'Culture')}${stat('stability', 'Stability')}${stat('military', 'Military')}${stat('forest', 'Forests')}${stat('wild', 'Wild animals')}</dl>
+    <dl class="stats">${stat('pop', 'Population')}${stat('food', 'Food')}${stat('culture', 'Culture')}${stat('stability', 'Stability')}${stat('military', 'Military')}${stat('forest', 'Forests')}${stat('wild', 'Wild animals')}<dt class="mrow" title="Machine autonomy: how much of their decisions this people has handed to thinking machines">Machines</dt><dd class="bar mrow"><i data-f="machb"></i></dd><dd class="v mrow" data-f="mach"></dd></dl>
     <label class="lu" for="lu-${c.id}">Land use <select id="lu-${c.id}" class="lusel">${Object.entries(POLICY).map(([k, v]) => `<option value="${k}"${k === c.policy ? ' selected' : ''}>${v.name}</option>`).join('')}</select><span data-f="lunote"></span></label>
     <div class="line" data-f="status"></div>
     <div class="acts"><button class="btn" data-act="focus">Show on the map</button></div>
@@ -3804,6 +3825,7 @@ function updateCivCards() {
     const K = c._.K || 1;
     f('popb').style.width = clamp(c.pop / K * 100, 2, 100) + '%'; f('popb').className = c.pop / K > 1 ? 'mid' : 'neu'; f('pop').textContent = fmtPop(c.pop);
     for (const k of ['food', 'culture', 'stability', 'military']) { const v = c[k]; f(k + 'b').style.width = v.toFixed(1) + '%'; f(k + 'b').className = k === 'military' ? 'neu' : band(v); f(k).textContent = v.toFixed(0); }
+    { const m = c.mach || 0, on = c.era >= 10 || m >= 1; for (const e of card.querySelectorAll('.mrow')) e.style.display = on ? '' : 'none'; if (on) { f('machb').style.width = m.toFixed(1) + '%'; f('machb').className = m >= 75 ? 'low' : m >= 40 ? 'mid' : 'neu'; f('mach').textContent = m.toFixed(0); } }
     const st = [];
     const nat = c._.nat; if (nat) { for (const [k, v] of [['forest', nat.fr], ['wild', nat.w]]) { f(k + 'b').style.width = (v * 100).toFixed(1) + '%'; f(k + 'b').className = band(v * 100); f(k).textContent = (v * 100).toFixed(0); } }
     const lp = policyOf(c), ln = c.tmpPol && c.tmpPol.until > W.simTime ? `for now: ${POLICY[lp].name.toLowerCase()}` : POLICY[lp].note;
@@ -3819,6 +3841,7 @@ function updateCivCards() {
     if (lp === 'protect' && c.tmpPol && c.tmpPol.until > W.simTime) st.push('<span class="chip green">Protecting the land</span>');
     for (const m of c.mods) st.push(`<span class="chip mod">${esc(m.name)} · ${Math.max(0, Math.ceil(m.until - W.simTime))} s</span>`);
     if (c.nuclear) st.push('<span class="chip war">Has the bomb</span>');
+    if ((c.mach || 0) >= 75) st.push('<span class="chip mod">Machines in charge</span>');
     st.push(...crisisChips(c));
     if (c.ruin > .2) st.push('<span class="chip mod">Rebuilding</span>');
     if (c.stability < 15) st.push('<span class="chip war">Unrest</span>');
@@ -4088,7 +4111,7 @@ function sanitizeWorld(d) {
   w.year = n(d.year, -60000, 1e6, ERAS[0].start); w.nextId = n(d.nextId, 1, 1e9, 1) | 0; w.tempShift = clamp(w.tempShift, -12, 12); w.pollution = clamp(w.pollution, 0, 100); w.topEra = clamp(w.topEra | 0, 0, MAXERA); w.thresholdNoted = !!d.thresholdNoted;
   w.elements = (Array.isArray(d.elements) ? d.elements : []).filter(e => e && (ELEMENTS[e.type] || (typeof e.type === 'string' && /^c:[\w]+$/.test(e.type)))).slice(0, 160).map(e => ({ id: n(e.id, 0, 1e9) | 0, type: e.type, x: n(e.x, 0, WORLD_W) }));
   w.craters = (Array.isArray(d.craters) ? d.craters : []).slice(0, 12).map(c => ({ x: n(c.x, 0, WORLD_W), r: n(c.r, 10, 120, 70), d: n(c.d, 0, 60, 34) }));
-  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, _: {} }));
+  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, mach: n(c.mach, 0, 100), machSaid: n(c.machSaid, 0, MACH_SAY.length) | 0, _: {} }));
   const ids = new Set(w.civs.map(c => c.id));
   w.wars = (Array.isArray(d.wars) ? d.wars : []).filter(x => x && ids.has(x.a) && ids.has(x.b)).map(x => ({ a: x.a, b: x.b, t: n(x.t, 0, 1e9), adv: n(x.adv, -20, 20) }));
   w.rel = {}; for (const [k, v] of Object.entries(d.rel || {})) if (/^\d+-\d+$/.test(k)) w.rel[k] = n(v, -100, 100);
@@ -4464,7 +4487,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

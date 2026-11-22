@@ -46,5 +46,8 @@ What was built, in order, from the user's requests (newest last). Published arti
 
 29. "Run next job and test with real data": **END-07** Seed Vault and Great Library elements that set where each people starts the next cycle; peoples build them too. Tuned after real-data runs (first version let almost every people keep something). New test `end07.py`.
 
+## AGI takeover (AGI), 2026-11-22
+30. "Run next job and test with real data": **AGI-01** machine autonomy meter per people (card row, chronicle lines, chip), fed into The Waking Machines. First tuning made every world reach 100 and AGI end 16 of 24 worlds; ceilings per character and softer weights brought it to 17 starts (16 before) and 6 endings.
+
 ## Packaging
 26. This folder: game, CLAUDE.md, docs, tests and tickets (xlsx/csv), for other agents to continue.

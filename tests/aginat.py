@@ -1,0 +1,55 @@
+# "Real data" runs for the AGI takeover epic: natural worlds (nothing forced) run for SECONDS of sim time,
+# tracking machine autonomy per people, when it crosses 30/60/90, and whether the Waking Machines start and end the world.
+# usage: python aginat.py [N=12] [SECONDS=3000]   (GAME=/path/to/index.html to run another build)
+import asyncio, json, sys
+from playwright.async_api import async_playwright
+import os, pathlib
+GAME = pathlib.Path(os.environ.get('GAME') or pathlib.Path(__file__).resolve().parents[1].joinpath('index.html')).resolve().as_uri()
+_CH = os.environ.get('CHROME')
+LAUNCH = {'args': ['--no-sandbox'], **({'executable_path': _CH} if _CH else {})}
+N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
+SEC = float(sys.argv[2]) if len(sys.argv) > 2 else 3000
+RUN = r'''([seed, sec]) => { const A = window.__aoh; A.newWorld(seed); const W = () => A.W, has = !!A.machAdd;
+  const o = { maxMach: 0, avgAtEdge: null, cross: {}, aiEvents: 0, fates: [], endings: [], cycles: 1, byTrait: {}, saidLines: 0 };
+  let ended = null, nh = 0;
+  for (let i = 0; i < sec * 10; i++) { A.step(0.1); const w = W();
+    if (has && i % 10 === 0) for (const c of w.civs) if (c.alive) { o.maxMach = Math.max(o.maxMach, c.mach || 0);
+      for (const t of [30, 60, 90]) if ((c.mach || 0) >= t && o.cross[t] == null) o.cross[t] = { t: Math.round(w.simTime), era: c.era, trait: c.trait };
+      o.byTrait[c.trait] = Math.max(o.byTrait[c.trait] || 0, Math.round(c.mach || 0)); }
+    if (w.fates.edgeT != null && o.avgAtEdge == null && has) { const cs = w.civs.filter(c => c.alive); o.avgAtEdge = Math.round(cs.reduce((a, c) => a + (c.mach || 0), 0) / cs.length); }
+    while (nh < w.fates.hist.length) { const h = w.fates.hist[nh++]; o.fates.push(h.id + '@' + Math.round(w.simTime)); }
+    if (w.fates.ended && w.fates.ended !== ended) o.endings.push(w.fates.ended + '@c' + w.fates.cycle); ended = w.fates.ended;
+    if (w.fates.cycle < o.cycles) nh = 0; o.cycles = w.fates.cycle; if (w.fates.hist.length < nh) nh = w.fates.hist.length;
+    if (!w.civs.some(c => c.alive)) break;
+    if (ended && !w.fates.riseAt && !['doom'].includes(A.ENDINGS[ended].kind)) break; }
+  o.aiEvents = W().fates.ai || 0; o.saidLines = W().chron.filter(e => /to thinking machines\.|write most of their laws|decide almost everything/.test(e.h)).length;
+  o.maxMach = Math.round(o.maxMach); o.t = Math.round(W().simTime);
+  const s1 = A.serialize(); let saveOk = true; try { A.loadWorld(JSON.parse(JSON.stringify(s1))); for (let i = 0; i < 20; i++) A.step(0.1); A.render(); } catch (e) { saveOk = String(e); } o.saveOk = saveOk;
+  return JSON.stringify(o); }'''
+async def worker(b, seeds, out, errs):
+    pg = await b.new_page(viewport={'width': 1300, 'height': 850})
+    pg.on('pageerror', lambda e: errs.append('PAGEERR ' + str(e)))
+    await pg.route('**/*', lambda r: r.abort() if r.request.url.startswith('http') else r.continue_())
+    await pg.goto(GAME); await pg.wait_for_timeout(600); await pg.keyboard.press('Space')
+    for s in seeds: out.append((s, json.loads(await pg.evaluate(RUN, [s, SEC]))))
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(**LAUNCH); out = []; errs = []
+        seeds = [7000 + 53 * i for i in range(N)]
+        await asyncio.gather(*[worker(b, seeds[k::6], out, errs) for k in range(min(6, N))])
+        await b.close()
+    out.sort()
+    for s, o in out: print(f'seed {s}:', json.dumps(o))
+    fs = [f.split('@')[0] for _, o in out for f in o['fates']]
+    ends = {}
+    for _, o in out:
+        for e in o['endings']: k = e.split('@')[0]; ends[k] = ends.get(k, 0) + 1
+    agiW = sum(1 for _, o in out if any(f.startswith('agi@') for f in o['fates']))
+    print(f"\nworlds {len(out)} | max machine autonomy per world {[o['maxMach'] for _, o in out]} | world average when the first people finished the Future Age {[o['avgAtEdge'] for _, o in out]}")
+    for t in ('30', '60', '90'):
+        cr = [o['cross'][t] for _, o in out if t in o['cross']]
+        print(f"  crossed {t}: {len(cr)} worlds | ages {sorted(c['era'] for c in cr)} | first traits {[c['trait'][:3] for c in cr]}")
+    print(f"chronicle lines {sum(o['saidLines'] for _, o in out)} | AI Awakenings {sum(o['aiEvents'] for _, o in out)} | worlds where the Waking Machines began {agiW} | futures begun {len(fs)}: {dict((k, fs.count(k)) for k in sorted(set(fs)))}")
+    print('endings:', ends, '| save ok', sum(1 for _, o in out if o['saveOk'] is True))
+    print('\n'.join(errs[:5]) or 'no errors')
+asyncio.run(main())

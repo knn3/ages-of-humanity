@@ -42,7 +42,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | AI events, Curious peoples | placeholder (AGI epic) |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01); rest of the AGI epic to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -82,3 +82,14 @@ Orbit layer (satellites, telescopes, stations, ring habitats, space elevators, c
 ## Nature
 
 A 120-cell grid of forest, wildlife, soil and fish; peoples clear, hunt, farm and fish by age and policy; extinctions (mammoth, aurochs, whales…); parks and rewilding; floods worse without forest and wetland.
+
+## Machine autonomy (AGI-01)
+
+Each people has a **Machines** meter (0–100): how much of its decisions it has handed to thinking machines. It shows on the people card from the Information Age.
+
+- It rises from the Information Age, faster with progress through the age, faster again in the Future Age and beyond.
+- Character: Curious ×1.7, Mercantile ×1.15, Warlike ×1, Devout ×0.35. The rise slows near what each character will accept (Curious 100, Mercantile 88, Warlike 78, Devout 45).
+- An AI Awakening adds +20 at once and triples the rise while it lasts.
+- Chronicle lines at 30, 60 and 90; a "Machines in charge" chip from 75. Above 50 the machines speed progress a little.
+- It feeds The Waking Machines: the most automated people (from 25) and the world average (from 15). A new cycle starts at 0.
+- Real data (24 natural worlds, 3,000 s): every world passes 30 (Future or Planetary Age, almost always a Curious people first); 90 is rare. The Waking Machines began in 17 worlds (16 before) and ended 6.
