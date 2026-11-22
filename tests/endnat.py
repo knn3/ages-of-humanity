@@ -10,7 +10,7 @@ LAUNCH = {'args': ['--no-sandbox'], **({'executable_path': _CH} if _CH else {})}
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
 SEC = float(sys.argv[2]) if len(sys.argv) > 2 else 3000
 RUN = r'''([seed, sec]) => { const A = window.__aoh; A.newWorld(seed); const W = () => A.W;
-  const o = { tips: 0, maxSea: 0, winters: 0, fullWinters: 0, plagues: 0, endings: [], cycles: 1, maxRuins: 0, scav: 0, bunkers: 0, deadWorld: false, maxTemp: 0, climateEv: 0, nukes: 0, supervolcanoes: 0, asteroids: 0, deflected: 0, impacts: 0, unseen: 0 };
+  const o = { tips: 0, maxSea: 0, winters: 0, fullWinters: 0, plagues: 0, endings: [], cycles: 1, maxRuins: 0, scav: 0, bunkers: 0, deadWorld: false, maxTemp: 0, climateEv: 0, nukes: 0, supervolcanoes: 0, asteroids: 0, deflected: 0, impacts: 0, unseen: 0, libs: 0, vaults: 0, starts: [] };
   let hot = false, win = null, pd = null, ended = null, nk = null, rock = null;
   for (let i = 0; i < sec * 10; i++) { A.step(0.1); const w = W();
     if (w.hot.on && !hot) o.tips++; hot = w.hot.on; o.maxSea = Math.max(o.maxSea, w.seaRise); o.maxTemp = Math.max(o.maxTemp, A.temp());
@@ -19,6 +19,7 @@ RUN = r'''([seed, sec]) => { const A = window.__aoh; A.newWorld(seed); const W =
     if (w.pandemic && w.pandemic !== pd) o.plagues++; pd = w.pandemic;
     if (w.nukeT != null && w.nukeT !== nk) o.nukes++; nk = w.nukeT;
     if (w.fates.ended && w.fates.ended !== ended) o.endings.push(w.fates.ended + '@c' + w.fates.cycle); ended = w.fates.ended;
+    if (w.fates.cycle > o.cycles) o.starts.push(w.civs.filter(c => c.alive).map(c => c.era).join('')); o.libs = Math.max(o.libs, w.elements.filter(e => e.type === 'library').length); o.vaults = Math.max(o.vaults, w.elements.filter(e => e.type === 'seedvault').length);
     o.cycles = w.fates.cycle; o.maxRuins = Math.max(o.maxRuins, (w.ruins || []).length);
     o.bunkers = Math.max(o.bunkers, w.civs.filter(c => c.alive && c.bunker >= .5).length); if (w.civs.some(c => c.alive && c._.scav)) o.scav = 1;
     if (!w.civs.some(c => c.alive)) { o.deadWorld = true; break; }
@@ -48,5 +49,7 @@ async def main():
     for _, o in out:
         for e in o['endings']: k = e.split('@')[0]; ends[k] = ends.get(k, 0) + 1
     print('endings:', ends)
+    st = [x for _, o in out for x in o['starts']]
+    print(f"libraries built {sum(o['libs'] for _, o in out)} | seed vaults built {sum(o['vaults'] for _, o in out)} | new cycles {len(st)} | starting ages per cycle (one digit per people): {st} | cycles where someone started past the Stone Age {sum(1 for x in st if any(int(ch) > 1 for ch in x))}")
     print('\n'.join(errs[:5]) or 'no errors')
 asyncio.run(main())

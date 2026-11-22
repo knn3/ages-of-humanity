@@ -492,6 +492,8 @@ const ELEMENTS = {
   dam:      { name: 'Dam', sub: 'Place on a river: water and power', food: [0, .15, .2, .25, .25, .25, .25, .25, .3, .35, .35, .35] },
   fish:     { name: 'Fishing Grounds', sub: 'Place at sea; feeds the coast', sea: true },
   people:   { name: 'New People', sub: 'Found a new people here' },
+  seedvault: { name: 'Seed Vault', sub: 'Keeps crops safe through a collapse' },
+  library:  { name: 'Great Library', sub: 'Keeps knowledge safe through a collapse', culture: 6 },
   helium3:  { name: 'Helium-3', sub: 'Fusion fuel on the Moon; key to the Stellar Age', space: 'moon' },
   asteroid: { name: 'Asteroid Mine', sub: 'Metals from the belt; key to the Galactic Age', space: 'belt' },
   icemoon:  { name: 'Ice Moon', sub: 'Water for ships; also opens the Galactic Age', space: 'giant' }
@@ -1856,7 +1858,7 @@ function reachEnding(eid, c) {
   log(`<b>${esc(E.name)}.</b> ${esc(E.text)}`, 'fate');
   banner(E.name, ENDKIND[E.kind], E.kind === 'doom' ? '#c8553d' : E.kind === 'goal' ? '#8fd18a' : '#a593f2');
   const cs = alive();
-  if (E.kind === 'doom') { F.ruined = 0; for (const o of cs) F.ruined += leaveRuins(o, 5); }
+  if (E.kind === 'doom') { F.ruined = 0; for (const o of cs) { o.fallEra = o.era; F.ruined += leaveRuins(o, 5); } }
   if (E.kind === 'doom') for (const o of cs) { o.pop = Math.max(400, o.pop * .08); o.food = Math.min(o.food, 20); o.stability = Math.min(o.stability, 15); addTech(o, -180); }
   else if (E.kind === 'goal') for (const o of cs) { o.stability = Math.min(100, o.stability + 20); o.culture = Math.min(100, o.culture + 15); }
   W.wars = E.kind === 'doom' ? W.wars : [];
@@ -1871,7 +1873,7 @@ function showEpilogue() {
   const row = (a, b) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`;
   const canRise = E.kind === 'doom' && cs.length;
   openModal(`<div class="epi-in"><p class="kind">${esc(ENDKIND[E.kind])} · ${esc(fmtYear(F.endY))}${F.cycle > 1 ? ' · ' + esc(ORD[Math.min(7, F.cycle)] || F.cycle + 'th') + ' cycle' : ''}</p><h3 id="dlgTitle">${esc(E.name)}</h3><p class="story">${esc(E.text)}</p>
-    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}</dl>${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
+    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}</dl>${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
     <div class="row"><button class="btn" type="button" data-close>Keep watching</button>${canRise ? '<button class="btn primary" type="button" id="epiRise" autofocus>Begin again from the ruins</button>' : ''}<button class="btn${canRise ? '' : ' primary'}" type="button" id="epiNew"${canRise ? '' : ' autofocus'}>New world</button></div></div>`);
   const dlg = $('#dialog'); dlg.classList.add('epi'); dlg.classList.toggle('doom', E.kind === 'doom'); dlg.classList.toggle('goal', E.kind === 'goal');
   const clean = () => { if (!dlg.classList.contains('epi')) return; dlg.classList.remove('epi', 'doom', 'goal'); if (UI.paused) togglePause(); };
@@ -1882,7 +1884,7 @@ function showEpilogue() {
 function riseAgain() {
   const F = W.fates, cyc = F.cycle + 1, hist = F.hist;
   let nr = F.ruined || 0; if (!nr) for (const c of alive()) nr += leaveRuins(c, 5);
-  for (const c of alive()) { c.era = c.era >= 8 ? 1 : 0; c.tech = 0; c.pop = rand(1500, 4000); c.food = 50; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; }
+  for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; }
   W.wars = []; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
   W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
@@ -2197,6 +2199,37 @@ function endTick(dt) {
   } else for (const c of alive()) c._.drown = 0;
   if (W.pandemic) pandemicTick(dt);
   if (W.rock) rockTick();
+  keepersTick(dt);
+}
+// END-07 seed vaults and libraries: elements that carry crops and knowledge through a collapse into the next cycle
+const keepersOf = c => { const k = { vault: null, lib: null }; for (const e of W.elements) { if (e.x < c.l || e.x > c.r) continue; if (e.type === 'seedvault') k.vault = e; else if (e.type === 'library') k.lib = e; } return k; };
+function keepStart(c) {
+  const fe = c.fallEra != null ? c.fallEra : c.era, k = keepersOf(c);
+  let era = fe >= 8 ? 1 : 0;
+  if (k.lib && fe >= 3) era = Math.max(era, clamp(Math.floor(fe / 3) + 1, 1, 4));
+  if (k.vault) era = Math.max(era, 1);
+  if (k.lib && k.vault && fe >= 3) era = Math.min(6, era + 1);
+  const out = { era, tech: k.lib ? 40 : k.vault ? 20 : 0, popK: k.vault ? 2 : 1, food: k.vault ? 78 : 50 };
+  if (k.lib || k.vault) log(fillT(`${k.lib && k.vault ? 'With seed from their vault and books from their library' : k.lib ? 'With the books saved in their library' : 'With seed from their vault'}, {civ} begin again in the ${ERAS[era].name}.`, names(c)), 'world');
+  return out;
+}
+function keepersLine() { const out = []; for (const c of alive()) { const k = keepersOf(c); if (k.vault || k.lib) out.push(`${c.name} (${[k.vault ? 'seed vault' : '', k.lib ? 'library' : ''].filter(Boolean).join(', ')})`); } return out.join(', '); }
+function keepEl(c, type) {
+  if (W.elements.length >= 140) return false;
+  for (let tries = 0; tries < 12; tries++) { const x = Math.round(rand(c.l + 40, c.r - 40)); if (!isLand(x) || W.elements.some(e => Math.abs(e.x - x) < 50)) continue;
+    W.elements.push({ id: W.nextId++, type, x }); refreshCaps();
+    log(fillT(type === 'library' ? '{Civ} found a great library and copy into it everything they know.' : c.trait === 'Devout' ? '{Civ} seal seeds of every crop in a vault deep in the holy mountain.' : '{Civ} cut a seed vault into the frozen rock and fill it with seeds of every crop.', names(c)), 'world');
+    floater(x, type === 'library' ? 'great library' : 'seed vault', c.color); return true; }
+  return false;
+}
+function keepersTick(dt) {
+  const libs = W.elements.filter(e => e.type === 'library').length, vaults = W.elements.filter(e => e.type === 'seedvault').length;
+  const danger = !!(W.winter || (W.hot && W.hot.on) || W.pandemic || W.rock || W.fates.active.some(a => a.id === 'collapse' || a.id === 'longnight') || (doomsday() || 99) <= 6);
+  for (const c of alive()) {
+    const k = keepersOf(c);
+    if (!k.lib && libs < 2 && c.era >= 5 && c.culture >= 60 && Math.random() < .0015 * dt * (c.trait === 'Curious' || c.trait === 'Devout' ? 1.6 : 1)) { keepEl(c, 'library'); return; }
+    if (!k.vault && vaults < 2 && c.era >= 10 && Math.random() < (danger ? .006 : .0005) * dt * (c.trait === 'Devout' ? 1.6 : 1)) { keepEl(c, 'seedvault'); return; }
+  }
 }
 // END-06 world-scale disasters: a supervolcano, and a killer asteroid with a countdown that space peoples may deflect
 const ROCK_ETA = 140;
@@ -2627,6 +2660,8 @@ function drawElement(el, owner) {
       break; }
     case 'people': break;
     case 'park': { R(x - .8, y - 13, 1.6, 13, '#5a4029'); R(x - 7, y - 17, 14, 7, '#3f6e3a'); Ci(x, y - 13.5, 2, '#cfe8a8'); for (let xx = x - 70; xx <= x + 70; xx += 14) if (Math.abs(xx - x) > 10) Ln(xx, gy(xx), xx, gy(xx) - 4, '#7a5a3a', .9); if (era >= 8) { R(x + 12, y - 8, 12, 8, '#7a5a3a'); P([x + 11, y - 8, x + 18, y - 13, x + 25, y - 8], '#4a3424'); } break; }
+    case 'seedvault': { P([x - 16, y + 1, x - 10, y - 12, x + 10, y - 12, x + 16, y + 1], '#8d9094'); P([x - 10, y - 12, x - 7, y - 15, x + 7, y - 15, x + 10, y - 12], '#a7abaf'); R(x - 3.5, y - 9, 7, 10, '#23262b'); R(x - 9, y - 11, 18, 1.4, V.N > .3 ? '#7fd6e0' : '#5aa6b0'); if (V.N > .3) GL.push({ x, y: y - 10, r: 12, c: '127,214,224', a: .35 * V.N }); break; }
+    case 'library': { const st = era >= 8; R(x - 18, y - 3, 36, 3, '#bfb59f'); R(x - 16, y - 5, 32, 2, '#cfc5ad'); R(x - 15, y - 19, 30, 2, '#d9cfb8'); for (let k = 0; k < 5; k++) R(x - 13 + k * 6.2, y - 17, 2.4, 12, '#e4dcc8'); P([x - 17, y - 19, x, y - 27, x + 17, y - 19], '#d9cfb8'); if (st) R(x - 2, y - 33, 4, 6, '#b8ad95'); if (V.N > .3) for (let k = 0; k < 4; k++) LT.push(x - 11 + k * 6.2, y - 14, 2.6, 6); break; }
     case 'wetland': { El(x - 16, gy(x - 16) + 1, 15, 2.6, '#4f8fa8'); El(x + 20, gy(x + 20) + 1, 11, 2.2, '#4f8fa8'); for (let k = 0; k < 9; k++) { const rx = x - 34 + k * 8.5, ry = gy(rx); Ln(rx, ry, rx + .8, ry - 6 - (k % 3) * 2, '#6f8f45', 1); } const hx = x + 4, hy = gy(hx); Ln(hx, hy, hx, hy - 5, '#d8d4c8', .7); El(hx, hy - 7, 2.6, 1.6, '#eceae2'); Ln(hx + 1.5, hy - 8, hx + 3.5, hy - 11, '#eceae2', .9); break; }
     case 'dam': { const wl = Math.min(gy(x - 26), gy(x + 26)) + 2.5, big = era >= 8; R(x - 26, wl - 9, 23, 10, '#3d86a8'); R(x - 3, wl - 13, 6, 32, big ? '#b9bdc0' : '#7a5a3a'); if (big) { R(x + 3, wl - 7, 9, 7, '#9aa0a6'); blink(x + 7, wl - 8, '255,200,90'); } break; }
     case 'fish': { const sy = seaY(); for (let k = 0; k < 4; k++) { const p0 = (V.t * .5 + k * .27) % 1; if (p0 < .15) { const p = p0 / .15; El(x - 30 + k * 18 + p * 12, sy - Math.sin(p * Math.PI) * 8, 2.4, 1, '#d8e4ea'); } } for (let k = 0; k < 3; k++) { const gx = x + Math.cos(V.t * .8 + k * 2.1) * 26, gyy = sy - 30 - Math.sin(V.t + k) * 5, a = Math.sin(V.t * 6 + k) * 1.6; Ln(gx - 3, gyy - a, gx, gyy, '#eef0f2', .9); Ln(gx, gyy, gx + 3, gyy - a, '#eef0f2', .9); } const fo = nearestCiv(x, 600); if (fo && fo.era >= 1) { const bx = x + Math.sin(V.t * .2) * 20, by = sy + Math.sin(V.t * 1.2) * .6; P([bx - 7, by - 2, bx + 7, by - 2, bx + 5, by + 1, bx - 5, by + 1], fo.era >= 8 ? '#3d4a58' : '#6b4a2e'); Ln(bx, by - 2, bx, by - 9, '#4a3424', 1); Ln(bx, by - 9, bx + 12, by + 3, 'rgba(220,220,210,.6)', .6); if (fo.era >= 8) R(bx - 3, by - 6, 5, 4, '#e8e4da'); } break; }
@@ -3544,6 +3579,8 @@ function setTool(t) {
 const infoBtn = (key, name) => `<button class="ibtn" type="button" data-info="${esc(key)}" aria-label="About ${esc(name)}" aria-expanded="false">i</button>`;
 function toolButton(id, name) { return `<div class="toolwrap"><button class="tool" data-tool="${esc(id)}" aria-pressed="false"><canvas width="60" height="60" data-icon="${esc(id)}" aria-hidden="true"></canvas><span class="t"><b>${esc(name)}</b></span></button>${infoBtn(id === 'erase' || id === 'inspect' ? 'tool:' + id : id, name)}</div>`; }
 const ELINFO = {
+  seedvault: 'A vault cut deep into the rock, holding seeds of every crop. If the world falls, the people whose land holds it begin again as farmers in the Stone Age at least, with more food and twice the people. Peoples build them on their own from the Information Age when danger looms.',
+  library: 'A great library that keeps books and records safe. If the world falls, the people whose land holds it keep part of what it knew and begin again in a later age (up to the Iron Age, one age more with a Seed Vault too). Adds culture. Learned peoples build them on their own from the Classical Age.',
   river: 'Fresh water for drinking and farming. Feeds people in every age, and helps open the Stone Age.',
   fertile: 'Rich soil. Of little use to hunters, vital once people farm. Key to the Stone Age.',
   herd: 'Bison and deer to hunt. The main larder of the earliest ages; less useful once people farm.',
@@ -3659,7 +3696,7 @@ function placePop() {
 }
 function hidePop(delay, force) { clearTimeout(popT); if (popPin && !force) return; popT = setTimeout(() => { popPin = false; $('#pop').classList.remove('show'); if (popFor) popFor.setAttribute('aria-expanded', 'false'); popFor = null; }, delay || 0); }
 function buildElementsTab() {
-  const groups = [['Land and life', ['river', 'fertile', 'herd', 'forest', 'mountain', 'volcano', 'sacred']], ['Nature and land use', ['park', 'wetland', 'dam', 'fish']], ['Resources that unlock ages', ['copper', 'tin', 'iron', 'gold', 'coal', 'oil', 'uranium', 'silicon', 'lithium']], ['Peoples', ['people']]];
+  const groups = [['Land and life', ['river', 'fertile', 'herd', 'forest', 'mountain', 'volcano', 'sacred']], ['Nature and land use', ['park', 'wetland', 'dam', 'fish']], ['Keeping the past', ['seedvault', 'library']], ['Resources that unlock ages', ['copper', 'tin', 'iron', 'gold', 'coal', 'oil', 'uranium', 'silicon', 'lithium']], ['Peoples', ['people']]];
   groups.push(['Space (place in the solar system view)', ['helium3', 'asteroid', 'icemoon']]);
   let h = '<p class="lede">Pick an element, then click the land. The <b>i</b> beside each one tells you what it does.</p>';
   for (const [title, list] of groups) { h += `<h3 class="cat">${title}</h3><div class="grid">`; for (const t of list) h += toolButton('el:' + t, ELEMENTS[t].name); h += '</div>'; }
@@ -3713,6 +3750,8 @@ function drawIcon(cvs) {
     case 'people': ground(); for (const [x, c] of [[9, '#e8875c'], [15, '#62b9e0'], [21, '#dcc057']]) { R(x - 1.6, 13, 3.2, 5.6, c); Ci(x, 11.4, 1.8, '#c68e63'); Ln(x - .6, 18.5, x - 1.6, 21, '#2b2520', 1); Ln(x + .6, 18.5, x + 1.6, 21, '#2b2520', 1); } break;
     case 'erase': Ln(9, 9, 21, 21, '#e36a55', 2.4); Ln(21, 9, 9, 21, '#e36a55', 2.4); break;
     case 'park': ground(); tree(9, 21, 12, '#2f5a35'); R(19, 11, 1.4, 10, '#5a4029'); R(15, 9, 10, 5, '#3f6e3a'); break;
+    case 'seedvault': ground(); P([6, 22, 10, 12, 20, 12, 24, 22], '#8d9094'); R(13, 15, 4, 7, '#23262b'); R(10, 13, 10, 1.2, '#7fd6e0'); break;
+    case 'library': ground(); R(5, 19, 20, 2, '#cfc5ad'); for (let k = 0; k < 4; k++) R(7 + k * 4.6, 11, 1.8, 8, '#e4dcc8'); R(5, 9.5, 20, 1.6, '#d9cfb8'); P([4, 9.5, 15, 4, 26, 9.5], '#d9cfb8'); break;
     case 'wetland': ground(); El(10, 21.5, 7, 2, '#4f8fa8'); El(21, 22, 5, 1.6, '#4f8fa8'); for (let k = 0; k < 6; k++) Ln(4 + k * 4.5, 21, 4.5 + k * 4.5, 15 - (k % 2) * 2, '#6f8f45', 1); break;
     case 'dam': ground(); R(0, 15, 13, 7, '#3d86a8'); R(13, 10, 4, 14, '#b9bdc0'); R(17, 20, 13, 3, '#3d86a8'); break;
     case 'fish': R(0, 13, 30, 17, '#2f6f8f'); R(0, 13, 30, 1.5, '#9fd0e0'); El(12, 20, 4, 1.8, '#d8e4ea'); P([15.5, 20, 18.5, 18, 18.5, 22], '#d8e4ea'); El(21, 25, 3, 1.4, '#c8d6dc'); Ln(6, 7, 8, 9, '#e6e6e6', .8); Ln(8, 9, 10, 7, '#e6e6e6', .8); break;
@@ -4049,7 +4088,7 @@ function sanitizeWorld(d) {
   w.year = n(d.year, -60000, 1e6, ERAS[0].start); w.nextId = n(d.nextId, 1, 1e9, 1) | 0; w.tempShift = clamp(w.tempShift, -12, 12); w.pollution = clamp(w.pollution, 0, 100); w.topEra = clamp(w.topEra | 0, 0, MAXERA); w.thresholdNoted = !!d.thresholdNoted;
   w.elements = (Array.isArray(d.elements) ? d.elements : []).filter(e => e && (ELEMENTS[e.type] || (typeof e.type === 'string' && /^c:[\w]+$/.test(e.type)))).slice(0, 160).map(e => ({ id: n(e.id, 0, 1e9) | 0, type: e.type, x: n(e.x, 0, WORLD_W) }));
   w.craters = (Array.isArray(d.craters) ? d.craters : []).slice(0, 12).map(c => ({ x: n(c.x, 0, WORLD_W), r: n(c.r, 10, 120, 70), d: n(c.d, 0, 60, 34) }));
-  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, _: {} }));
+  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, _: {} }));
   const ids = new Set(w.civs.map(c => c.id));
   w.wars = (Array.isArray(d.wars) ? d.wars : []).filter(x => x && ids.has(x.a) && ids.has(x.b)).map(x => ({ a: x.a, b: x.b, t: n(x.t, 0, 1e9), adv: n(x.adv, -20, 20) }));
   w.rel = {}; for (const [k, v] of Object.entries(d.rel || {})) if (/^\d+-\d+$/.test(k)) w.rel[k] = n(v, -100, 100);
@@ -4141,7 +4180,7 @@ const AGENT_NAME = (a, c) => a.kind === 'walk' ? FOLK[c.era] : a.kind === 'cart'
 const TIP_ZOOM = 1.3;
 const TIP = { cur: null, open: false, over: false, t: 0, sx: 0, sy: 0 };
 // how far each element reaches around its spot (half width, height above the ground), in world units
-const ELHIT = { forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
+const ELHIT = { seedvault: [16, 16], library: [18, 30], forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
 function tipTarget(sx, sy) {
   if (V.b || V.zoom < TIP_ZOOM) return null;
   const [wx, wy] = S2W(sx, sy), c = civAt(wx), pad = 1.5 / V.s;
@@ -4425,7 +4464,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
