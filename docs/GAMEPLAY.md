@@ -42,7 +42,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02); rest of the AGI epic to come |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03); rest of the AGI epic to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -107,3 +107,15 @@ A new reaction stress, `ai`, comes when a people's meter passes 30/60/90, every 
 
 A people's own choices push the meter only up to its character's ceiling (`machNudge`); an AI Awakening can go past it.
 Real data (24 worlds): Curious end near 100, Mercantile ~70, Warlike ~65–70, Devout ~10. Waking Machines outcomes about the same as AGI-01 (began in 20 worlds; 4–8 endings across runs). War counts stayed within the noise between runs.
+
+## The caretaker ending (AGI-03)
+
+When The Waking Machines ends the world ("The Quiet Takeover", kind *end*), the machines quietly take charge (`W.care`):
+
+- **Who:** every living people, except those whose meter is under 30 (the people with the most machines is always taken). Holdouts "refuse the care of the machines and keep their own counsel"; a holdout whose own meter later reaches 60 gives in and joins.
+- **Peoples in care:** no wars (none can start, join or be ordered, and a nuclear order is refused), no reactions (humans no longer decide), no progress (tech never rises, so no new age), stability pulled to ~90, food to ~85, military to ~10, meter fixed at 100. Their land regrows 2.5× faster and is cleared 5× less; each adds −0.4 to pollution.
+- **The world:** other futures fade and no new ones begin. A caretaker line enters the chronicle every 45–75 s (harvests, disbanded armies, returning forests, "Nothing new has been invented in …").
+- **Holdouts** go on as before: they progress, and can fight each other but not the peoples in care.
+- **Epilogue:** its own rows (who is in the machines' care, who is outside, the year of the last human decision) and a closing line that depends on whether anyone is still outside. The people card shows "In the machines' care" (with "No new age will come") or "Outside the machines' care". Violet caretaker drones hover over the cities in care.
+
+Real data (24 natural worlds, 3,000 s, then 400 s under the caretakers): 4 worlds ended in the takeover, each with one Devout holdout (meter 5–14). Devout peoples top out at 45, so they never give in on their own. There were 0 wars involving peoples in care and 0 progress for them. Stability rose from 41–58 to 85–89, and the forest share in their lands from 0.35–0.63 to 0.94–0.98.

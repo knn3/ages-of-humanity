@@ -38,7 +38,8 @@ async def main():
         r = json.loads(await ev(r'''() => { const A = window.__aoh; A.newWorld(92); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1);
           const [a, b] = A.W.civs; for (const c of [a, b]) { c.era = 11; c.tech = 30; c.trait = 'Warlike'; c.mach = 10; c.machSaid = 0; }
           A.applyEvent(A.findEvent('ai'), a.x); const jump = a.mach;
-          for (let i = 0; i < 200; i++) { for (const c of [a, b]) { c.era = 11; c.tech = Math.min(c.tech, 60); } A.step(0.1); }
+          // mute reactions (a random ban would knock the meter back) so only the speed-up is measured
+          for (let i = 0; i < 200; i++) { for (const c of [a, b]) { c.era = 11; c.tech = Math.min(c.tech, 60); c.lastReact = 1e12; } A.step(0.1); }
           return JSON.stringify({ jump: +jump.toFixed(1), a: +a.mach.toFixed(1), b: +b.mach.toFixed(1), ai: A.W.fates.ai }); }'''))
         check('AGI-01 an AI Awakening hands the machines a big step', r['jump'] >= 25, str(r))
         check('AGI-01 and the meter climbs faster while it lasts', r['a'] - r['jump'] > 2 * (r['b'] - 10), str(r))

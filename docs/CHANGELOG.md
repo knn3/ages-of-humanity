@@ -49,6 +49,7 @@ What was built, in order, from the user's requests (newest last). Published arti
 ## AGI takeover (AGI), 2026-11-22
 30. "Run next job and test with real data": **AGI-01** machine autonomy meter per people (card row, chronicle lines, chip), fed into The Waking Machines. First tuning made every world reach 100 and AGI end 16 of 24 worlds; ceilings per character and softer weights brought it to 17 starts (16 before) and 6 endings.
 31. "Run next job and test with real data": **AGI-02** each character answers AI pressure through the reaction system: Curious race ahead, Devout ban the machines, Warlike build machine armies, Mercantile sell them to everyone. Real data showed reaction bumps skipping the character ceilings (every world reached 90) and machine armies raising wars; bumps are now capped per character and the relations hit softened.
+32. "Run next job and test with real data": **AGI-03** the caretaker ending. When the Waking Machines end the world, the machines take charge: peoples in their care stop fighting, stop deciding and stop progressing, while stability, food and forests rise; Devout peoples with few machines stay outside as holdouts. It has its own epilogue rows, card chips, chronicle lines and caretaker drones. Real data: 4 takeovers in 24 worlds, each with one Devout holdout, no wars in care, forests in care up from ~0.5 to ~0.95.
 
 ## Packaging
 26. This folder: game, CLAUDE.md, docs, tests and tickets (xlsx/csv), for other agents to continue.
