@@ -42,7 +42,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | AI events, Curious peoples | placeholder (AGI epic) |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03); rest of the AGI epic to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -82,3 +82,40 @@ Orbit layer (satellites, telescopes, stations, ring habitats, space elevators, c
 ## Nature
 
 A 120-cell grid of forest, wildlife, soil and fish; peoples clear, hunt, farm and fish by age and policy; extinctions (mammoth, aurochs, whales…); parks and rewilding; floods worse without forest and wetland.
+
+## Machine autonomy (AGI-01)
+
+Each people has a **Machines** meter (0–100): how much of its decisions it has handed to thinking machines. It shows on the people card from the Information Age.
+
+- It rises from the Information Age, faster with progress through the age, faster again in the Future Age and beyond.
+- Character: Curious ×1.7, Mercantile ×1.15, Warlike ×1, Devout ×0.35. The rise slows near what each character will accept (Curious 100, Mercantile 88, Warlike 78, Devout 45).
+- An AI Awakening adds +20 at once and triples the rise while it lasts.
+- Chronicle lines at 30, 60 and 90; a "Machines in charge" chip from 75. Above 50 the machines speed progress a little.
+- It feeds The Waking Machines: the most automated people (from 25) and the world average (from 15). A new cycle starts at 0.
+- Real data (24 natural worlds, 3,000 s): every world passes 30 (Future or Planetary Age, almost always a Curious people first); 90 is rare. The Waking Machines began in 17 worlds (16 before) and ended 6.
+
+## Answers to AI pressure (AGI-02)
+
+A new reaction stress, `ai`, comes when a people's meter passes 30/60/90, every 50–90 s while it is 15+ (Information Age on), after an AI Awakening, and for every people when The Waking Machines begins. Each character answers mostly (~90%) in its own way:
+
+| Character | Answer | Effect |
+|---|---|---|
+| Curious | race ahead | progress +14, stability −4, meter +8 |
+| Devout | ban the machines | meter −15, rise ×0.15 and progress ×0.85 for 90 s ("Machines banned"), culture and stability +8 |
+| Warlike | machine army | military +25, meter +5, "Machine army" for 60 s, relations −4 with every people in contact, who feel threatened |
+| Mercantile | sell the machines | meter +6 for every people in contact from the Information Age on, relations +8, food +6, progress +5 |
+
+A people's own choices push the meter only up to its character's ceiling (`machNudge`); an AI Awakening can go past it.
+Real data (24 worlds): Curious end near 100, Mercantile ~70, Warlike ~65–70, Devout ~10. Waking Machines outcomes about the same as AGI-01 (began in 20 worlds; 4–8 endings across runs). War counts stayed within the noise between runs.
+
+## The caretaker ending (AGI-03)
+
+When The Waking Machines ends the world ("The Quiet Takeover", kind *end*), the machines quietly take charge (`W.care`):
+
+- **Who:** every living people, except those whose meter is under 30 (the people with the most machines is always taken). Holdouts "refuse the care of the machines and keep their own counsel"; a holdout whose own meter later reaches 60 gives in and joins.
+- **Peoples in care:** no wars (none can start, join or be ordered, and a nuclear order is refused), no reactions (humans no longer decide), no progress (tech never rises, so no new age), stability pulled to ~90, food to ~85, military to ~10, meter fixed at 100. Their land regrows 2.5× faster and is cleared 5× less; each adds −0.4 to pollution.
+- **The world:** other futures fade and no new ones begin. A caretaker line enters the chronicle every 45–75 s (harvests, disbanded armies, returning forests, "Nothing new has been invented in …").
+- **Holdouts** go on as before: they progress, and can fight each other but not the peoples in care.
+- **Epilogue:** its own rows (who is in the machines' care, who is outside, the year of the last human decision) and a closing line that depends on whether anyone is still outside. The people card shows "In the machines' care" (with "No new age will come") or "Outside the machines' care". Violet caretaker drones hover over the cities in care.
+
+Real data (24 natural worlds, 3,000 s, then 400 s under the caretakers): 4 worlds ended in the takeover, each with one Devout holdout (meter 5–14). Devout peoples top out at 45, so they never give in on their own. There were 0 wars involving peoples in care and 0 progress for them. Stability rose from 41–58 to 85–89, and the forest share in their lands from 0.35–0.63 to 0.94–0.98.
