@@ -42,7 +42,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03); rest of the AGI epic to come |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03), war against the machines and The Iron Dominion (AGI-04); rest of the AGI epic to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -119,3 +119,25 @@ When The Waking Machines ends the world ("The Quiet Takeover", kind *end*), the 
 - **Epilogue:** its own rows (who is in the machines' care, who is outside, the year of the last human decision) and a closing line that depends on whether anyone is still outside. The people card shows "In the machines' care" (with "No new age will come") or "Outside the machines' care". Violet caretaker drones hover over the cities in care.
 
 Real data (24 natural worlds, 3,000 s, then 400 s under the caretakers): 4 worlds ended in the takeover, each with one Devout holdout (meter 5–14). Devout peoples top out at 45, so they never give in on their own. There were 0 wars involving peoples in care and 0 progress for them. Stability rose from 41–58 to 85–89, and the forest share in their lands from 0.35–0.63 to 0.94–0.98.
+
+## War against the machines (AGI-04)
+
+During The Waking Machines, each people with a meter of 70+ may see its machines rise. The chance is 0.25% per second, ×2.5 for Warlike, ×0.8 Curious, ×0.5 Devout, ×2 with a machine army and ×2 when stability is under 35. There is at most one uprising per cycle and room is needed (fewer than 8 peoples). The player can also click **Machine Uprising** (Modern events, Information Age on); it starts The Waking Machines if needed.
+
+- **The machine people** (`c.machine`, grey `#9aa3ad`, named Automata, Iron Host…) takes the far side of its makers' land. It starts with 40% of their population. The makers keep 70% of theirs, lose 30 stability and their meter drops to 15.
+- **How it lives:** no births (it builds units in factories, faster on wider land), food fixed at 100, stability ~88, military ~92, no progress, no reactions, never makes peace (no treaties, humans cannot appease it). It is 1.5× stronger than a people of the same size and age, doesn't catch plagues, and clears and pollutes its land.
+- **Its looks:** a red-eyed machine core, drone factories with sawtooth roofs and blinking lights, exhaust stacks and relay pylons. No farms, houses, roads, trains or planes; hovering drones and walking robots instead of people.
+- **The humans** end every war among themselves at once ("Old enemies make peace overnight"), relations among them rise, other humans join the war, and their meters drop by 40%. The whole machine war counts as one war for the futures (Collapse and the others).
+- **Outcome**, judged on the machines' share of their own continent (they cannot settle across the sea):
+  - The machines win (**The Iron Dominion**, kind *end*) if they hold 80%, overrun 2 peoples, or still hold 55% after 320 s.
+  - The humans win if the machines are destroyed, or by cutting their power at 320 s if the machines hold less than 55%. Thinking machines are then banned for 300 s and every meter drops to 10 or less.
+  - The Waking Machines cannot end by its countdown while the war goes on. If the world falls in a doom ending meanwhile, the machines rust and the new cycle has none.
+- **UI:** the futures panel reads "War against the machines · they hold N% of their continent". The card shows "Machine mind · No births" and a "Machine people" chip. The Iron Dominion epilogue lists the machines, their share, peoples overrun and the humans left.
+
+Real data (36 natural worlds, 3,000 s):
+- 16 uprisings in 16 worlds (Curious 9, Warlike 7).
+- The machines won 3 and the humans won 9. 1 world fell during the war, and 3 runs ended before the war did.
+- Largest machine share: 0.33–1.0.
+- Endings: Iron Dominion 3, caretakers 4.
+
+The first versions never let the machines win. Share was counted across all four continents, so it never passed 0.18. Warlike peoples could never rise: their meter is capped at 78, below the first threshold of 80. Each human that joined the war counted as a separate war, which pushed Collapse to end the world in 6 of 12 wars.
