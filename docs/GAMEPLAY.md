@@ -42,7 +42,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01); rest of the AGI epic to come |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02); rest of the AGI epic to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -93,3 +93,17 @@ Each people has a **Machines** meter (0–100): how much of its decisions it has
 - Chronicle lines at 30, 60 and 90; a "Machines in charge" chip from 75. Above 50 the machines speed progress a little.
 - It feeds The Waking Machines: the most automated people (from 25) and the world average (from 15). A new cycle starts at 0.
 - Real data (24 natural worlds, 3,000 s): every world passes 30 (Future or Planetary Age, almost always a Curious people first); 90 is rare. The Waking Machines began in 17 worlds (16 before) and ended 6.
+
+## Answers to AI pressure (AGI-02)
+
+A new reaction stress, `ai`, comes when a people's meter passes 30/60/90, every 50–90 s while it is 15+ (Information Age on), after an AI Awakening, and for every people when The Waking Machines begins. Each character answers mostly (~90%) in its own way:
+
+| Character | Answer | Effect |
+|---|---|---|
+| Curious | race ahead | progress +14, stability −4, meter +8 |
+| Devout | ban the machines | meter −15, rise ×0.15 and progress ×0.85 for 90 s ("Machines banned"), culture and stability +8 |
+| Warlike | machine army | military +25, meter +5, "Machine army" for 60 s, relations −4 with every people in contact, who feel threatened |
+| Mercantile | sell the machines | meter +6 for every people in contact from the Information Age on, relations +8, food +6, progress +5 |
+
+A people's own choices push the meter only up to its character's ceiling (`machNudge`); an AI Awakening can go past it.
+Real data (24 worlds): Curious end near 100, Mercantile ~70, Warlike ~65–70, Devout ~10. Waking Machines outcomes about the same as AGI-01 (began in 20 worlds; 4–8 endings across runs). War counts stayed within the noise between runs.

@@ -10,9 +10,12 @@ LAUNCH = {'args': ['--no-sandbox'], **({'executable_path': _CH} if _CH else {})}
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
 SEC = float(sys.argv[2]) if len(sys.argv) > 2 else 3000
 RUN = r'''([seed, sec]) => { const A = window.__aoh; A.newWorld(seed); const W = () => A.W, has = !!A.machAdd;
-  const o = { maxMach: 0, avgAtEdge: null, cross: {}, aiEvents: 0, fates: [], endings: [], cycles: 1, byTrait: {}, saidLines: 0 };
-  let ended = null, nh = 0;
+  const o = { maxMach: 0, avgAtEdge: null, cross: {}, aiEvents: 0, fates: [], endings: [], cycles: 1, byTrait: {}, saidLines: 0, answers: {}, wars: 0, endMach: {} };
+  let ended = null, nh = 0, top = null, nw = 0;
+  const ANS = [['race', /smarter machines|race on, giving/], ['ban', /ban thinking machines|renew the ban/], ['army', /drones and robot soldiers|swarms of drones/], ['sell', /sell their thinking machines|new generation of machines/]];
   for (let i = 0; i < sec * 10; i++) { A.step(0.1); const w = W();
+    for (const e of w.chron) { if (e === top) break; for (const [k, re] of ANS) if (re.test(e.h)) { let c = null, bi = 1e9; for (const x of w.civs) { const j = e.h.indexOf(x.name); if (j >= 0 && j < bi) { bi = j; c = x; } } const key = k + ':' + (c ? c.trait.slice(0, 3) : '?'); o.answers[key] = (o.answers[key] || 0) + 1; } } top = w.chron[0];
+    if (w.wars.length > nw) o.wars += w.wars.length - nw; nw = w.wars.length;
     if (has && i % 10 === 0) for (const c of w.civs) if (c.alive) { o.maxMach = Math.max(o.maxMach, c.mach || 0);
       for (const t of [30, 60, 90]) if ((c.mach || 0) >= t && o.cross[t] == null) o.cross[t] = { t: Math.round(w.simTime), era: c.era, trait: c.trait };
       o.byTrait[c.trait] = Math.max(o.byTrait[c.trait] || 0, Math.round(c.mach || 0)); }
@@ -22,6 +25,7 @@ RUN = r'''([seed, sec]) => { const A = window.__aoh; A.newWorld(seed); const W =
     if (w.fates.cycle < o.cycles) nh = 0; o.cycles = w.fates.cycle; if (w.fates.hist.length < nh) nh = w.fates.hist.length;
     if (!w.civs.some(c => c.alive)) break;
     if (ended && !w.fates.riseAt && !['doom'].includes(A.ENDINGS[ended].kind)) break; }
+  for (const c of W().civs) if (c.alive && c.era >= 10) { const t = c.trait.slice(0, 3); (o.endMach[t] = o.endMach[t] || []).push(Math.round(c.mach || 0)); }
   o.aiEvents = W().fates.ai || 0; o.saidLines = W().chron.filter(e => /to thinking machines\.|write most of their laws|decide almost everything/.test(e.h)).length;
   o.maxMach = Math.round(o.maxMach); o.t = Math.round(W().simTime);
   const s1 = A.serialize(); let saveOk = true; try { A.loadWorld(JSON.parse(JSON.stringify(s1))); for (let i = 0; i < 20; i++) A.step(0.1); A.render(); } catch (e) { saveOk = String(e); } o.saveOk = saveOk;
@@ -50,6 +54,14 @@ async def main():
         cr = [o['cross'][t] for _, o in out if t in o['cross']]
         print(f"  crossed {t}: {len(cr)} worlds | ages {sorted(c['era'] for c in cr)} | first traits {[c['trait'][:3] for c in cr]}")
     print(f"chronicle lines {sum(o['saidLines'] for _, o in out)} | AI Awakenings {sum(o['aiEvents'] for _, o in out)} | worlds where the Waking Machines began {agiW} | futures begun {len(fs)}: {dict((k, fs.count(k)) for k in sorted(set(fs)))}")
+    ans = {}
+    for _, o in out:
+        for k, v in o['answers'].items(): ans[k] = ans.get(k, 0) + v
+    em = {}
+    for _, o in out:
+        for t, v in o['endMach'].items(): em.setdefault(t, []).extend(v)
+    print('answers to AI pressure (answer:character):', dict(sorted(ans.items(), key=lambda x: -x[1])), '| wars begun', sum(o['wars'] for _, o in out))
+    print('average meter at the end by character:', {t: round(sum(v) / len(v)) for t, v in em.items() if v})
     print('endings:', ends, '| save ok', sum(1 for _, o in out if o['saveOk'] is True))
     print('\n'.join(errs[:5]) or 'no errors')
 asyncio.run(main())
