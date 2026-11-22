@@ -35,12 +35,24 @@ async def main():
             got[k] = await ev(r'''([z, kind]) => { const A = window.__aoh; A.setZoom(z); const cv = document.querySelector('#world'), cw = cv.clientWidth, ch = cv.clientHeight, r = cv.getBoundingClientRect();
               for (let f = 0; f < 300; f++) { A.V.t += 7.3; A.render(); const q = A.V.orbPicks.find(q => q.kind === kind && q.x > 280 && q.x < cw - 30 && q.y > 70 && q.y < ch - 30 && !A.V.orbPicks.some(o => o !== q && Math.hypot(o.x - q.x, o.y - q.y) < 25));
                 if (q) { cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + q.x, clientY: r.top + q.y, button: 2 })); const t = document.querySelector('#tip'); return t && t.style.display !== 'none' ? t.innerText.split('\n')[0] : 'no tip'; } } return 'gone'; }''', [v['z'], k])
+            # it must stay open while the game runs on (UI updates, frames)
+            await pg.wait_for_timeout(1500)
+            stay = await ev("() => { const t = document.querySelector('#tip'); return t && t.style.display !== 'none' ? t.innerText.split('\\n')[0] : ''; }")
+            if stay != got[k]: got[k] = 'closed: ' + got[k]
             await ev("() => { const b = document.querySelector('#tipClose'); if (b) b.click(); }")
             continue
             got[k] = await ev("() => { const t = document.querySelector('#tip'); return t && t.style.display !== 'none' ? t.innerText.split('\\n')[0] : ''; }")
             await ev("() => { const b = document.querySelector('#tipClose'); if (b) b.click(); }")
         print('  right-click tips:', got)
-        check('right-clicking an object in orbit tells what it is (and who built it)', all(names[k] in got.get(k, '') for k in names if k in kinds) and all('·' in got[k] for k in ['ring', 'cylinder', 'station'] if k in got), str(got))
+        check('right-clicking an object in orbit tells what it is (and who built it), and the tip stays open', all(names[k] in got.get(k, '') for k in names if k in kinds) and all('·' in got[k] for k in ['ring', 'cylinder', 'station'] if k in got), str(got))
+
+        # unpause so the game really runs while a tip is open; leaving orbit closes it
+        r = await ev(r'''async () => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); if (A.UI.paused) document.querySelector('.js-pause').click(); A.setZoom(.22);
+          for (let f = 0; f < 300; f++) { A.V.t += 7.3; A.render(); const q = A.V.orbPicks.find(q => q.kind === 'station' && q.x > 280 && q.x < cv.clientWidth - 30 && q.y > 70 && q.y < cv.clientHeight - 30); if (q) { cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + q.x, clientY: r.top + q.y, button: 2 })); break; } }
+          await new Promise(res => setTimeout(res, 2000)); const open = document.querySelector('#tip').style.display !== 'none';
+          A.setZoom(1.6); await new Promise(res => setTimeout(res, 1200)); const after = document.querySelector('#tip').style.display !== 'none'; return JSON.stringify({ open, after }); }''')
+        r = json.loads(r)
+        check('an orbit tip stays open as the game runs, and closes when you zoom back down to the ground', r['open'] and not r['after'], str(r))
 
         # empty space shows nothing; the ground still needs close zoom
         r = json.loads(await ev(r'''() => { const A = window.__aoh; A.setZoom(.3); A.render(); const far = A.tipTarget(5, 5); A.setZoom(.9); A.render(); const c = A.W.civs[0]; A.V.cam = c.x - A.V.vw / 2; A.render(); const s = A.W2S(c.x, A.gy(c.x) - 10); const low = A.tipTarget(s[0], s[1]);

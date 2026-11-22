@@ -4273,7 +4273,8 @@ function updateUI() {
   $('#meta').innerHTML = `${SEASONS[Math.floor(((W.simTime / 60) % 1) * 4)]} · ${cs.length} ${cs.length === 1 ? 'people' : 'peoples'} · climate ${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(1)} °C · pollution ${W.pollution.toFixed(0)}${W.wars.length ? ` · ${W.wars.length} ${W.wars.length === 1 ? 'war' : 'wars'}` : ''}${dd != null ? ` · <span class="doom">doomsday clock ${dd} min to midnight</span>` : ''}${crisisMeta()}`;
   buildCivCards(false); updateCivCards(); updateColonyCards(); updateRibbon(); updateEventLocks(); updatePlanet(); updateFutures();
   { const sc = W.fates.ended ? ENDINGS[W.fates.ended].scene : '', cv = $('#world'); if (cv.style.filter !== sc) { cv.style.transition = 'filter 4s'; cv.style.filter = sc; } }
-  if (TIP.cur && V.b) { TIP.over = false; hideTip(0); }
+  // on the curved views only objects in orbit have info; an orbit tip closes when the view leaves orbit
+  if (TIP.cur && (TIP.cur.orb ? !V.b || sysK() >= .3 : V.b)) { TIP.over = false; hideTip(0); }
   if (popFor && popFor.closest('#labInfo') && $('#pop').classList.contains('show')) { const c = infoContent(popFor.dataset.info); if (c) { const ph = `<strong>${esc(c[0])}</strong>${c[1]}`; if ($('#pop').dataset.h !== ph) { $('#pop').innerHTML = ph; $('#pop').dataset.h = ph; } } else hidePop(0, true); }
   if (TIP.cur && TIP.open) { const td = $('#tip .td'); if (td) { const b = tipBody(TIP.cur)[1]; if (td.innerHTML !== b) td.innerHTML = b; } }
 }
