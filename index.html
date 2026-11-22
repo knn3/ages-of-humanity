@@ -492,6 +492,8 @@ const ELEMENTS = {
   dam:      { name: 'Dam', sub: 'Place on a river: water and power', food: [0, .15, .2, .25, .25, .25, .25, .25, .3, .35, .35, .35] },
   fish:     { name: 'Fishing Grounds', sub: 'Place at sea; feeds the coast', sea: true },
   people:   { name: 'New People', sub: 'Found a new people here' },
+  seedvault: { name: 'Seed Vault', sub: 'Keeps crops safe through a collapse' },
+  library:  { name: 'Great Library', sub: 'Keeps knowledge safe through a collapse', culture: 6 },
   helium3:  { name: 'Helium-3', sub: 'Fusion fuel on the Moon; key to the Stellar Age', space: 'moon' },
   asteroid: { name: 'Asteroid Mine', sub: 'Metals from the belt; key to the Galactic Age', space: 'belt' },
   icemoon:  { name: 'Ice Moon', sub: 'Water for ships; also opens the Galactic Age', space: 'giant' }
@@ -563,6 +565,9 @@ EVENTS.push({ id: 'flare', name: 'Solar Flare', g: '✹', cat: 'Space', scope: '
   { id: 'lsfail', name: 'Life-support Failure', g: '⊘', cat: 'Space', scope: 'global', minEra: 12, special: 'lsfail', sub: 'A base loses its air' },
   { id: 'debris', name: 'Debris Cascade', g: '⁘', cat: 'Space', scope: 'global', minEra: 10, special: 'debris', sub: 'Orbit fills with wreckage' },
   { id: 'comet', name: 'Rogue Comet', g: '☄', cat: 'Space', scope: 'global', special: 'comet', sub: 'A great comet crosses the sky' });
+EVENTS.push({ id: 'supervolcano', name: 'Supervolcano', g: '▲', cat: 'Nature', scope: 'local', r: 900, special: 'supervolcano', sub: 'A world-scale eruption' },
+  { id: 'asteroid', name: 'Killer Asteroid', g: '☄', cat: 'Space', scope: 'global', special: 'asteroid', sub: 'A countdown to impact' });
+EVENTS.push({ id: 'bioplague', name: 'Engineered Plague', g: '☣', cat: 'Modern', scope: 'target', minEra: 11, special: 'bioplague', sub: 'A lab-made pandemic' });
 EVENTS.push({ id: 'broadcast', name: 'Broadcast the Coordinates', g: '⌁', cat: 'Futures', scope: 'global', minEra: 12, special: 'broadcast', sub: 'Reveal both worlds to the galaxy' });
 // each future can be started by hand once a people reaches the Planetary Age
 for (const [fid, name, gl] of [['threebody', 'Answer the Signal', '✺'], ['collapse', 'Push to Collapse', '☄'], ['agi', 'Unchain the AI', '⚙'], ['wandering', 'The Sun Swells', '☀'],
@@ -702,7 +707,7 @@ function landIdx(x) { let best = 0, bd = 1e9; V.lands.forEach((L, i) => { const 
 const landOf = x => V.lands[landIdx(x)];
 function gy(x) { const f = x / STEP; const i = Math.floor(f); if (i < 0) return T[0]; if (i >= NCOL - 1) return T[NCOL - 1]; const t = f - i; return T[i] + (T[i + 1] - T[i]) * t; }
 const temp = () => W.tempShift + W.pollution * .02;
-function seaY() { const t = temp(); return SEA0 - clamp(t - 1, 0, 4) * 2.5 + clamp(-t - 1, 0, 5) * 2; }
+function seaY() { const t = temp(); return SEA0 - clamp(t - 1, 0, 4) * 2.5 + clamp(-t - 1, 0, 5) * 2 - (W.seaRise || 0); }
 const inRiver = x => W.elements.some(e => e.type === 'river' && Math.abs(e.x - x) < 20);
 const isLand = x => x > 20 && x < WORLD_W - 20 && gy(x) < seaY() - 2 && !inRiver(x);
 
@@ -767,14 +772,15 @@ function makeCiv(x, opts = {}) {
   const c = { id: W.nextId++, name: opts.name || NAMES.find(n => !used.has(n)) || 'People ' + (W.civs.length + 1), color: COLORS.find(k => !usedC.has(k)) || pick(COLORS),
     trait: opts.trait || pick(Object.keys(TRAITS)), x: Math.round(x), era, tech: opts.tech ?? rand(0, 15), pop: opts.pop || rand(1300, 1900),
     food: 62, culture: 30, stability: 62, military: 18, govt: Math.random() < .5 ? 0 : 1, l: x - 150, r: x + 150, alive: true, mods: [], ruin: 0,
-    reached: {}, nuclear: false, policy: DEFPOL[opts.trait] || 'balance', tmpPol: null, eco: {}, seed: (Math.random() * 1e9) | 0, unrest: 0, lastReact: -99, nextCheck: rand(4, 8), expandUntil: 0, threshold: false, keyState: 'none', fell: null, fellTo: null, _: {} };
+    reached: {}, nuclear: false, policy: DEFPOL[opts.trait] || 'balance', tmpPol: null, eco: {}, seed: (Math.random() * 1e9) | 0, unrest: 0, lastReact: -99, nextCheck: rand(4, 8), expandUntil: 0, threshold: false, keyState: 'none', fell: null, fellTo: null, bunker: 0, closed: 0, scav: 0, _: {} };
   c.reached[era] = Math.round(W.year);
   W.civs.push(c); return c;
 }
 function freshWorld(seed) {
   return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], reactQ: [], tempShift: 0, pollution: 0,
     wwCount: 0, nextId: 1, tradeUntil: 0, nat: null, extinct: {}, nextRandom: rand(22, 32), ruleState: {}, topEra: 0, thresholdNoted: false,
-    acts: 0, lastWarT: 0, sig: null, nukeT: null, fates: freshFates(), bases: [], spaceRes: defaultSpaceRes(), colonies: [], ships: [], stars: [] };
+    acts: 0, lastWarT: 0, sig: null, nukeT: null, fates: freshFates(), bases: [], spaceRes: defaultSpaceRes(), colonies: [], ships: [], stars: [],
+    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0 };
 }
 function newWorld(seed) {
   W = freshWorld(seed);
@@ -881,7 +887,7 @@ function updateCiv(c, dt) {
   const nW = warsOf(c).length, p = c.pop / K;
   const foodT = clamp(95 - 45 * p, 3, 100) + mFood - Math.abs(t) * 4 - nW * 6 + (pol === 'exploit' ? 5 : pol === 'protect' ? -4 : 0);
   c.food = clamp(c.food + (foodT - c.food) * .2 * dt, 0, 100);
-  if (c.food >= 35) c.pop += .075 * (c.food - 35) / 65 * c.pop * (1 - p) * dt;
+  if (c.food >= 35) c.pop += .075 * (c.food - 35) / 65 * c.pop * (1 - p) * (1 - (c._.sick || 0)) * dt;
   else c.pop -= .03 * (35 - c.food) / 35 * c.pop * dt;
   if (p > 1.05) c.pop -= .03 * (p - 1) * c.pop * dt;
   c.pop = Math.max(20, c.pop);
@@ -891,6 +897,7 @@ function updateCiv(c, dt) {
   if (W.tradeUntil > W.simTime) mult *= 1.08;
   mult *= SPACE_PACE[c.era] || 1;
   if (c.era >= 12) mult *= 1 + .05 * Math.min(4, basesOf(c).length);
+  { const rb = ruinBonus(c); if (rb > 1) mult *= rb; }
   c._.mult = mult;
   addTech(c, TECH_BASE * mult * dt);
   const culT = 32 + tr.cul + r.cul + (c.food - 50) * .12 + (c.govt === 1 ? 6 : 0) + (pol === 'protect' ? 5 : 0);
@@ -900,6 +907,7 @@ function updateCiv(c, dt) {
   const threat = alive().some(o => o !== c && relGet(c, o) < -40) ? 8 : 0;
   c.military = clamp(c.military + (14 + tr.mil + nW * 30 + c.era * 2.5 + threat - c.military) * .08 * dt, 0, 100);
   c.ruin = Math.max(0, c.ruin - .012 * dt);
+  crisisCiv(c, dt);
   if (!c.nuclear && (c.era >= 10 || (c.era === 9 && c.tech >= 45)) && (r.keys.has('uranium') || alive().some(o => o !== c && contact(c, o) && !atWar(c, o) && relGet(c, o) >= -20 && o._.res && o._.res.keys.has('uranium')))) {
     c.nuclear = true;
     log(fillT(c.era >= 10 ? '{Civ} build their first nuclear weapons.' : '{Civ} test their first atomic bomb. The world will never be the same.', names(c)), 'war');
@@ -972,14 +980,14 @@ function conquer(win, lose) {
     log(fillT('{Civ} land on the shores of {other} and occupy their cities. Tribute flows across the sea.', names(win, lose)), 'war');
     queueReaction(lose, 'unrest'); queueReaction(win, 'boom'); return;
   }
-  lose.alive = false; lose.fell = Math.round(W.year); lose.fellTo = win.name;
+  lose.alive = false; lose.fell = Math.round(W.year); lose.fellTo = win.name; leaveRuins(lose, 3);
   win.pop += lose.pop * .5; win.expandUntil = W.simTime + 20;
   W.wars = W.wars.filter(w => w.a !== lose.id && w.b !== lose.id);
   log(fillT('{Other} fall to {civ} and are absorbed into their realm.', names(win, lose)), 'war');
   queueReaction(win, 'boom'); buildCivCards(true);
 }
 function extinct(c) {
-  c.alive = false; c.fell = Math.round(W.year);
+  c.alive = false; c.fell = Math.round(W.year); leaveRuins(c, 3);
   W.wars = W.wars.filter(w => w.a !== c.id && w.b !== c.id);
   log(fillT('The last of {civ} vanish from the world.', names(c)), 'world'); buildCivCards(true);
 }
@@ -1079,7 +1087,7 @@ const RUN = {
   trade(c) { const o = bestPartner(c); if (!o) return null; o.food = Math.min(100, o.food + 4); relAdd(c, o, 15); return o; },
   migrate(c) { migrateCiv(c); return null; },
   rebuild(c) { c.ruin = Math.max(0, c.ruin - .5); return null; },
-  isolate(c) { for (const o of alive()) if (o !== c) relAdd(c, o, -10); return null; },
+  isolate(c) { for (const o of alive()) if (o !== c) relAdd(c, o, -10); c.closed = Math.max(c.closed || 0, W.simTime + 60); return null; },
   revolt(c) { revolution(c); return null; },
   expand(c) { c.expandUntil = W.simTime + 25; return null; },
   ally(c) {
@@ -1192,6 +1200,12 @@ const SPECIAL = {
     for (const c of alive()) { if (c.era < 8) { c.stability = Math.max(0, c.stability - 3); c.culture = Math.min(100, c.culture + 3); queueReaction(c, c.trait === 'Devout' ? 'unrest' : 'boom'); } else c.culture = Math.min(100, c.culture + 2); }
     for (const b of W.bases || []) b.pop *= 1.2;
     V.comet = { t0: V.t }; return true; } },
+  supervolcano: { run(ev, x) { if (x == null || !isLand(x)) { toast('Choose land, not water.'); return false; } return startSupervolcano(x); } },
+  asteroid: { run() { if (W.rock) { toast('An asteroid is already on its way.'); return false; } return startAsteroid(); } },
+  bioplague: { run(ev, x) {
+    const c = civAt(x) || nearestCiv(x, 260); if (!c) { toast('Click inside the lands of a people.'); return false; }
+    if (W.pandemic) { toast('An engineered plague is already spreading.'); return false; }
+    return startPandemic(c); } },
   fate: { run(ev) {
     const F = W.fates, f = FATES[ev.fate];
     if (F.active.some(a => a.id === ev.fate)) { toast(`${f.name} is already unfolding.`); return false; }
@@ -1238,11 +1252,11 @@ const SPECIAL = {
 };
 function nuclearWar(why) {
   const all = alive(); if (!all.length) return;
-  W.nukeT = W.simTime;
+  W.nukeT = W.simTime; const powers = all.filter(hasBomb).length;
   log(`${why === 'escalation' ? 'A border war spirals out of control. ' : ''}The missiles fly. Fireballs rise over the cities of ${listHTML(all)}, and a long winter follows.`, 'war');
   all.forEach((c, i) => {
     const nuc = hasBomb(c);
-    applyFx(c, { pop: nuc ? -.55 : -.35, food: -40, stability: -35, culture: -15 }, 1);
+    applyFx(c, { pop: (nuc ? -.55 : -.35) * (1 - .6 * (c.bunker || 0)), food: -40, stability: -35, culture: -15 }, 1);
     c.ruin = Math.max(c.ruin, nuc ? .95 : .6);
     if (nuc) { addTech(c, -rand(80, 180)); c.nuclear = false; }
     V.nukes.push({ x: c.x + rand(-40, 40), t0: V.t + i * .5 });
@@ -1251,6 +1265,7 @@ function nuclearWar(why) {
   });
   if (W.nat) for (let i = 0; i < NCELL; i++) { W.nat.f[i] *= .5; W.nat.w[i] *= .4; W.nat.fish[i] *= .7; }
   W.wars = []; W.tempShift -= 6; V.flash = 1; V.shake = REDUCED ? 0 : 18;
+  startWinter(powers >= 2);
 }
 function spawnPeople(x, via) {
   if (alive().length >= 8) { toast('Eight peoples is the most this world holds. One must fall before another can rise.'); return false; }
@@ -1269,11 +1284,13 @@ function randomEvent() {
   const n = c._.nat;
   const pool = [['drought', 3 * (1 + 1.5 * (1 - (n ? n.s : .6)))], ['flood', 2 * (1 + 1.5 * (1 - (n ? n.fr : .6)))], ['wildfire', 1.2 * (n ? n.fr : .5) * (1 + Math.max(0, temp()))], ['locusts', c.era >= 1 && c.era <= 9 ? .6 : 0], ['plague', 1.4], ['inventor', 2.2], ['prophet', 1.3], ['quake', 1.2], ['golden', 1], ['rebirth', c.era === 6 ? 2 : .5], ['migration', c.era <= 5 ? 1.2 : .4], ['revolution', c.stability < 30 ? 1.5 : 0], ['iceage', c.era <= 1 ? .5 : .08], ['volcano', hasVolc ? .8 : 0]];
   pool.push(['flare', c.era >= 9 ? .35 : 0], ['comet', .2]);
+  pool.push(['climate', c.era >= 8 && c.era <= 11 ? .8 + W.pollution / 20 : 0], ['bioplague', c.era >= 11 && !W.pandemic && W.plagueCycle !== W.fates.cycle ? .22 : 0]);
+  pool.push(['supervolcano', hasVolc && W.svCycle !== W.fates.cycle && !W.winter ? .05 : 0], ['asteroid', !W.rock && W.rockCycle !== W.fates.cycle && maxEra() >= 9 ? .1 : 0]);
   let tot = pool.reduce((s, p) => s + p[1], 0), r = Math.random() * tot, id = 'drought';
   for (const [k, w] of pool) { r -= w; if (r <= 0) { id = k; break; } }
   const ev = findEvent(id);
   let x = c.x + rand(-.6, .6) * (c.r - c.l) / 2;
-  if (id === 'volcano') { const v = pick(W.elements.filter(e => e.type === 'volcano')); x = v.x; }
+  if (id === 'volcano' || id === 'supervolcano') { const v = pick(W.elements.filter(e => e.type === 'volcano')); x = v.x; }
   if (id === 'migration') { x = c.r + rand(180, 420) * (Math.random() < .5 ? -1 : 1); if (x > c.l && x < c.r) x = c.r + 300; if (!isLand(x)) return; }
   applyEvent(ev, x, { random: true });
 }
@@ -1504,7 +1521,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { fateTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -1828,15 +1845,20 @@ const ENDINGS = {
   contact: { name: 'Among the Stars', kind: 'goal', scene: 'brightness(1.1) saturate(1.15) hue-rotate(-12deg)', text: 'Humanity answers the greeting and is welcomed into a community of minds older than its own sun. For the first time, its peoples are not alone.' },
   immortal: { name: 'The Ageless Empire', kind: 'end', scene: 'sepia(.45) saturate(.8)', text: 'No one dies any more, and no one new is needed. The ageless rule a world that has stopped changing, polished and perfect and still.' },
   occupation: { name: 'The Reservation', kind: 'end', scene: 'sepia(.5) hue-rotate(-20deg) saturate(.7) brightness(.85)', text: 'The Hevari fleet fills the sky. Humanity is gathered onto a single continent, fed and watched and forbidden the stars. In the reservation, the old stories are still told at night.' },
+  nuclearwinter: { name: 'The Long Winter', kind: 'doom', scene: 'grayscale(.7) brightness(.55) contrast(1.1)', text: 'The soot never seems to leave the sky. Harvest after harvest fails in the cold and the dark, and the great cities fall silent. Only those who dug deep enough live to see the Sun again.' },
+  plague: { name: 'The Empty Cities', kind: 'doom', scene: 'grayscale(.55) sepia(.3) brightness(.72)', text: 'The virus outruns every cure. Within a few years the great cities stand empty with their lights still burning, and the few survivors scatter into the countryside to begin again.' },
+  supervolcano: { name: 'The Ash Years', kind: 'doom', scene: 'grayscale(.8) sepia(.2) brightness(.7)', text: 'The ash falls for years. Crops die under a grey sky, the rivers run thick with mud, and the cities empty one by one. In sheltered valleys a few families keep the old songs alive.' },
+  impact: { name: 'The Great Impact', kind: 'doom', scene: 'sepia(.55) hue-rotate(-15deg) brightness(.62) contrast(1.15)', text: 'The rock came out of the dark faster than any hope. Fire, then years of dust and cold. The survivors climb out of their shelters into a world that has to be learned all over again.' },
   galactic: { name: 'The Edge of the Galaxy', kind: 'goal', scene: '', text: 'From one small world, humanity has spread from star to star across the galaxy. What lies beyond it has not been written yet.' }
 };
 const ENDKIND = { doom: 'The world falls', end: 'History changes for good', goal: 'Humanity arrives' };
 function reachEnding(eid, c) {
   const F = W.fates, E = ENDINGS[eid]; if (!E || F.ended) return false;
-  F.ended = eid; F.endY = Math.round(W.year);
+  F.ended = eid; F.endY = Math.round(W.year); F.riseAt = E.kind === 'doom' ? W.simTime + RISE_WAIT : null;
   log(`<b>${esc(E.name)}.</b> ${esc(E.text)}`, 'fate');
   banner(E.name, ENDKIND[E.kind], E.kind === 'doom' ? '#c8553d' : E.kind === 'goal' ? '#8fd18a' : '#a593f2');
   const cs = alive();
+  if (E.kind === 'doom') { F.ruined = 0; for (const o of cs) { o.fallEra = o.era; F.ruined += leaveRuins(o, 5); } }
   if (E.kind === 'doom') for (const o of cs) { o.pop = Math.max(400, o.pop * .08); o.food = Math.min(o.food, 20); o.stability = Math.min(o.stability, 15); addTech(o, -180); }
   else if (E.kind === 'goal') for (const o of cs) { o.stability = Math.min(100, o.stability + 20); o.culture = Math.min(100, o.culture + 15); }
   W.wars = E.kind === 'doom' ? W.wars : [];
@@ -1851,7 +1873,7 @@ function showEpilogue() {
   const row = (a, b) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`;
   const canRise = E.kind === 'doom' && cs.length;
   openModal(`<div class="epi-in"><p class="kind">${esc(ENDKIND[E.kind])} · ${esc(fmtYear(F.endY))}${F.cycle > 1 ? ' · ' + esc(ORD[Math.min(7, F.cycle)] || F.cycle + 'th') + ' cycle' : ''}</p><h3 id="dlgTitle">${esc(E.name)}</h3><p class="story">${esc(E.text)}</p>
-    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}</dl>
+    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}</dl>${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
     <div class="row"><button class="btn" type="button" data-close>Keep watching</button>${canRise ? '<button class="btn primary" type="button" id="epiRise" autofocus>Begin again from the ruins</button>' : ''}<button class="btn${canRise ? '' : ' primary'}" type="button" id="epiNew"${canRise ? '' : ' autofocus'}>New world</button></div></div>`);
   const dlg = $('#dialog'); dlg.classList.add('epi'); dlg.classList.toggle('doom', E.kind === 'doom'); dlg.classList.toggle('goal', E.kind === 'goal');
   const clean = () => { if (!dlg.classList.contains('epi')) return; dlg.classList.remove('epi', 'doom', 'goal'); if (UI.paused) togglePause(); };
@@ -1861,11 +1883,13 @@ function showEpilogue() {
 }
 function riseAgain() {
   const F = W.fates, cyc = F.cycle + 1, hist = F.hist;
-  for (const c of alive()) { c.era = c.era >= 8 ? 1 : 0; c.tech = 0; c.pop = rand(1500, 4000); c.food = 50; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; }
+  let nr = F.ruined || 0; if (!nr) for (const c of alive()) nr += leaveRuins(c, 5);
+  for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; }
   W.wars = []; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
-  log(`The ${nm} rise of humanity begins among the ruins of the old world.`, 'world');
+  log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
   banner(`The ${ORD[Math.min(7, cyc)] || 'Next'} Rise`, 'Humanity begins again', '#c9a27c');
 }
 // what feeds each future, and how its countdown reads in the panel
@@ -1961,7 +1985,7 @@ const FATES = {
 };
 function freshFates() {
   const bias = {}; for (const id in FATES) bias[id] = +rand(.45, 1.7).toFixed(3);
-  return { edgeT: null, p: {}, bias, active: [], done: [], hist: [], lastStart: -1e9, cycle: 1, ended: null, endY: null };
+  return { edgeT: null, p: {}, bias, active: [], done: [], hist: [], lastStart: -1e9, cycle: 1, ended: null, endY: null, riseAt: null };
 }
 function fateCtx() {
   const cs = alive(), n = Math.max(1, cs.length), share = {};
@@ -2017,11 +2041,299 @@ function sanitizeFates(d) {
   f.active = (Array.isArray(d.active) ? d.active : []).filter(a => a && FATES[a.id]).slice(0, Object.keys(FATES).length).map(a => ({ id: a.id, t0: n(a.t0, 0, 1e12), y0: n(a.y0, -60000, 1e6) | 0, why: a.why === 'event' ? 'event' : 'pressure' }));
   f.done = (Array.isArray(d.done) ? d.done : []).filter(id => FATES[id] && !f.active.some(a => a.id === id));
   f.arks = n(d.arks, 0, 9999) | 0;
-  f.ended = ENDINGS[d.ended] ? d.ended : null; f.endY = f.ended ? n(d.endY, -60000, 1e6) | 0 : null;
+  f.ended = ENDINGS[d.ended] ? d.ended : null; f.endY = f.ended ? n(d.endY, -60000, 1e6) | 0 : null; f.riseAt = f.ended && d.riseAt != null ? n(d.riseAt, -1e9, 1e12, null) : null; f.ruined = f.ended ? n(d.ruined, 0, 999) | 0 : 0;
   f.lastStart = n(d.lastStart, -1e9, 1e12, -1e9); f.cycle = n(d.cycle, 1, 99, 1) | 0; f.ai = n(d.ai, 0, 99) | 0;
   f.hist = (Array.isArray(d.hist) ? d.hist : []).filter(e => e && FATES[e.id]).slice(-60).map(e => ({ id: e.id, era: n(e.era, 0, MAXERA) | 0, y0: n(e.y0, -60000, 1e6) | 0, y1: e.y1 == null ? null : n(e.y1, -60000, 1e6) | 0, out: typeof e.out === 'string' ? e.out.slice(0, 20) : undefined }));
   for (const a of f.active) if (!f.hist.some(e => e.id === a.id && e.y1 == null)) f.hist.push({ id: a.id, era: MAXERA, y0: a.y0, y1: null });
   return f;
+}
+
+/* ---------- the end of the world: new cycles, ruins, nuclear winter, runaway warming, the engineered plague ---------- */
+// END-01 a doom ending is never a dead world while anyone survives: the survivors begin again after RISE_WAIT sim seconds
+// END-02 fallen cities leave ruins that sink under the green over RUIN_GROW sim seconds; younger peoples who hold them learn faster
+// END-03 a full nuclear exchange (two or more powers) brings a long winter; too few bunkers and the cycle ends
+// END-04 once heat above TIP_T degrees adds up to TIP_HOLD degree-seconds the warming feeds itself and the seas rise up to SEA_MAX
+// END-05 a lab-made plague spreads along contacts; closed borders slow it; if too few survive the cycle ends
+const RISE_WAIT = 40, RUIN_GROW = 700, TIP_T = 1.6, TIP_HOLD = 4, SEA_MAX = 34;
+const RUIN_KIND = { sky: 'tower', glass: 'tower', apart: 'tower', block: 'tower', spire: 'tower', arcology: 'tower', hab: 'tower', tv: 'tower', radio: 'tower', chimney: 'tower', vertfarm: 'tower', crystal: 'tower',
+  cooling: 'dome', dome: 'dome', dome2: 'dome', fusion: 'dome', temple: 'dome', church: 'dome', ziggurat: 'dome', beam: 'dome', gate: 'dome', castle: 'wall', fort: 'wall', factory: 'wall', aqueduct: 'wall' };
+const RUIN_NAME = { tower: 'Rusted tower', dome: 'Broken dome', wall: 'Fallen walls', road: 'Buried highway' };
+const ruinOv = r => clamp((W.simTime - r.t0) / RUIN_GROW, 0, 1);
+function leaveRuins(c, max = 6) {
+  if (!c || c.era < 3) return 0;
+  try { ensureLayout(c); } catch (e) { /* no layout yet */ }
+  const all = (c._.items || []).filter(b => b.t !== 'field' && b.h >= 14).sort((a, b) => b.h - a.h), its = [], seen = new Set();
+  for (const b of all) if (its.length < max && !seen.has(RUIN_KIND[b.t] || b.t)) { seen.add(RUIN_KIND[b.t] || b.t); its.push(b); }
+  for (const b of all) if (its.length < max && !its.includes(b)) its.push(b);
+  if (!its.length) its.push({ x: c.x - 20, w: 40, h: 30 + c.era * 4, t: 'wall' });
+  W.ruins = W.ruins || [];
+  for (const b of its) W.ruins.push({ x: Math.round(b.x + b.w / 2), w: Math.round(clamp(b.w, 10, 90)), h: Math.round(clamp(b.h, 10, 220)), era: c.era, k: RUIN_KIND[b.t] || (c.era >= 9 ? 'tower' : 'wall'), t0: W.simTime, by: String(c.name).slice(0, 20) });
+  const rd = c._.road; if (c.era >= 9 && rd) W.ruins.push({ x: Math.round((rd[0] + rd[1]) / 2), w: Math.round(clamp(rd[1] - rd[0], 60, 600)), h: 6, era: c.era, k: 'road', t0: W.simTime, by: String(c.name).slice(0, 20) });
+  if (W.ruins.length > 48) W.ruins.splice(0, W.ruins.length - 48);
+  return its.length;
+}
+function ruinBonus(c) {
+  let best = 1;
+  for (const r of W.ruins || []) if (r.x >= c.l && r.x <= c.r && r.era > c.era + 1) best = Math.max(best, 1 + .45 * (1 - .6 * ruinOv(r)));
+  c._.scav = best > 1;
+  if (best > 1 && c.scav !== W.fates.cycle) { c.scav = W.fates.cycle; log(fillT('{Civ} dig through the ruins of the old world and relearn some of its forgotten crafts.', names(c)), 'world'); floater(c.x, 'scavenges ruins', c.color); }
+  return best;
+}
+function crisisCiv(c, dt) {
+  if (c.era < 9 || (c.bunker || 0) >= 1) return;
+  if (W.winter) return;
+  const dd = doomsday();
+  if (dd == null || dd > 7) return;
+  const was = c.bunker || 0, tr = { Warlike: 1.5, Devout: 1.25, Curious: 1, Mercantile: .8 }[c.trait] || 1;
+  c.bunker = Math.min(1, was + .008 * tr * (dd <= 4 ? 2 : 1) * dt);
+  if (was < .5 && c.bunker >= .5) { log(fillT(c.trait === 'Devout' ? '{Civ} carve deep vaults under their mountains and fill them with seed and scripture.' : '{Civ} dig deep bunkers under their cities and stock them for a long winter.', names(c)), 'world'); floater(c.x, c.trait === 'Devout' ? 'vaults' : 'bunkers', c.color); }
+}
+const winterK = () => W && W.winter ? clamp((W.winter.until - W.simTime) / 12, 0, 1) * clamp((W.simTime - W.winter.t0) / 3, 0, 1) * (W.winter.full ? 1 : .55) : 0;
+function startWinter(full) {
+  const dur = full ? 70 : 30;
+  W.winter = { t0: W.simTime, until: W.simTime + dur, full: !!full, kind: 'nuke', pop0: 0 };
+  log(full ? 'Soot from the burning cities rises into the sky and hides the Sun. A nuclear winter begins: years of darkness, frost in summer and failed harvests.' : 'Smoke from the burning cities darkens the sky for a few hard years.', 'war');
+  if (full) banner('Nuclear Winter', 'The Sun is hidden', '#c8553d');
+  for (const c of alive()) { const sh = 1 - .75 * (c.bunker || 0); c.mods = c.mods.filter(m => m.name !== 'Nuclear winter'); c.mods.push({ until: W.simTime + dur, food: -(full ? 48 : 22) * sh, techMul: full ? .6 : .85, stab: -10 * sh, name: 'Nuclear winter' }); queueReaction(c, 'food'); }
+}
+function endWinter() {
+  const wi = W.winter; W.winter = null;
+  if (wi && (wi.kind === 'ash' || wi.kind === 'impact')) {
+    const tot = alive().reduce((s, o) => s + o.pop, 0);
+    if (alive().length && tot < .3 * (wi.pop0 || 1)) { log(wi.kind === 'ash' ? 'The ash never seems to settle. Too few are left to keep the old world going.' : 'The dust of the impact hides the Sun too long. Too few are left to keep the old world going.', 'world'); reachEnding(wi.kind === 'ash' ? 'supervolcano' : 'impact'); }
+    else log(wi.kind === 'ash' ? 'The ash settles at last, and green comes back to the grey land.' : 'The dust settles and the Sun returns over a scarred world.', 'world');
+    return;
+  }
+  if (!wi || !wi.full) { log('The smoke clears and the Sun returns.', 'world'); return; }
+  const cs = alive(), safe = cs.filter(c => (c.bunker || 0) >= .5);
+  if (cs.length && safe.length / cs.length >= .5) {
+    for (const c of cs) if ((c.bunker || 0) < .5) c.pop *= .6;
+    log(`The long winter lifts. ${safe.length === cs.length ? 'Every people' : listHTML(safe)} sheltered deep enough to carry the world through.`, 'world');
+    return;
+  }
+  for (const c of cs) if ((c.bunker || 0) < .5 && Math.random() < .55) { log(fillT('No one among {civ} lives to see the Sun return.', names(c)), 'war'); extinct(c); }
+  reachEnding('nuclearwinter');
+}
+function tipWarming() {
+  const H = W.hot || (W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }); if (H.on) return false;
+  H.on = true; H.t0 = W.simTime; H.acc = 0;
+  log('The warming begins to feed itself. Thawing permafrost and burning forests pour out more heat than any people makes, the farm belts drift toward the poles, and the seas start to climb. The world has passed its tipping point.', 'nature');
+  banner('Runaway Warming', 'The tipping point is passed', '#c8553d');
+  for (const c of alive()) queueReaction(c, 'ecology');
+  return true;
+}
+function startPandemic(c) {
+  if (!c || !c.alive || W.pandemic) return false;
+  W.plagueCycle = W.fates.cycle;
+  W.pandemic = { t0: W.simTime, src: c.id, inf: { [c.id]: .2 }, at: { [c.id]: W.simTime }, rec: [], pop0: alive().reduce((s, o) => s + o.pop, 0) };
+  log(fillT('A virus built in a laboratory of {civ} escapes its sealed rooms. It spreads before anyone knows it exists, and it kills far more than any plague before it.', names(c)), 'event');
+  banner('Engineered Plague', `${c.name} · ${fmtYear(W.year)}`, '#c8553d');
+  queueReaction(c, 'loss');
+  for (const o of alive()) {
+    if (o === c) continue;
+    const p = { Devout: .75, Warlike: .55, Curious: .45, Mercantile: .2 }[o.trait] || .4;
+    if (Math.random() < p) V.later.push({ at: W.simTime + rand(2, 7), fn() { if (!o.alive || !W.pandemic || (W.pandemic.inf[o.id] || 0) > 0) return; o.closed = Math.max(o.closed || 0, W.simTime + 90); log(fillT('{Civ} close their borders, ground every flight and turn back every ship.', names(o)), 'react'); floater(o.x, 'closes borders', o.color); } });
+  }
+  return true;
+}
+function pandemicTick(dt) {
+  const PD = W.pandemic, cs = alive(); let any = false;
+  for (const c of cs) {
+    let lv = PD.inf[c.id] || 0; c._.sick = clamp(lv * 1.2, 0, 1); if (lv <= 0) continue; any = true;
+    const age = W.simTime - (PD.at[c.id] || W.simTime), cure = (.02 + .008 * Math.max(0, c.era - 11)) * (c.trait === 'Curious' ? 1.4 : 1);
+    lv = age < 35 ? lv + .06 * dt * (1 - lv) : lv - cure * dt;
+    c.pop = Math.max(20, c.pop * (1 - .045 * Math.max(0, lv) * (c.closed > W.simTime ? .7 : 1) * dt));
+    c.stability = Math.max(0, c.stability - .4 * Math.max(0, lv) * dt);
+    if (lv <= 0) { c._.sick = 0; delete PD.inf[c.id]; delete PD.at[c.id]; PD.rec.push(c.id); log(fillT('The plague passes through {civ}. The survivors bury their dead and count who is left.', names(c)), 'event'); continue; }
+    PD.inf[c.id] = +lv.toFixed(4);
+    if (lv > .25 && !V.fx.some(f => f.type === 'sickness' && f.x === c.x)) V.fx.push({ type: 'sickness', x: c.x, r: Math.max(160, (c.r - c.l) / 2), t0: V.t, dur: 8 });
+    if (lv < .15) continue;
+    for (const o of cs) {
+      if (o === c || PD.inf[o.id] > 0 || PD.rec.includes(o.id) || !contact(c, o) || atWar(c, o)) continue;
+      const pr = .07 * lv * dt * (W.tradeUntil > W.simTime ? 1.6 : 1) * (relGet(c, o) > 20 ? 1.3 : 1) * (o.closed > W.simTime ? .12 : 1) * (c.closed > W.simTime ? .35 : 1);
+      if (Math.random() < pr) { PD.inf[o.id] = .1; PD.at[o.id] = W.simTime; log(fillT('The engineered plague reaches {civ}, carried along the routes from {other}.', names(o, c)), 'event'); queueReaction(o, 'loss'); floater(o.x, 'plague', '#c8553d'); }
+    }
+  }
+  const tot = alive().reduce((s, o) => s + o.pop, 0);
+  if (!any || tot < .3 * PD.pop0) for (const o of alive()) o._.sick = 0;
+  if (alive().length && tot < .3 * PD.pop0) { W.pandemic = null; log(`The engineered plague has killed ${Math.round((1 - tot / PD.pop0) * 100)}% of humanity.`, 'event'); reachEnding('plague'); return; }
+  if (!any) { W.pandemic = null; log(`The engineered plague burns itself out. About ${Math.max(1, Math.round((1 - tot / PD.pop0) * 100))}% of humanity has died.`, 'event'); }
+}
+function endTick(dt) {
+  const F = W.fates;
+  if (F.ended && F.riseAt != null && W.simTime >= F.riseAt && ENDINGS[F.ended] && ENDINGS[F.ended].kind === 'doom') {
+    if (!alive().length) F.riseAt = null; else if (!$('#modal').classList.contains('open')) riseAgain();
+  }
+  if (W.winter && W.simTime >= W.winter.until) endWinter();
+  if (W.winter && !V.fx.some(f => f.type === 'ash' && f.x == null)) V.fx.push({ type: 'ash', x: null, r: 0, t0: V.t, dur: 16 });
+  // END-04 the tipping point and the rising seas
+  const H = W.hot || (W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }), t = temp();
+  if (!H.on) {
+    H.acc = t > TIP_T ? H.acc + (t - TIP_T) * dt : Math.max(0, H.acc - .2 * dt);
+    if (H.acc >= TIP_HOLD && maxEra() >= 8 && !F.active.some(a => a.id === 'geo' || a.id === 'garden')) tipWarming();
+  } else {
+    const stop = F.active.find(a => a.id === 'geo' || a.id === 'garden');
+    if (stop) { H.on = false; log(stop.id === 'geo' ? 'The veil in the sky works: the runaway warming stops, and the seas stop rising.' : 'The Garden peoples let the forests return, and the runaway warming finally stops.', 'nature'); }
+    else if (t < 1.2) { H.on = false; log('With the air cleaner at last, the warming loses its grip. The seas stop rising.', 'nature'); }
+    else { if (t < 5) W.tempShift += (.02 + .04 * clamp(W.pollution / 30, 0, 1.5)) * dt; W.seaRise = Math.min(SEA_MAX, (W.seaRise || 0) + .12 * dt); }
+  }
+  if (!H.on && W.seaRise > 0) W.seaRise = Math.max(0, W.seaRise - .015 * dt);
+  { const q = Math.round((W.seaRise || 0) / 2); if (V.seaQ !== q) { V.seaQ = q; V.tver++; } }
+  if (W.seaRise > 1 && V.seaCell) {
+    let worst = null;
+    for (const c of alive()) {
+      let n = 0, d = 0;
+      for (let i = cellOf(c.l); i <= cellOf(c.r); i++) { if (gy((i + .5) * CELL) >= SEA0 - 1) continue; n++; if (V.seaCell[i]) d++; }
+      const fr = c._.drown = n ? d / n : 0;
+      if (fr <= .02) continue;
+      c.food = Math.max(0, c.food - fr * 10 * dt); c.stability = Math.max(0, c.stability - fr * 3 * dt); c.pop *= 1 - fr * .004 * dt;
+      for (const o of alive()) if (o !== c && contact(c, o)) relAdd(c, o, -1.2 * fr * 10 * dt);
+      if (fr > .08 && c.drownSaid !== F.cycle) { c.drownSaid = F.cycle; log(fillT('The sea swallows the coastal cities of {civ}. Millions move inland, and the land left over is fought for.', names(c)), 'nature'); queueReaction(c, 'food'); }
+      if (!worst || fr > worst._.drown) worst = c;
+    }
+    if (worst && worst._.drown > .08 && W.simTime >= (H.nextMig || 0)) {
+      H.nextMig = W.simTime + 25;
+      const o = nearestNeighbour(worst, x => !atWar(worst, x));
+      if (o) { const mv = worst.pop * .05; worst.pop -= mv; o.pop += mv; o.stability = Math.max(0, o.stability - 6); relAdd(worst, o, -12); log(fillT('Refugees from the drowned coasts of {civ} pour into the lands of {other}.', names(worst, o)), 'nature'); queueReaction(o, 'unrest'); }
+    }
+  } else for (const c of alive()) c._.drown = 0;
+  if (W.pandemic) pandemicTick(dt);
+  if (W.rock) rockTick();
+  keepersTick(dt);
+}
+// END-07 seed vaults and libraries: elements that carry crops and knowledge through a collapse into the next cycle
+const keepersOf = c => { const k = { vault: null, lib: null }; for (const e of W.elements) { if (e.x < c.l || e.x > c.r) continue; if (e.type === 'seedvault') k.vault = e; else if (e.type === 'library') k.lib = e; } return k; };
+function keepStart(c) {
+  const fe = c.fallEra != null ? c.fallEra : c.era, k = keepersOf(c);
+  let era = fe >= 8 ? 1 : 0;
+  if (k.lib && fe >= 3) era = Math.max(era, clamp(Math.floor(fe / 3) + 1, 1, 4));
+  if (k.vault) era = Math.max(era, 1);
+  if (k.lib && k.vault && fe >= 3) era = Math.min(6, era + 1);
+  const out = { era, tech: k.lib ? 40 : k.vault ? 20 : 0, popK: k.vault ? 2 : 1, food: k.vault ? 78 : 50 };
+  if (k.lib || k.vault) log(fillT(`${k.lib && k.vault ? 'With seed from their vault and books from their library' : k.lib ? 'With the books saved in their library' : 'With seed from their vault'}, {civ} begin again in the ${ERAS[era].name}.`, names(c)), 'world');
+  return out;
+}
+function keepersLine() { const out = []; for (const c of alive()) { const k = keepersOf(c); if (k.vault || k.lib) out.push(`${c.name} (${[k.vault ? 'seed vault' : '', k.lib ? 'library' : ''].filter(Boolean).join(', ')})`); } return out.join(', '); }
+function keepEl(c, type) {
+  if (W.elements.length >= 140) return false;
+  for (let tries = 0; tries < 12; tries++) { const x = Math.round(rand(c.l + 40, c.r - 40)); if (!isLand(x) || W.elements.some(e => Math.abs(e.x - x) < 50)) continue;
+    W.elements.push({ id: W.nextId++, type, x }); refreshCaps();
+    log(fillT(type === 'library' ? '{Civ} found a great library and copy into it everything they know.' : c.trait === 'Devout' ? '{Civ} seal seeds of every crop in a vault deep in the holy mountain.' : '{Civ} cut a seed vault into the frozen rock and fill it with seeds of every crop.', names(c)), 'world');
+    floater(x, type === 'library' ? 'great library' : 'seed vault', c.color); return true; }
+  return false;
+}
+function keepersTick(dt) {
+  const libs = W.elements.filter(e => e.type === 'library').length, vaults = W.elements.filter(e => e.type === 'seedvault').length;
+  const danger = !!(W.winter || (W.hot && W.hot.on) || W.pandemic || W.rock || W.fates.active.some(a => a.id === 'collapse' || a.id === 'longnight') || (doomsday() || 99) <= 6);
+  for (const c of alive()) {
+    const k = keepersOf(c);
+    if (!k.lib && libs < 2 && c.era >= 5 && c.culture >= 60 && Math.random() < .0015 * dt * (c.trait === 'Curious' || c.trait === 'Devout' ? 1.6 : 1)) { keepEl(c, 'library'); return; }
+    if (!k.vault && vaults < 2 && c.era >= 10 && Math.random() < (danger ? .006 : .0005) * dt * (c.trait === 'Devout' ? 1.6 : 1)) { keepEl(c, 'seedvault'); return; }
+  }
+}
+// END-06 world-scale disasters: a supervolcano, and a killer asteroid with a countdown that space peoples may deflect
+const ROCK_ETA = 140;
+function worldWinter(kind, dur, food, pop0) {
+  W.winter = { t0: W.simTime, until: W.simTime + dur, full: false, kind, pop0 };
+  const nm = kind === 'ash' ? 'Volcanic winter' : 'Impact winter';
+  for (const c of alive()) { const sh = 1 - .5 * (c.bunker || 0); c.mods = c.mods.filter(m => m.name !== nm); c.mods.push({ until: W.simTime + dur, food: -food * sh, techMul: .7, stab: -8 * sh, name: nm }); queueReaction(c, 'food'); }
+}
+function startSupervolcano(x) {
+  if (W.winter) { toast('The sky is already dark.'); return false; }
+  const cs = alive(), pop0 = cs.reduce((s, o) => s + o.pop, 0); W.svCycle = W.fates.cycle;
+  log('The ground swells for months, then a whole mountain range bursts open. A supervolcano buries the land around it under ash and throws so much into the sky that summer does not come.', 'event');
+  banner('Supervolcano', 'The sky turns grey', '#c8553d');
+  for (const c of cs) { const d = x >= c.l && x <= c.r ? 0 : Math.min(Math.abs(c.l - x), Math.abs(c.r - x)), k = clamp(1 - d / 1600, .15, 1); applyFx(c, { pop: -.55 * k, food: -35 * k, stability: -20 * k }, 1); c.ruin = Math.max(c.ruin, .8 * k); if (k > .8) floater(c.x, 'buried in ash', '#c8553d', true); }
+  W.craters.push({ x: Math.round(x), r: 120, d: 55 }); if (W.craters.length > 12) W.craters.shift(); recomputeTerrain();
+  if (W.nat) applyNat({ f: -.9, w: -.8, s: .1 }, { scope: 'local', r: 1400 }, x, []);
+  W.tempShift -= 4.5; V.erupt.push({ x, t0: V.t, dur: 40 }); V.fx.push({ type: 'ash', x: null, r: 0, t0: V.t, dur: 20 }); if (!REDUCED) V.shake = 14;
+  worldWinter('ash', 60, 42, pop0);
+  return true;
+}
+function startAsteroid(size) {
+  if (W.rock) return false;
+  const sz = size != null ? clamp(size, .3, 1) : +rand(.5, 1).toFixed(2), L = pick(V.lands);
+  W.rockCycle = W.fates.cycle;
+  W.rock = { t0: W.simTime, eta: W.simTime + ROCK_ETA, x: Math.round(rand(L.l + 80, L.r - 80)), size: sz, seen: maxEra() >= 9, tries: 0, next: W.simTime + 18, name: pick(['Vesh', 'Kharon', 'Orrin', 'Thale', 'Ysmir', 'Dovra']) };
+  if (W.rock.seen) { log(`Astronomers find a rock ${sz > .8 ? 'ten' : 'several'} kilometres across on a course that crosses the world’s path. They name it ${W.rock.name}, and the countdown to impact begins.`, 'event'); banner('Killer Asteroid', `${W.rock.name} · impact in ${fmtSpan(clockYear(W.rock.eta) - clockYear(W.simTime))}`, '#c8553d'); for (const c of alive()) queueReaction(c, 'threat'); }
+  return true;
+}
+// a people can try to push the rock aside once it has space technology; earlier tries have more time to work
+const canDeflect = c => c.alive && c.era >= 11;
+function deflectChance(c) { const r = W.rock, lead = clamp((r.eta - W.simTime) / ROCK_ETA, 0, 1); return clamp((.12 + .12 * (c.era - 11) + (c.trait === 'Curious' ? .1 : 0) + .04 * Math.min(3, basesOf(c).length)) * (.5 + .7 * lead) * (1.15 - .4 * r.size), .03, .85); }
+function tryDeflect(c) {
+  const r = W.rock; if (!r || !canDeflect(c)) return false;
+  r.tries++; const p = deflectChance(c), ok = Math.random() < p;
+  if (ok) { log(fillT(`A mission launched by {civ} reaches ${r.name}. The push is tiny, but years of it add up: the rock will miss the world.`, names(c)), 'event'); banner('Asteroid deflected', `${c.name} · ${r.name} will miss`, '#8fd18a'); c.culture = Math.min(100, c.culture + 15); c.stability = Math.min(100, c.stability + 10); for (const o of alive()) if (o !== c) relAdd(c, o, 20); W.rock = null; return true; }
+  log(fillT(Math.random() < .5 ? `The mission of {civ} to ${r.name} fails: the rock spins too fast to hold.` : `The mission of {civ} to ${r.name} breaks off a piece, but the rest is still coming.`, names(c)), 'event');
+  r.size = Math.max(.3, +(r.size - .05).toFixed(2)); c.stability = Math.max(0, c.stability - 5); return false;
+}
+function rockTick() {
+  const r = W.rock;
+  if (!r.seen && (maxEra() >= 9 || r.eta - W.simTime < 25)) { r.seen = true; log(maxEra() >= 9 ? `Telescopes find ${r.name}, a rock on a collision course. The countdown to impact begins.` : 'A new star grows brighter every night. Some say it is falling toward the world.', 'event'); }
+  if (W.simTime >= r.next && r.eta - W.simTime > 8) { r.next = W.simTime + 26; const cs = alive().filter(canDeflect).sort((a, b) => deflectChance(b) - deflectChance(a)); if (cs.length && tryDeflect(cs[0])) return; }
+  if (W.simTime >= r.eta) rockImpact();
+}
+function rockImpact() {
+  const r = W.rock; W.rock = null; const cs = alive(), pop0 = cs.reduce((s, o) => s + o.pop, 0), x = r.x, hit = civAt(x);
+  log(`${esc(r.name)} strikes${hit ? ' the lands of ' + nm(hit) : ''}. A fireball wider than any city, then a wall of fire and a sky full of falling rock. Dust rises around the whole world.`, 'event');
+  banner('Impact', `${r.name} · ${fmtYear(W.year)}`, '#c8553d');
+  for (const c of cs) { const k = c === hit ? 1 : .55; applyFx(c, { pop: -(.25 + .45 * r.size) * k, food: -40, stability: -25, tech: -20 * k }, 1); c.ruin = Math.max(c.ruin, .9 * k); queueReaction(c, 'loss'); }
+  W.craters.push({ x, r: 120, d: 60 }); if (W.craters.length > 12) W.craters.shift(); recomputeTerrain();
+  if (W.nat) { applyNat({ f: -1, w: -1, s: -.3 }, { scope: 'local', r: 900 }, x, []); for (let i = 0; i < NCELL; i++) { W.nat.w[i] *= .6; W.nat.fish[i] *= .7; } }
+  W.tempShift -= 3 + 3 * r.size; V.meteors.push({ x, t0: V.t, hit: false, big: true }); if (!REDUCED) V.shake = 20; V.flash = 1;
+  for (const c of alive()) if (c.pop < 35) extinct(c);
+  if (!alive().length) { reachEnding('impact'); return; }
+  worldWinter('impact', 50 + 30 * r.size, 30 + 25 * r.size, pop0);
+}
+function crisisChips(c) {
+  const out = [], PD = W.pandemic, lv = PD && PD.inf[c.id];
+  if ((c.bunker || 0) >= .5) out.push(`<span class="chip own">${c.trait === 'Devout' ? 'Deep vaults' : 'Bunkers'}</span>`);
+  if (lv > 0) out.push(`<span class="chip war">Plague ${Math.round(lv * 100)}%</span>`);
+  if (c.closed > W.simTime) out.push('<span class="chip mod">Borders closed</span>');
+  if (c._.drown > .02) out.push(`<span class="chip missing">Coasts drowned ${Math.round(c._.drown * 100)}%</span>`);
+  if (c._.scav) out.push('<span class="chip own">Scavenging ruins</span>');
+  return out;
+}
+function crisisMeta() {
+  const out = [];
+  if (W.winter) out.push(`<span class="doom">${W.winter.kind === 'ash' ? 'volcanic winter' : W.winter.kind === 'impact' ? 'impact winter' : W.winter.full ? 'nuclear winter' : 'smoke-dark sky'}</span>`);
+  if (W.rock && W.rock.seen) out.push(`<span class="doom">asteroid: impact in ${fmtSpan(Math.max(1, clockYear(W.rock.eta) - clockYear(W.simTime)))}</span>`);
+  if (W.hot && W.hot.on) out.push('<span class="doom">runaway warming</span>');
+  if (W.seaRise > 1) out.push(`seas +${Math.round(W.seaRise * 2)} m`);
+  if (W.pandemic) out.push('<span class="doom">engineered plague</span>');
+  return out.length ? ' · ' + out.join(' · ') : '';
+}
+// ruins on the strip: rusted towers, broken domes, fallen walls and buried highways, slowly sinking under the green
+function drawRuins(x0, x1, sea) {
+  for (const r of W.ruins || []) {
+    const hw = r.w / 2; if (r.x + hw < x0 - 20 || r.x - hw > x1 + 20) continue;
+    const y = gy(r.x); if (y >= sea - 1) continue;
+    const ov = ruinOv(r), sk = 1 - .55 * ov, sd = (r.x * 7 + (r.t0 | 0)) | 0, x = r.x;
+    const rust = mix('#6e4a36', '#4f5a3c', ov * .7), stone = mix('#7b746a', '#55613f', ov * .7);
+    let top = y - 6;
+    if (r.k === 'tower') {
+      const w = clamp(r.w * .55, 8, 28), h = Math.min(r.h, 170) * .75 * sk; top = y - h;
+      P([x - w / 2, y, x - w / 2, y - h * .86, x - w * .2, y - h, x + w * .05, y - h * .8, x + w * .3, y - h * .93, x + w / 2, y - h * .7, x + w / 2, y], rust);
+      for (let fy = y - 8; fy > y - h * .78; fy -= 9) for (let k = 0; k < 3; k++) if (h01(sd + fy * 13 + k) < .7) R(x - w / 2 + 2 + k * (w - 4) / 3, fy - 5, Math.max(1.5, (w - 8) / 3 - 1), 4, '#1f1a18');
+      Ln(x - w * .2, y - h, x - w * .25, y - h - 6, '#4a3a30', .8); Ln(x + w * .3, y - h * .93, x + w * .36, y - h * .93 - 5, '#4a3a30', .8);
+      for (let k = 0; k < Math.round(ov * 6); k++) { const vx = x - w / 2 + h01(sd + k * 31) * w, vl = h * (.2 + .6 * h01(sd + k * 17)); Ln(vx, y, vx + 1, y - vl, 'rgba(78,118,58,.85)', 1.3); Ci(vx, y - vl, 1.8 + ov, '#4f7a3a'); }
+    } else if (r.k === 'dome') {
+      const rw = clamp(r.w * .5, 10, 44), rh = Math.min(r.h * .45, 40) * sk; top = y - rh;
+      El(x, y, rw, rh, stone, Math.PI, Math.PI * 1.62); El(x, y, rw * .8, rh * .78, '#2a2622', Math.PI * 1.05, Math.PI * 1.55);
+      for (let k = 0; k < 5; k++) { const a = Math.PI * (1.08 + k * .2); if (a > Math.PI * 1.7) break; Ln(x + Math.cos(a) * rw * .8, y + Math.sin(a) * rh * .8, x + Math.cos(a) * rw, y + Math.sin(a) * rh, '#5f574e', 1); }
+      R(x + rw * .55, y - rh * .35, 3, rh * .35, stone);
+    } else if (r.k === 'road') {
+      const dh = 9 * (1 - .8 * ov); top = y - dh - 3;
+      for (let px = x - hw; px < x + hw; px += 22) { if (h01(sd + px) < .28) continue; const gyy = gy(px); if (gyy >= sea - 1) continue; R(px, gyy - dh - 2, 20, 2.6, '#5d5a56'); if (dh > 3 && h01(sd + px * 3) < .5) R(px + 9, gyy - dh, 2.4, dh, '#4e4a45'); }
+    } else {
+      const w = clamp(r.w * .7, 10, 50), h = Math.min(r.h * .35, 22) * sk; top = y - h;
+      P([x - w / 2, y, x - w / 2, y - h * .7, x - w * .2, y - h, x, y - h * .55, x + w * .25, y - h * .8, x + w / 2, y - h * .4, x + w / 2, y], stone);
+      for (let k = 0; k < 3; k++) R(x - w / 2 + h01(sd + k) * w, y - 3, 4, 3, '#6a645c');
+    }
+    if (ov > .05) { const gw = r.k === 'road' ? hw : clamp(r.w * .4, 8, 30); El(x, y + 1, gw, 2 + 5 * ov, `rgba(78,118,58,${(.4 + .5 * ov).toFixed(3)})`, Math.PI, 6.2832); for (let k = 0; k < Math.round(ov * 7); k++) Ci(x + (h01(sd + k * 7) - .5) * gw * 1.6, y - 1 - h01(sd + k * 11) * (y - top) * ov, 2 + 2 * ov, k % 2 ? '#56803c' : '#4a6e35'); }
+    pk(x - Math.max(8, hw), top - 3, x + Math.max(8, hw), y + 3, 3, 'ruin', { name: RUIN_NAME[r.k] || 'Ruins', r });
+  }
 }
 
 /* ---------- layout of settlements ---------- */
@@ -2123,7 +2435,10 @@ function boom(x, y, size) {
 }
 function impact(x) {
   W.craters.push({ x, r: 70, d: 34 }); if (W.craters.length > 12) W.craters.shift();
-  recomputeTerrain(); boom(x, gy(x), 90);
+  recomputeTerrain(); impactFx(x);
+}
+function impactFx(x) {
+  boom(x, gy(x), 90);
   if (!REDUCED) V.shake = 16; V.flash = Math.max(V.flash, .6);
   V.fx.push({ type: 'ash', x, r: 420, t0: V.t, dur: 14 });
 }
@@ -2345,6 +2660,8 @@ function drawElement(el, owner) {
       break; }
     case 'people': break;
     case 'park': { R(x - .8, y - 13, 1.6, 13, '#5a4029'); R(x - 7, y - 17, 14, 7, '#3f6e3a'); Ci(x, y - 13.5, 2, '#cfe8a8'); for (let xx = x - 70; xx <= x + 70; xx += 14) if (Math.abs(xx - x) > 10) Ln(xx, gy(xx), xx, gy(xx) - 4, '#7a5a3a', .9); if (era >= 8) { R(x + 12, y - 8, 12, 8, '#7a5a3a'); P([x + 11, y - 8, x + 18, y - 13, x + 25, y - 8], '#4a3424'); } break; }
+    case 'seedvault': { P([x - 16, y + 1, x - 10, y - 12, x + 10, y - 12, x + 16, y + 1], '#8d9094'); P([x - 10, y - 12, x - 7, y - 15, x + 7, y - 15, x + 10, y - 12], '#a7abaf'); R(x - 3.5, y - 9, 7, 10, '#23262b'); R(x - 9, y - 11, 18, 1.4, V.N > .3 ? '#7fd6e0' : '#5aa6b0'); if (V.N > .3) GL.push({ x, y: y - 10, r: 12, c: '127,214,224', a: .35 * V.N }); break; }
+    case 'library': { const st = era >= 8; R(x - 18, y - 3, 36, 3, '#bfb59f'); R(x - 16, y - 5, 32, 2, '#cfc5ad'); R(x - 15, y - 19, 30, 2, '#d9cfb8'); for (let k = 0; k < 5; k++) R(x - 13 + k * 6.2, y - 17, 2.4, 12, '#e4dcc8'); P([x - 17, y - 19, x, y - 27, x + 17, y - 19], '#d9cfb8'); if (st) R(x - 2, y - 33, 4, 6, '#b8ad95'); if (V.N > .3) for (let k = 0; k < 4; k++) LT.push(x - 11 + k * 6.2, y - 14, 2.6, 6); break; }
     case 'wetland': { El(x - 16, gy(x - 16) + 1, 15, 2.6, '#4f8fa8'); El(x + 20, gy(x + 20) + 1, 11, 2.2, '#4f8fa8'); for (let k = 0; k < 9; k++) { const rx = x - 34 + k * 8.5, ry = gy(rx); Ln(rx, ry, rx + .8, ry - 6 - (k % 3) * 2, '#6f8f45', 1); } const hx = x + 4, hy = gy(hx); Ln(hx, hy, hx, hy - 5, '#d8d4c8', .7); El(hx, hy - 7, 2.6, 1.6, '#eceae2'); Ln(hx + 1.5, hy - 8, hx + 3.5, hy - 11, '#eceae2', .9); break; }
     case 'dam': { const wl = Math.min(gy(x - 26), gy(x + 26)) + 2.5, big = era >= 8; R(x - 26, wl - 9, 23, 10, '#3d86a8'); R(x - 3, wl - 13, 6, 32, big ? '#b9bdc0' : '#7a5a3a'); if (big) { R(x + 3, wl - 7, 9, 7, '#9aa0a6'); blink(x + 7, wl - 8, '255,200,90'); } break; }
     case 'fish': { const sy = seaY(); for (let k = 0; k < 4; k++) { const p0 = (V.t * .5 + k * .27) % 1; if (p0 < .15) { const p = p0 / .15; El(x - 30 + k * 18 + p * 12, sy - Math.sin(p * Math.PI) * 8, 2.4, 1, '#d8e4ea'); } } for (let k = 0; k < 3; k++) { const gx = x + Math.cos(V.t * .8 + k * 2.1) * 26, gyy = sy - 30 - Math.sin(V.t + k) * 5, a = Math.sin(V.t * 6 + k) * 1.6; Ln(gx - 3, gyy - a, gx, gyy, '#eef0f2', .9); Ln(gx, gyy, gx + 3, gyy - a, '#eef0f2', .9); } const fo = nearestCiv(x, 600); if (fo && fo.era >= 1) { const bx = x + Math.sin(V.t * .2) * 20, by = sy + Math.sin(V.t * 1.2) * .6; P([bx - 7, by - 2, bx + 7, by - 2, bx + 5, by + 1, bx - 5, by + 1], fo.era >= 8 ? '#3d4a58' : '#6b4a2e'); Ln(bx, by - 2, bx, by - 9, '#4a3424', 1); Ln(bx, by - 9, bx + 12, by + 3, 'rgba(220,220,210,.6)', .6); if (fo.era >= 8) R(bx - 3, by - 6, 5, 4, '#e8e4da'); } break; }
@@ -2495,8 +2812,10 @@ function drawSky(c2, w, h, fm = 1) {
   let top = mixA(SKY.nT, SKY.dT, L), bot = mixA(SKY.nB, SKY.dB, L);
   const dusk = Math.max(0, 1 - Math.abs(L - .38) / .3);
   bot = mixA(bot, SKY.dusk, dusk * .55); top = mixA(top, SKY.duskT, dusk * .25);
-  const grey = Math.min(.75, hz + winter * .5 + ashG);
+  const nk = winterK(), grey = Math.min(.85, hz + winter * .5 + ashG + nk * .15);
   top = mixA(top, SKY.haze, grey * (.35 + .65 * L)); bot = mixA(bot, SKY.haze, grey * (.35 + .65 * L));
+  if (nk > 0) { top = mixA(top, [24, 20, 20], nk * .8); bot = mixA(bot, [74, 60, 50], nk * .75); }
+  if (W.hot && W.hot.on) { const hk = clamp((temp() - 1.5) / 4, 0, 1) * L; bot = mixA(bot, [222, 150, 96], .35 * hk); top = mixA(top, [190, 160, 130], .15 * hk); }
   const gr = c2.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, rgb(top)); gr.addColorStop(1, rgb(bot));
   c2.fillStyle = gr; c2.fillRect(0, 0, w, h);
   const sa = Math.pow(1 - L, 2) * (1 - grey * .8);
@@ -2509,6 +2828,9 @@ function drawSky(c2, w, h, fm = 1) {
   if (p > 0 && p < 1) { const sx = w * (.08 + .84 * p), sy = h * .62 - Math.sin(p * Math.PI) * h * .5; const sg = c2.createRadialGradient(sx, sy, 2, sx, sy, 60); sg.addColorStop(0, 'rgba(255,240,200,.55)'); sg.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = sg; c2.fillRect(sx - 60, sy - 60, 120, 120); c2.fillStyle = grey > .4 ? '#d9cfb8' : '#fff4d8'; c2.beginPath(); c2.arc(sx, sy, 11, 0, 6.2832); c2.fill(); }
   const pm = (((V.dayT + .5) % 1) - .22) / .56;
   if (pm > 0 && pm < 1) { const mx = w * (.08 + .84 * pm), my = h * .62 - Math.sin(pm * Math.PI) * h * .5; c2.fillStyle = '#e8e4d8'; c2.beginPath(); c2.arc(mx, my, 9, 0, 6.2832); c2.fill(); c2.fillStyle = rgb(top); c2.beginPath(); c2.arc(mx + 4, my - 2, 8, 0, 6.2832); c2.fill(); }
+  if (W.rock && W.rock.seen) { const k = clamp(1 - (W.rock.eta - W.simTime) / ROCK_ETA, 0, 1), rx = w * (.78 - .25 * k), ry = h * (.12 + .1 * k), rr = 1.5 + 9 * k * k;
+    const tg = c2.createLinearGradient(rx, ry, rx + 30 + 120 * k, ry - 12 - 50 * k); tg.addColorStop(0, `rgba(255,230,200,${(.35 + .5 * k).toFixed(3)})`); tg.addColorStop(1, 'rgba(255,230,200,0)');
+    c2.strokeStyle = tg; c2.lineWidth = rr * 1.4; c2.beginPath(); c2.moveTo(rx, ry); c2.lineTo(rx + 30 + 120 * k, ry - 12 - 50 * k); c2.stroke(); c2.fillStyle = '#fff1dc'; c2.beginPath(); c2.arc(rx, ry, rr, 0, 6.2832); c2.fill(); }
   const ga = c2.globalAlpha; if (fm <= .01) return; c2.globalAlpha = ga * fm;
   const layers = [[.14, 0, '#16203a', '#9fb3c4'], [.32, 1, '#121a30', '#7f99ab']];
   for (const [par, k, nc, dc] of layers) {
@@ -2562,6 +2884,7 @@ function drawWorld(o, x0, x1) {
   for (let x = x0; x <= x1; x += 8) { if (gy(x) <= sea) { started = false; continue; } const yy = sea + Math.sin(x * .05 + V.t * 1.2) * 1.1; started ? o.lineTo(x, yy) : o.moveTo(x, yy); started = true; } o.stroke();
   for (const el of W.elements) { if (el.x < x0 - 120 || el.x > x1 + 120) continue; drawElement(el, ownerOf(el.x)); }
   drawNature(x0, x1, sea, snowY);
+  drawRuins(x0, x1, sea);
   for (const c of cs) {
     if (c.r < x0 - 200 || c.l > x1 + 200) continue;
     ensureLayout(c);
@@ -2798,6 +3121,7 @@ function buildTex() {
       land[r * tw + c] = isL ? 1 : 0;
     }
   }
+  { const passes = Math.min(4, Math.round((W.seaRise || 0) / 8)); for (let p = 0; p < passes; p++) { const kill = []; for (let r = 0; r < th; r++) for (let c = 0; c < tw; c++) { const idx = r * tw + c; if (!land[idx]) continue; if (!land[r * tw + (c + 1) % tw] || !land[r * tw + (c + tw - 1) % tw] || (r > 0 && !land[idx - tw]) || (r < th - 1 && !land[idx + tw])) kill.push(idx); } for (const i of kill) land[i] = 0; } }
   for (let r = 0; r < th; r++) {
     const lat = LATS[r], ld = lat * 57.3;
     for (let c = 0; c < tw; c++) {
@@ -2823,6 +3147,8 @@ function buildTex() {
       col[k] = v[0] * nv; col[k + 1] = v[1] * nv; col[k + 2] = v[2] * nv;
     }
   }
+  for (const ru of W.ruins || []) { const ov = ruinOv(ru), c0 = Math.round(ru.x / WORLD_W * tw), sp = Math.max(2, Math.round(ru.w / WORLD_W * tw));
+    for (let c = c0 - sp; c <= c0 + sp; c++) { const cw = ((c % tw) + tw) % tw; for (let r = 0; r < th && LATS[r] < .42; r++) { const idx = r * tw + cw; if (!land[idx] || h01(idx * 37 + ru.x) > .55) continue; const k = idx * 3, v = mixA([col[k], col[k + 1], col[k + 2]], [118, 92, 76], .6 * (1 - .75 * ov)); col[k] = v[0]; col[k + 1] = v[1]; col[k + 2] = v[2]; } } }
   lgt.fill(0);
   for (const cz of alive()) {
     const ext = clamp(10 + cz.era * 4.5 + Math.log10(Math.max(10, cz.pop)) * 2, 10, 72) / 57.2958, cc = hexRGB(cz.color);
@@ -3204,7 +3530,7 @@ function updateVisuals(vdt, rdt) {
   for (let i = V.P.length - 1; i >= 0; i--) { const p = V.P[i]; p.life -= vdt; if (p.life <= 0) { V.P.splice(i, 1); continue; } p.x += p.vx * vdt; p.y += p.vy * vdt; p.vy += p.g * vdt; p.r += p.grow * vdt; }
   if (V.P.length > 900) V.P.splice(0, V.P.length - 900);
   V.fx = V.fx.filter(f => V.t - f.t0 < f.dur); V.flashes = V.flashes.filter(f => V.t - f.t0 < f.dur); V.nukes = V.nukes.filter(n => V.t - n.t0 < 14); V.erupt = V.erupt.filter(e => V.t - e.t0 < e.dur); V.floaters = V.floaters.filter(f => V.t - f.t0 < 3.2);
-  for (const m of V.meteors) if (!m.hit && V.t - m.t0 >= 1.1) { m.hit = true; impact(m.x); }
+  for (const m of V.meteors) if (!m.hit && V.t - m.t0 >= 1.1) { m.hit = true; m.big ? impactFx(m.x) : impact(m.x); }
   V.meteors = V.meteors.filter(m => V.t - m.t0 < 2.5);
   V.showers = V.showers || []; V.rainbows = V.rainbows || [];
   if (vdt > 0 && !V.b && V.showers.length < 2 && Math.random() < rdt / 18) V.showers.push({ x: V.cam + V.vw * rand(.15, .85), t0: V.t, dur: rand(8, 12), d: Math.random() < .5 ? -1 : 1 });
@@ -3253,6 +3579,8 @@ function setTool(t) {
 const infoBtn = (key, name) => `<button class="ibtn" type="button" data-info="${esc(key)}" aria-label="About ${esc(name)}" aria-expanded="false">i</button>`;
 function toolButton(id, name) { return `<div class="toolwrap"><button class="tool" data-tool="${esc(id)}" aria-pressed="false"><canvas width="60" height="60" data-icon="${esc(id)}" aria-hidden="true"></canvas><span class="t"><b>${esc(name)}</b></span></button>${infoBtn(id === 'erase' || id === 'inspect' ? 'tool:' + id : id, name)}</div>`; }
 const ELINFO = {
+  seedvault: 'A vault cut deep into the rock, holding seeds of every crop. If the world falls, the people whose land holds it begin again as farmers in the Stone Age at least, with more food and twice the people. Peoples build them on their own from the Information Age when danger looms.',
+  library: 'A great library that keeps books and records safe. If the world falls, the people whose land holds it keep part of what it knew and begin again in a later age (up to the Iron Age, one age more with a Seed Vault too). Adds culture. Learned peoples build them on their own from the Classical Age.',
   river: 'Fresh water for drinking and farming. Feeds people in every age, and helps open the Stone Age.',
   fertile: 'Rich soil. Of little use to hunters, vital once people farm. Key to the Stone Age.',
   herd: 'Bison and deer to hunt. The main larder of the earliest ages; less useful once people farm.',
@@ -3275,6 +3603,9 @@ const EVINFO = {
   quake: 'The ground shakes and buildings fall.',
   meteor: 'A rock from space flattens everything around it and leaves a crater.',
   plague: 'Disease kills many and spreads to trading partners. Later ages fight it far better.',
+  supervolcano: 'A world-scale eruption. The land around it is buried and a volcanic winter hides the Sun for years. If humanity falls below 30% of its size, the world collapses and begins again. Happens on its own very rarely where there is a Volcano.',
+  asteroid: 'A rock kilometres across is found on a collision course, with a countdown. Peoples with space technology (from the Future Age) launch missions to push it aside: earlier tries, more advanced and Curious peoples and space bases do better; a failed try can still chip it smaller. Happens on its own very rarely once someone has telescopes (the Modern Age). If it strikes: a huge crater, fire and an impact winter that can end the world.',
+  bioplague: 'A virus made in a laboratory escapes. It spreads along every contact between peoples and kills far more than any natural plague. Peoples that close their borders fare better. If too few people survive, the world collapses and begins again.',
   wildfire: 'Fire races through forests and farms. Thick forests in a warm world burn more often.',
   locusts: 'A swarm eats the harvest.',
   replant: 'A people plants new forests on its land.',
@@ -3295,7 +3626,7 @@ const EVINFO = {
   trade: 'Links every people at peace that can reach each other: food, friendship and shared knowledge.',
   migration: 'On empty land a new people arrives; inside a people’s lands, refugees.',
   alien: 'A signal from space. Each age reads it its own way.',
-  climate: 'The world warms and pollution rises.',
+  climate: 'The world warms and pollution rises. Stay too hot for too long and the warming feeds itself: the seas rise and drown the coasts until the air is cleaned or the Sun is dimmed.',
   internet: 'Ideas spread at lightning speed for a while, and society is shaken.',
   ai: 'Thinking machines race progress ahead but unsettle society. Each use brings the machines closer to waking.',
   broadcast: 'Only during the Three-Sun Signal. Sends the location of Hevar and of humanity’s world to the whole galaxy. A strike will follow.',
@@ -3304,7 +3635,7 @@ const EVINFO = {
   lsfail: 'A base on the Moon or Mars loses its air, and more than half its people die.',
   debris: 'Orbit fills with wreckage that sets off a chain of collisions: fewer satellites, lost progress.',
   comet: 'A great comet crosses the sky. Early peoples see an omen; space peoples mine its ice.',
-  nuke: 'Every people is struck; nuclear powers lose much of their progress, and a long winter follows.'
+  nuke: 'Every people is struck; nuclear powers lose much of their progress. If two or more peoples have the bomb, a nuclear winter follows, and unless half the peoples have bunkers or vaults, the world collapses and begins again.'
 };
 const KEYTXT = 'A people that holds it advances faster toward that age; neighbours it can reach may trade for it.';
 function infoContent(key) {
@@ -3365,7 +3696,7 @@ function placePop() {
 }
 function hidePop(delay, force) { clearTimeout(popT); if (popPin && !force) return; popT = setTimeout(() => { popPin = false; $('#pop').classList.remove('show'); if (popFor) popFor.setAttribute('aria-expanded', 'false'); popFor = null; }, delay || 0); }
 function buildElementsTab() {
-  const groups = [['Land and life', ['river', 'fertile', 'herd', 'forest', 'mountain', 'volcano', 'sacred']], ['Nature and land use', ['park', 'wetland', 'dam', 'fish']], ['Resources that unlock ages', ['copper', 'tin', 'iron', 'gold', 'coal', 'oil', 'uranium', 'silicon', 'lithium']], ['Peoples', ['people']]];
+  const groups = [['Land and life', ['river', 'fertile', 'herd', 'forest', 'mountain', 'volcano', 'sacred']], ['Nature and land use', ['park', 'wetland', 'dam', 'fish']], ['Keeping the past', ['seedvault', 'library']], ['Resources that unlock ages', ['copper', 'tin', 'iron', 'gold', 'coal', 'oil', 'uranium', 'silicon', 'lithium']], ['Peoples', ['people']]];
   groups.push(['Space (place in the solar system view)', ['helium3', 'asteroid', 'icemoon']]);
   let h = '<p class="lede">Pick an element, then click the land. The <b>i</b> beside each one tells you what it does.</p>';
   for (const [title, list] of groups) { h += `<h3 class="cat">${title}</h3><div class="grid">`; for (const t of list) h += toolButton('el:' + t, ELEMENTS[t].name); h += '</div>'; }
@@ -3419,6 +3750,8 @@ function drawIcon(cvs) {
     case 'people': ground(); for (const [x, c] of [[9, '#e8875c'], [15, '#62b9e0'], [21, '#dcc057']]) { R(x - 1.6, 13, 3.2, 5.6, c); Ci(x, 11.4, 1.8, '#c68e63'); Ln(x - .6, 18.5, x - 1.6, 21, '#2b2520', 1); Ln(x + .6, 18.5, x + 1.6, 21, '#2b2520', 1); } break;
     case 'erase': Ln(9, 9, 21, 21, '#e36a55', 2.4); Ln(21, 9, 9, 21, '#e36a55', 2.4); break;
     case 'park': ground(); tree(9, 21, 12, '#2f5a35'); R(19, 11, 1.4, 10, '#5a4029'); R(15, 9, 10, 5, '#3f6e3a'); break;
+    case 'seedvault': ground(); P([6, 22, 10, 12, 20, 12, 24, 22], '#8d9094'); R(13, 15, 4, 7, '#23262b'); R(10, 13, 10, 1.2, '#7fd6e0'); break;
+    case 'library': ground(); R(5, 19, 20, 2, '#cfc5ad'); for (let k = 0; k < 4; k++) R(7 + k * 4.6, 11, 1.8, 8, '#e4dcc8'); R(5, 9.5, 20, 1.6, '#d9cfb8'); P([4, 9.5, 15, 4, 26, 9.5], '#d9cfb8'); break;
     case 'wetland': ground(); El(10, 21.5, 7, 2, '#4f8fa8'); El(21, 22, 5, 1.6, '#4f8fa8'); for (let k = 0; k < 6; k++) Ln(4 + k * 4.5, 21, 4.5 + k * 4.5, 15 - (k % 2) * 2, '#6f8f45', 1); break;
     case 'dam': ground(); R(0, 15, 13, 7, '#3d86a8'); R(13, 10, 4, 14, '#b9bdc0'); R(17, 20, 13, 3, '#3d86a8'); break;
     case 'fish': R(0, 13, 30, 17, '#2f6f8f'); R(0, 13, 30, 1.5, '#9fd0e0'); El(12, 20, 4, 1.8, '#d8e4ea'); P([15.5, 20, 18.5, 18, 18.5, 22], '#d8e4ea'); El(21, 25, 3, 1.4, '#c8d6dc'); Ln(6, 7, 8, 9, '#e6e6e6', .8); Ln(8, 9, 10, 7, '#e6e6e6', .8); break;
@@ -3486,6 +3819,7 @@ function updateCivCards() {
     if (lp === 'protect' && c.tmpPol && c.tmpPol.until > W.simTime) st.push('<span class="chip green">Protecting the land</span>');
     for (const m of c.mods) st.push(`<span class="chip mod">${esc(m.name)} · ${Math.max(0, Math.ceil(m.until - W.simTime))} s</span>`);
     if (c.nuclear) st.push('<span class="chip war">Has the bomb</span>');
+    st.push(...crisisChips(c));
     if (c.ruin > .2) st.push('<span class="chip mod">Rebuilding</span>');
     if (c.stability < 15) st.push('<span class="chip war">Unrest</span>');
     const sh = st.join('') || '<span>At peace</span>';
@@ -3518,10 +3852,10 @@ function updateRibbon() {
 function updateUI() {
   $('#year').textContent = fmtYear(W.year);
   const cs = alive(), le = maxEra();
-  $('#eraName').textContent = cs.length ? 'The ' + ERAS[le].name : 'No peoples remain';
+  $('#eraName').textContent = (cs.length ? 'The ' + ERAS[le].name : 'No peoples remain') + (W.fates.cycle > 1 ? ' · ' + (ORD[Math.min(7, W.fates.cycle)] || 'Next') + ' rise' : '');
   if (isFS()) { $('#fsYear').textContent = fmtYear(W.year); $('#fsEra').textContent = $('#eraName').textContent; }
   const t = temp(), dd = doomsday();
-  $('#meta').innerHTML = `${SEASONS[Math.floor(((W.simTime / 60) % 1) * 4)]} · ${cs.length} ${cs.length === 1 ? 'people' : 'peoples'} · climate ${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(1)} °C · pollution ${W.pollution.toFixed(0)}${W.wars.length ? ` · ${W.wars.length} ${W.wars.length === 1 ? 'war' : 'wars'}` : ''}${dd != null ? ` · <span class="doom">doomsday clock ${dd} min to midnight</span>` : ''}`;
+  $('#meta').innerHTML = `${SEASONS[Math.floor(((W.simTime / 60) % 1) * 4)]} · ${cs.length} ${cs.length === 1 ? 'people' : 'peoples'} · climate ${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(1)} °C · pollution ${W.pollution.toFixed(0)}${W.wars.length ? ` · ${W.wars.length} ${W.wars.length === 1 ? 'war' : 'wars'}` : ''}${dd != null ? ` · <span class="doom">doomsday clock ${dd} min to midnight</span>` : ''}${crisisMeta()}`;
   buildCivCards(false); updateCivCards(); updateColonyCards(); updateRibbon(); updateEventLocks(); updatePlanet(); updateFutures();
   { const sc = W.fates.ended ? ENDINGS[W.fates.ended].scene : '', cv = $('#world'); if (cv.style.filter !== sc) { cv.style.transition = 'filter 4s'; cv.style.filter = sc; } }
   if (TIP.cur && V.b) { TIP.over = false; hideTip(0); }
@@ -3754,7 +4088,7 @@ function sanitizeWorld(d) {
   w.year = n(d.year, -60000, 1e6, ERAS[0].start); w.nextId = n(d.nextId, 1, 1e9, 1) | 0; w.tempShift = clamp(w.tempShift, -12, 12); w.pollution = clamp(w.pollution, 0, 100); w.topEra = clamp(w.topEra | 0, 0, MAXERA); w.thresholdNoted = !!d.thresholdNoted;
   w.elements = (Array.isArray(d.elements) ? d.elements : []).filter(e => e && (ELEMENTS[e.type] || (typeof e.type === 'string' && /^c:[\w]+$/.test(e.type)))).slice(0, 160).map(e => ({ id: n(e.id, 0, 1e9) | 0, type: e.type, x: n(e.x, 0, WORLD_W) }));
   w.craters = (Array.isArray(d.craters) ? d.craters : []).slice(0, 12).map(c => ({ x: n(c.x, 0, WORLD_W), r: n(c.r, 10, 120, 70), d: n(c.d, 0, 60, 34) }));
-  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, _: {} }));
+  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, _: {} }));
   const ids = new Set(w.civs.map(c => c.id));
   w.wars = (Array.isArray(d.wars) ? d.wars : []).filter(x => x && ids.has(x.a) && ids.has(x.b)).map(x => ({ a: x.a, b: x.b, t: n(x.t, 0, 1e9), adv: n(x.adv, -20, 20) }));
   w.rel = {}; for (const [k, v] of Object.entries(d.rel || {})) if (/^\d+-\d+$/.test(k)) w.rel[k] = n(v, -100, 100);
@@ -3774,6 +4108,14 @@ function sanitizeWorld(d) {
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0 }));
   w.bases = (Array.isArray(d.bases) ? d.bases : []).filter(b => b && BODY[b.body]).slice(0, 64).map(b => ({ id: n(b.id, 0, 1e9) | 0, civ: n(b.civ, 0, 1e9) | 0, body: b.body, name: String(b.name || 'Base').slice(0, 24), pop: n(b.pop, 0, 1e9), t0: n(b.t0, -60000, 1e6) | 0 })); w.debris = n(d.debris, 0, 1); w.kessler = d.kessler == null ? null : n(d.kessler, -1e9, 1e12); w.warCount = n(d.warCount, 0, 1e6) | 0; w.lastWarT = n(d.lastWarT, -1e9, 1e12); w.nukeT = d.nukeT == null ? null : n(d.nukeT, -1e9, 1e12);
   w.sig = d.sig && typeof d.sig === 'object' ? { t: n(d.sig.t, -1e9, 1e12), era: n(d.sig.era, 0, MAXERA) | 0 } : null;
+  w.ruins = (Array.isArray(d.ruins) ? d.ruins : []).filter(r => r && RUIN_NAME[r.k]).slice(-48).map(r => ({ x: n(r.x, 0, WORLD_W) | 0, w: n(r.w, 10, 600, 40) | 0, h: n(r.h, 4, 220, 30) | 0, era: n(r.era, 0, MAXERA) | 0, k: r.k, t0: n(r.t0, -1e9, 1e12), by: String(r.by || '').slice(0, 20) }));
+  w.winter = d.winter && typeof d.winter === 'object' ? { t0: n(d.winter.t0, -1e9, 1e12), until: n(d.winter.until, -1e9, 1e12), full: !!d.winter.full } : null;
+  w.hot = { on: !!(d.hot && d.hot.on), acc: n(d.hot && d.hot.acc, 0, 100), t0: n(d.hot && d.hot.t0, -1e9, 1e12), nextMig: n(d.hot && d.hot.nextMig, 0, 1e12) }; w.seaRise = n(d.seaRise, 0, SEA_MAX); w.plagueCycle = n(d.plagueCycle, 0, 99) | 0;
+  w.pandemic = null; if (d.pandemic && typeof d.pandemic === 'object') { const inf = {}, at = {}; for (const [k, v] of Object.entries(d.pandemic.inf || {})) if (/^\d+$/.test(k) && ids.has(+k) && n(v, 0, 1) > 0) { inf[k] = n(v, 0, 1); at[k] = n(d.pandemic.at && d.pandemic.at[k], -1e9, 1e12, w.simTime); }
+    w.pandemic = { t0: n(d.pandemic.t0, -1e9, 1e12), src: n(d.pandemic.src, 0, 1e9) | 0, inf, at, rec: (Array.isArray(d.pandemic.rec) ? d.pandemic.rec : []).filter(id => ids.has(id)).slice(0, 40), pop0: n(d.pandemic.pop0, 1, 1e12, 1) }; }
+  w.winter && (w.winter.kind = ['ash', 'impact'].includes(d.winter.kind) ? d.winter.kind : 'nuke', w.winter.pop0 = n(d.winter.pop0, 0, 1e12));
+  w.rock = d.rock && typeof d.rock === 'object' ? { t0: n(d.rock.t0, -1e9, 1e12), eta: n(d.rock.eta, -1e9, 1e12), x: n(d.rock.x, 0, WORLD_W) | 0, size: n(d.rock.size, .3, 1, .7), seen: !!d.rock.seen, tries: n(d.rock.tries, 0, 99) | 0, next: n(d.rock.next, -1e9, 1e12), name: String(d.rock.name || 'Rock').slice(0, 20) } : null;
+  w.rockCycle = n(d.rockCycle, 0, 99) | 0; w.svCycle = n(d.svCycle, 0, 99) | 0;
   w.fates = sanitizeFates(d.fates); if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
   w.chron = (Array.isArray(d.chron) ? d.chron : []).slice(0, 260).filter(e => e && typeof e.h === 'string').map(e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) }));
   return w;
@@ -3838,7 +4180,7 @@ const AGENT_NAME = (a, c) => a.kind === 'walk' ? FOLK[c.era] : a.kind === 'cart'
 const TIP_ZOOM = 1.3;
 const TIP = { cur: null, open: false, over: false, t: 0, sx: 0, sy: 0 };
 // how far each element reaches around its spot (half width, height above the ground), in world units
-const ELHIT = { forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
+const ELHIT = { seedvault: [16, 16], library: [18, 30], forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
 function tipTarget(sx, sy) {
   if (V.b || V.zoom < TIP_ZOOM) return null;
   const [wx, wy] = S2W(sx, sy), c = civAt(wx), pad = 1.5 / V.s;
@@ -3871,6 +4213,7 @@ function tipBody(t) {
     else if (q.kind === 'fish') h = row('Fish stock here', Math.round(N.fish[d.i] * 100) + '%') + (W.extinct && W.extinct.whales ? row('Great whales', 'extinct') : '');
     else if (q.kind === 'birds') h = row('Wild animals on Earth', Math.round((V.planet ? V.planet.wild : 0) * 100) + '%');
     else if (q.kind === 'crater') h = row('Width', Math.round(d.r * 2) + ' paces') + row('Left by', 'a blast from the sky');
+    else if (q.kind === 'ruin') h = row('Left by', 'the ' + (d.r.by || 'old world') + ', ' + ERAS[d.r.era].name) + row('Overgrown', Math.round(ruinOv(d.r) * 100) + '%') + row('Scavenged by', (civAt(d.r.x) && civAt(d.r.x).era < d.r.era - 1) ? 'the ' + civAt(d.r.x).name + ', who learn faster from it' : 'no one yet');
     else if (q.kind === 'flag') h = row('Marks the edge of', 'the lands of the ' + c.name);
     else if (q.kind === 'soldier') h = row('Fights for', 'the ' + c.name) + row('Against', 'the ' + (d.foe ? d.foe.name : 'enemy'));
     else h = row('Belongs to', 'the ' + c.name) + row('Age', ERAS[c.era].name);
@@ -3893,6 +4236,9 @@ function tipBody(t) {
   if (W.tb && W.tb.stances[c.id]) h += row('Facing the Hevari', TB_STANCE[W.tb.stances[c.id]][0] + ': they ' + TB_STANCE[W.tb.stances[c.id]][1]) + (W.tb.strat === c.id ? row('Secret', 'their leaders hold a plan no one else knows') : '');
   { const sh = (W.ships || []).filter(x => x.civ === c.id), stc = (W.stars || []).filter(x => x.civ === c.id); if (sh.length) h += row('Ships in flight', sh.map(x => `${x.name} to ${XSTARS[x.star][0]} (${Math.round((W.simTime - x.t0) / x.dur * 100)}%)`).join(', ')); if (stc.length) h += row('Star colonies', stc.map(x => XSTARS[x.star][0]).join(', ')); }
   { const bs = basesOf(c); if (bs.length) h += row('Off-world', bs.map(b => `${b.name} on ${BODY[b.body].name} (${fmtPop(b.pop)})`).join(', ')); }
+  if ((c.bunker || 0) > .05) h += row(c.trait === 'Devout' ? 'Deep vaults' : 'Bunkers', Math.round(c.bunker * 100) + '% built' + (c.bunker >= .5 ? ', enough to shelter them through a nuclear winter' : ''));
+  if (W.pandemic && W.pandemic.inf[c.id] > 0) h += row('Plague', Math.round(W.pandemic.inf[c.id] * 100) + '% of the people sick' + (c.closed > W.simTime ? ', borders closed' : ''));
+  if (c._.drown > .02) h += row('Drowned coast', Math.round(c._.drown * 100) + '% of their land is under the sea');
   if (n) h += row('Nature', `forests ${Math.round(n.fr * 100)}%, wild animals ${Math.round(n.w * 100)}%, soil ${Math.round(n.s * 100)}%`);
   const ws = warsOf(c).map(w => enemyOf(w, c)).filter(Boolean); if (ws.length) h += row('At war with', ws.map(e => e.name).join(', '));
   return [`<span style="color:${c.color}">${esc(c.name)}</span>`, h];
@@ -4118,7 +4464,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

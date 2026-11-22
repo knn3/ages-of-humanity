@@ -28,7 +28,7 @@ Up to 8 peoples on 4 landmasses separated by sea. Each has a **character** (Warl
 
 ## The player's tools
 
-- **Elements** (left click on land): river, fertile soil, herds, forest, mountain, volcano, sacred site, ores and fuels, park, wetland, dam, fish (sea), new people, and space resources (placed in the solar system view).
+- **Elements** (left click on land): river, fertile soil, herds, forest, mountain, volcano, sacred site, ores and fuels, park, wetland, dam, fish (sea), seed vault, great library, new people, and space resources (placed in the solar system view).
 - **Events**: Nature, People and nature, People and power, Mystery, Modern world, Space, Futures. Each has an info popover.
 - **Workshop**: custom elements and events. **Rules**: "When X, trigger Y" (including futures and energy conditions, and "end a future").
 - **Random history** toggle, day/night, speed, full screen, save/load and world codes.
@@ -41,7 +41,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 | Future | Grows with | Content status |
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
-| The Unravelling | pollution, climate, war, nuclear war, unrest | placeholder (END epic) |
+| The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
 | The Waking Machines | AI events, Curious peoples | placeholder (AGI epic) |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
@@ -54,8 +54,8 @@ After the first people completes the Future Age, 13 futures build pressure from 
 | The Invitation | long peace in space | placeholder (FC) |
 | The Ageless | well-fed, stable, Mercantile | placeholder (IMM) |
 
-### Endings (15)
-- **The world falls** (survivors lose most people; "Begin again from the ruins" starts a new cycle): The Fall, The Flattening, The Long Night, Snowball Earth.
+### Endings (19)
+- **The world falls** (survivors lose most people; "Begin again from the ruins" starts a new cycle, and if you keep watching the survivors begin again on their own after 40 sim seconds): The Fall, The Flattening, The Long Night, Snowball Earth, **The Long Winter** (nuclear winter), **The Empty Cities** (engineered plague), **The Ash Years** (supervolcano), **The Great Impact** (asteroid).
 - **History changes for good**: The Quiet Takeover, The Ascension, The Silence Kept, Beyond the Glass, Many Humanities, The Ageless Empire, The Reservation.
 - **Humanity arrives**: The Garden World, Among the Stars, The Long Voyage, The Edge of the Galaxy (completing the Galactic Age).
 
@@ -63,6 +63,17 @@ Each has a colour wash on the map and an epilogue card (furthest age, peoples, w
 
 ### The Three-Sun Signal (inspired by Liu Cixin's The Three-Body Problem; original names)
 Reply from the Hevari of Hevar → fleet countdown → sentinels lock physics (no new ages) → stances by character (Defenders, Escapists, Worshippers, Defeatists) → hidden strategist (player can choose; deterrent / bluff / escape ark) → the probe destroys the fleet → deterrence (holder tested every ~50 s; may hold, fail, or broadcast) → broadcast → dark forest strike (the world flattens like a painting) **or** fleet arrives → occupation and resistance → resistance wins or The Reservation. Event: Broadcast the Coordinates.
+
+## The end of the world (END epic)
+
+- **New cycles (END-01).** A world that falls is never dead while anyone survives: the survivors restart in the Prehistoric or Stone Age (Stone Age if they had reached the Industrial Age), the clock keeps running, nobody keeps the bomb, and the age line under the year shows the cycle ("The Stone Age · Second rise"). If no one survives, the world stays dead and only "New world" is offered.
+- **Ruins (END-02).** When a world falls, and when a people of the Bronze Age or later is conquered or dies out, its tallest buildings become ruins: rusted towers, broken domes, fallen walls and, from the Industrial Age, a buried highway. Nature covers them over ~700 sim seconds (vines, mounds, sinking slabs). They show on the strip (right click for who left them, how overgrown, who scavenges) and as rust-grey specks on the globe. A people at least two ages behind the ruins on its land learns up to 45% faster, less as the ruins grow over.
+- **Nuclear winter (END-03).** A nuclear war with two or more nuclear powers is a full exchange: soot darkens the sky for 70 sim seconds (harvests fail, a "Nuclear winter" effect on every people). Modern peoples dig **bunkers** (Devout peoples: **deep vaults**) while the doomsday clock is at 7 minutes or less, faster for Warlike peoples and when it is at 4 or less; bunkers dug after the bombs fall do not count. Bunkers soften the strike and the winter. When the winter ends, if fewer than half the living peoples are sheltered, unsheltered peoples may die out and the world falls (**The Long Winter**). A one-sided strike only darkens the sky for a while.
+- **Runaway warming (END-04).** Heat above +1.6 °C adds up (degree-seconds); at 4 the warming feeds itself: temperature keeps climbing (to about +5 °C) while there is pollution, the seas rise up to ~70 m and visibly drown the coasts on the strip, the minimap and the globe, coastal peoples lose food and stability, refugees pour into neighbours and relations sour into wars over land. Dimming the Sun or the Garden stops it at once; otherwise it fades only once the air is clean and the temperature falls below +1.2 °C. The seas then recede slowly. Climate Change now also happens on its own in the Industrial to Future Ages, more often when pollution is high.
+- **Engineered plague (END-05).** An event (Modern world, from the Future Age) and a rare random event once per cycle. It spreads along contact between peoples (faster during trade booms and between friends), kills far more than natural plague and stops births while it lasts. Peoples may close their borders when it starts (Devout most often, Mercantile least; the "closes borders" reaction does it too), which slows it greatly. If humanity falls below 30% of its size at the outbreak, the world falls (**The Empty Cities**).
+- **Supervolcano and killer asteroid (END-06).** *Supervolcano* (Nature event; very rarely on its own at a Volcano, once per cycle): buries the peoples near it (up to ~55% dead, far peoples ~8%), leaves a caldera, and starts a 60 s volcanic winter. *Killer Asteroid* (Space event; very rarely on its own once a people reaches the Modern Age, once per cycle): a named rock with a 140 sim-second countdown, seen at once from the Modern Age, otherwise only as a brightening star in the last 25 s; it shows in the sky growing brighter. Every 26 s the best-placed people from the Future Age launches a deflection mission: earlier tries, more advanced and Curious peoples and space bases do better; a failed try can chip it smaller. In tests Future Age peoples saved the world about half the time, Stellar Age peoples about three times in four. An impact kills 25–70% (more where it lands), leaves a huge crater and an impact winter. After either winter, if humanity is below 30% of its size, the world falls (The Ash Years / The Great Impact); a rock of the largest size always ends it.
+- **Seed vaults and libraries (END-07).** Two elements under "Keeping the past". When the world falls, each surviving people's start depends on what its land holds (judged by the age it had reached at the fall): nothing → Stone Age if it had reached the Industrial Age, else Prehistoric; **Seed Vault** → at least the Stone Age, twice the people, food 78; **Great Library** (from the Bronze Age) → a third of the age it had reached, plus one, at most the Iron Age, with 40% progress; both → one age further. Peoples also build them: libraries from the Classical Age when culture is high, seed vaults from the Information Age, much more often when danger looms (a winter, warming, plague, asteroid, collapse fate or a near-midnight clock); at most two of each are built this way per world. The chronicle and the epilogue ("Kept safe") say who kept what.
+- The world line under the year shows "nuclear winter", "volcanic winter", "impact winter", "asteroid: impact in N years", "runaway warming", "seas +N m" and "engineered plague"; people cards show Bunkers / Deep vaults, Plague N%, Borders closed, Coasts drowned N%, Scavenging ruins.
 
 ## Space
 

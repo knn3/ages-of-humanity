@@ -39,5 +39,12 @@ What was built, in order, from the user's requests (newest last). Published arti
 24. **TB-01…05**: the Hevari reply and fleet, physics lock, stances, hidden strategist, the probe.
 25. **TB-06…08**: deterrence, broadcast and the dark forest strike (the flattening), fleet arrival, occupation, resistance, The Reservation ending.
 
+## End of the world (END), 2026-11-22
+27. "Run the next 5 jobs and run the test": **END-01** collapse begins again on its own (new cycle after 40 s, cycle counter, no bombs carried over, dead world if no survivors). **END-02** ruins (rusted towers, broken domes, fallen walls, buried highways) that grow over, show on the strip and the globe, and speed up younger peoples who scavenge them. **END-03** nuclear winter after a full exchange, bunkers and deep vaults, The Long Winter ending. **END-04** runaway warming past a tipping point, rising seas drowning the coasts, refugees and wars over land, stopped by Dimming the Sun or the Garden. **END-05** engineered plague spreading along contacts, closed borders, The Empty Cities ending. New tests `endworld.py` (29 checks) and `endnat.py` (natural runs).
+
+28. "Run next job and test with real data": **END-06** supervolcano (caldera, volcanic winter, The Ash Years) and killer asteroid (countdown, deflection missions by space peoples that can succeed or fail, impact crater, impact winter, The Great Impact). New test `end06.py`; `endnat.py` counts them.
+
+29. "Run next job and test with real data": **END-07** Seed Vault and Great Library elements that set where each people starts the next cycle; peoples build them too. Tuned after real-data runs (first version let almost every people keep something). New test `end07.py`.
+
 ## Packaging
 26. This folder: game, CLAUDE.md, docs, tests and tickets (xlsx/csv), for other agents to continue.
