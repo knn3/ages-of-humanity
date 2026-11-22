@@ -22,7 +22,7 @@ Everything lives in `index.html`: a `<style>` block, the page markup, and one `<
 | main step | `step(dt)`: fixed substeps; calls civ updates, wars, nature, rules, `fateTick` and `spaceTick` once per sim second |
 | space | Moon/Mars bases (`BODY`, `W.bases`), space resources (`W.spaceRes`, `claimSpace`), energy scale (`energyOf`, Kardashev), megastructures (`W.dyson`, `W.megas`), colonies → off-world peoples (`W.colonies`), generation ships (`W.ships`, `W.stars`, `XSTARS`) |
 | Three-Sun Signal | `W.tb` state; stances, physics lock (`tbLocked`), strategist, probe, deterrence, broadcast/strike, occupation |
-| end of the world | `RISE_WAIT`, ruins (`W.ruins`, `leaveRuins`, `ruinBonus`, `drawRuins`, `RUIN_KIND`), bunkers (`crisisCiv`), nuclear winter (`startWinter`, `endWinter`, `winterK`), runaway warming (`tipWarming`, `W.hot`, `W.seaRise` → `seaY()`), engineered plague (`startPandemic`, `pandemicTick`), `endTick` (once per sim second, before `fateTick`), `crisisChips`, `crisisMeta` |
+| end of the world | `RISE_WAIT`, ruins (`W.ruins`, `leaveRuins`, `ruinBonus`, `drawRuins`, `RUIN_KIND`), bunkers (`crisisCiv`), nuclear winter (`startWinter`, `endWinter`, `winterK`), runaway warming (`tipWarming`, `W.hot`, `W.seaRise` → `seaY()`), engineered plague (`startPandemic`, `pandemicTick`), supervolcano and asteroid (`startSupervolcano`, `worldWinter`, `startAsteroid`, `deflectChance`, `tryDeflect`, `rockTick`, `rockImpact`, `ROCK_ETA`), `endTick` (once per sim second, before `fateTick`), `crisisChips`, `crisisMeta` |
 | fates | `FATES` (13 futures with `drive`, `span`, texts, optional hooks `begin/tick/finish/clock/manual/endingId/endText`), `FATE_UI`, `ENDINGS` (15), `fateTick`, `startFate`, `endFate`, `reachEnding`, epilogue (`showEpilogue`), `riseAgain` (new cycle) |
 | layout / buildings | settlements laid out per civ in `c._.items` (`{t, x, w, h, base}`), painters per building type (`P.<type>(b, c)`) |
 | rendering | flat view (`drawWorld` into an offscreen canvas, night/lights passes), overlay labels, `drawOverlay`, minimap |
@@ -36,7 +36,7 @@ Everything lives in `index.html`: a `<style>` block, the page markup, and one `<
 - futures: `fates {edgeT, p, bias, active[], done[], hist[], cycle, ended, endY, arks}`, `acts` (player interventions), `sig` (alien signal), `nukeT`, `lastWarT`, `warCount`
 - space: `bases[], spaceRes[], colonies[], ships[], stars[], dyson {by, total, mark}, megas[], debris, kessler, flareUntil`
 - Three-Sun: `tb {t0, lock, probe, stances, strat, plan, chosen, fleet, ark, deter, strikeT, occ, endAs, endTxt}`
-- end of the world: `ruins[] {x, w, h, era, k: tower|dome|wall|road, t0, by}` (≤48), `winter {t0, until, full}`, `hot {on, acc, t0, nextMig}`, `seaRise` (0–34 px, raises `seaY()`), `pandemic {t0, src, inf{id: level}, at{id: t}, rec[], pop0}`, `plagueCycle`; `fates.riseAt` (auto new cycle) and `fates.ruined`
+- end of the world: `ruins[] {x, w, h, era, k: tower|dome|wall|road, t0, by}` (≤48), `winter {t0, until, full, kind: nuke|ash|impact, pop0}`, `rock {t0, eta, x, size, seen, tries, next, name}`, `rockCycle`, `svCycle`, `hot {on, acc, t0, nextMig}`, `seaRise` (0–34 px, raises `seaY()`), `pandemic {t0, src, inf{id: level}, at{id: t}, rec[], pop0}`, `plagueCycle`; `fates.riseAt` (auto new cycle) and `fates.ruined`
 - per civ: `bunker` 0–1, `closed` (borders closed until), `scav` / `drownSaid` (cycle in which it was said); transient `c._.scav`, `c._.drown`, `c._.sick`
 
 A civ `c`: `id, name, color, trait, govt, era, tech, pop, food, stability, military, culture, x, l, r, reached{era: year}, threshold, kLevel, policy`, plus transient `c._` (layout items, agents, ships, planes, train, nature summary, megaK…).
@@ -55,7 +55,7 @@ ground (flat strip) → `ZBEND0` .5 the strip starts to bend → `ZGLOBE` .06 fu
 
 ## Debug hook
 
-`window.__aoh` exposes `W` (getter), `V`, `UI`, `setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY`.
+`window.__aoh` exposes `W` (getter), `V`, `UI`, `setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY`.
 
 ## Adding a future's real content (pattern used by the Three-Sun Signal)
 

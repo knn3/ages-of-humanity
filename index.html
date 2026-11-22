@@ -563,6 +563,8 @@ EVENTS.push({ id: 'flare', name: 'Solar Flare', g: '✹', cat: 'Space', scope: '
   { id: 'lsfail', name: 'Life-support Failure', g: '⊘', cat: 'Space', scope: 'global', minEra: 12, special: 'lsfail', sub: 'A base loses its air' },
   { id: 'debris', name: 'Debris Cascade', g: '⁘', cat: 'Space', scope: 'global', minEra: 10, special: 'debris', sub: 'Orbit fills with wreckage' },
   { id: 'comet', name: 'Rogue Comet', g: '☄', cat: 'Space', scope: 'global', special: 'comet', sub: 'A great comet crosses the sky' });
+EVENTS.push({ id: 'supervolcano', name: 'Supervolcano', g: '▲', cat: 'Nature', scope: 'local', r: 900, special: 'supervolcano', sub: 'A world-scale eruption' },
+  { id: 'asteroid', name: 'Killer Asteroid', g: '☄', cat: 'Space', scope: 'global', special: 'asteroid', sub: 'A countdown to impact' });
 EVENTS.push({ id: 'bioplague', name: 'Engineered Plague', g: '☣', cat: 'Modern', scope: 'target', minEra: 11, special: 'bioplague', sub: 'A lab-made pandemic' });
 EVENTS.push({ id: 'broadcast', name: 'Broadcast the Coordinates', g: '⌁', cat: 'Futures', scope: 'global', minEra: 12, special: 'broadcast', sub: 'Reveal both worlds to the galaxy' });
 // each future can be started by hand once a people reaches the Planetary Age
@@ -776,7 +778,7 @@ function freshWorld(seed) {
   return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], reactQ: [], tempShift: 0, pollution: 0,
     wwCount: 0, nextId: 1, tradeUntil: 0, nat: null, extinct: {}, nextRandom: rand(22, 32), ruleState: {}, topEra: 0, thresholdNoted: false,
     acts: 0, lastWarT: 0, sig: null, nukeT: null, fates: freshFates(), bases: [], spaceRes: defaultSpaceRes(), colonies: [], ships: [], stars: [],
-    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0 };
+    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0 };
 }
 function newWorld(seed) {
   W = freshWorld(seed);
@@ -1196,6 +1198,8 @@ const SPECIAL = {
     for (const c of alive()) { if (c.era < 8) { c.stability = Math.max(0, c.stability - 3); c.culture = Math.min(100, c.culture + 3); queueReaction(c, c.trait === 'Devout' ? 'unrest' : 'boom'); } else c.culture = Math.min(100, c.culture + 2); }
     for (const b of W.bases || []) b.pop *= 1.2;
     V.comet = { t0: V.t }; return true; } },
+  supervolcano: { run(ev, x) { if (x == null || !isLand(x)) { toast('Choose land, not water.'); return false; } return startSupervolcano(x); } },
+  asteroid: { run() { if (W.rock) { toast('An asteroid is already on its way.'); return false; } return startAsteroid(); } },
   bioplague: { run(ev, x) {
     const c = civAt(x) || nearestCiv(x, 260); if (!c) { toast('Click inside the lands of a people.'); return false; }
     if (W.pandemic) { toast('An engineered plague is already spreading.'); return false; }
@@ -1279,11 +1283,12 @@ function randomEvent() {
   const pool = [['drought', 3 * (1 + 1.5 * (1 - (n ? n.s : .6)))], ['flood', 2 * (1 + 1.5 * (1 - (n ? n.fr : .6)))], ['wildfire', 1.2 * (n ? n.fr : .5) * (1 + Math.max(0, temp()))], ['locusts', c.era >= 1 && c.era <= 9 ? .6 : 0], ['plague', 1.4], ['inventor', 2.2], ['prophet', 1.3], ['quake', 1.2], ['golden', 1], ['rebirth', c.era === 6 ? 2 : .5], ['migration', c.era <= 5 ? 1.2 : .4], ['revolution', c.stability < 30 ? 1.5 : 0], ['iceage', c.era <= 1 ? .5 : .08], ['volcano', hasVolc ? .8 : 0]];
   pool.push(['flare', c.era >= 9 ? .35 : 0], ['comet', .2]);
   pool.push(['climate', c.era >= 8 && c.era <= 11 ? .8 + W.pollution / 20 : 0], ['bioplague', c.era >= 11 && !W.pandemic && W.plagueCycle !== W.fates.cycle ? .22 : 0]);
+  pool.push(['supervolcano', hasVolc && W.svCycle !== W.fates.cycle && !W.winter ? .05 : 0], ['asteroid', !W.rock && W.rockCycle !== W.fates.cycle && maxEra() >= 9 ? .1 : 0]);
   let tot = pool.reduce((s, p) => s + p[1], 0), r = Math.random() * tot, id = 'drought';
   for (const [k, w] of pool) { r -= w; if (r <= 0) { id = k; break; } }
   const ev = findEvent(id);
   let x = c.x + rand(-.6, .6) * (c.r - c.l) / 2;
-  if (id === 'volcano') { const v = pick(W.elements.filter(e => e.type === 'volcano')); x = v.x; }
+  if (id === 'volcano' || id === 'supervolcano') { const v = pick(W.elements.filter(e => e.type === 'volcano')); x = v.x; }
   if (id === 'migration') { x = c.r + rand(180, 420) * (Math.random() < .5 ? -1 : 1); if (x > c.l && x < c.r) x = c.r + 300; if (!isLand(x)) return; }
   applyEvent(ev, x, { random: true });
 }
@@ -1840,6 +1845,8 @@ const ENDINGS = {
   occupation: { name: 'The Reservation', kind: 'end', scene: 'sepia(.5) hue-rotate(-20deg) saturate(.7) brightness(.85)', text: 'The Hevari fleet fills the sky. Humanity is gathered onto a single continent, fed and watched and forbidden the stars. In the reservation, the old stories are still told at night.' },
   nuclearwinter: { name: 'The Long Winter', kind: 'doom', scene: 'grayscale(.7) brightness(.55) contrast(1.1)', text: 'The soot never seems to leave the sky. Harvest after harvest fails in the cold and the dark, and the great cities fall silent. Only those who dug deep enough live to see the Sun again.' },
   plague: { name: 'The Empty Cities', kind: 'doom', scene: 'grayscale(.55) sepia(.3) brightness(.72)', text: 'The virus outruns every cure. Within a few years the great cities stand empty with their lights still burning, and the few survivors scatter into the countryside to begin again.' },
+  supervolcano: { name: 'The Ash Years', kind: 'doom', scene: 'grayscale(.8) sepia(.2) brightness(.7)', text: 'The ash falls for years. Crops die under a grey sky, the rivers run thick with mud, and the cities empty one by one. In sheltered valleys a few families keep the old songs alive.' },
+  impact: { name: 'The Great Impact', kind: 'doom', scene: 'sepia(.55) hue-rotate(-15deg) brightness(.62) contrast(1.15)', text: 'The rock came out of the dark faster than any hope. Fire, then years of dust and cold. The survivors climb out of their shelters into a world that has to be learned all over again.' },
   galactic: { name: 'The Edge of the Galaxy', kind: 'goal', scene: '', text: 'From one small world, humanity has spread from star to star across the galaxy. What lies beyond it has not been written yet.' }
 };
 const ENDKIND = { doom: 'The world falls', end: 'History changes for good', goal: 'Humanity arrives' };
@@ -2082,13 +2089,20 @@ function crisisCiv(c, dt) {
 const winterK = () => W && W.winter ? clamp((W.winter.until - W.simTime) / 12, 0, 1) * clamp((W.simTime - W.winter.t0) / 3, 0, 1) * (W.winter.full ? 1 : .55) : 0;
 function startWinter(full) {
   const dur = full ? 70 : 30;
-  W.winter = { t0: W.simTime, until: W.simTime + dur, full: !!full };
+  W.winter = { t0: W.simTime, until: W.simTime + dur, full: !!full, kind: 'nuke', pop0: 0 };
   log(full ? 'Soot from the burning cities rises into the sky and hides the Sun. A nuclear winter begins: years of darkness, frost in summer and failed harvests.' : 'Smoke from the burning cities darkens the sky for a few hard years.', 'war');
   if (full) banner('Nuclear Winter', 'The Sun is hidden', '#c8553d');
   for (const c of alive()) { const sh = 1 - .75 * (c.bunker || 0); c.mods = c.mods.filter(m => m.name !== 'Nuclear winter'); c.mods.push({ until: W.simTime + dur, food: -(full ? 48 : 22) * sh, techMul: full ? .6 : .85, stab: -10 * sh, name: 'Nuclear winter' }); queueReaction(c, 'food'); }
 }
 function endWinter() {
-  const wi = W.winter; W.winter = null; if (!wi || !wi.full) { log('The smoke clears and the Sun returns.', 'world'); return; }
+  const wi = W.winter; W.winter = null;
+  if (wi && (wi.kind === 'ash' || wi.kind === 'impact')) {
+    const tot = alive().reduce((s, o) => s + o.pop, 0);
+    if (alive().length && tot < .3 * (wi.pop0 || 1)) { log(wi.kind === 'ash' ? 'The ash never seems to settle. Too few are left to keep the old world going.' : 'The dust of the impact hides the Sun too long. Too few are left to keep the old world going.', 'world'); reachEnding(wi.kind === 'ash' ? 'supervolcano' : 'impact'); }
+    else log(wi.kind === 'ash' ? 'The ash settles at last, and green comes back to the grey land.' : 'The dust settles and the Sun returns over a scarred world.', 'world');
+    return;
+  }
+  if (!wi || !wi.full) { log('The smoke clears and the Sun returns.', 'world'); return; }
   const cs = alive(), safe = cs.filter(c => (c.bunker || 0) >= .5);
   if (cs.length && safe.length / cs.length >= .5) {
     for (const c of cs) if ((c.bunker || 0) < .5) c.pop *= .6;
@@ -2182,6 +2196,62 @@ function endTick(dt) {
     }
   } else for (const c of alive()) c._.drown = 0;
   if (W.pandemic) pandemicTick(dt);
+  if (W.rock) rockTick();
+}
+// END-06 world-scale disasters: a supervolcano, and a killer asteroid with a countdown that space peoples may deflect
+const ROCK_ETA = 140;
+function worldWinter(kind, dur, food, pop0) {
+  W.winter = { t0: W.simTime, until: W.simTime + dur, full: false, kind, pop0 };
+  const nm = kind === 'ash' ? 'Volcanic winter' : 'Impact winter';
+  for (const c of alive()) { const sh = 1 - .5 * (c.bunker || 0); c.mods = c.mods.filter(m => m.name !== nm); c.mods.push({ until: W.simTime + dur, food: -food * sh, techMul: .7, stab: -8 * sh, name: nm }); queueReaction(c, 'food'); }
+}
+function startSupervolcano(x) {
+  if (W.winter) { toast('The sky is already dark.'); return false; }
+  const cs = alive(), pop0 = cs.reduce((s, o) => s + o.pop, 0); W.svCycle = W.fates.cycle;
+  log('The ground swells for months, then a whole mountain range bursts open. A supervolcano buries the land around it under ash and throws so much into the sky that summer does not come.', 'event');
+  banner('Supervolcano', 'The sky turns grey', '#c8553d');
+  for (const c of cs) { const d = x >= c.l && x <= c.r ? 0 : Math.min(Math.abs(c.l - x), Math.abs(c.r - x)), k = clamp(1 - d / 1600, .15, 1); applyFx(c, { pop: -.55 * k, food: -35 * k, stability: -20 * k }, 1); c.ruin = Math.max(c.ruin, .8 * k); if (k > .8) floater(c.x, 'buried in ash', '#c8553d', true); }
+  W.craters.push({ x: Math.round(x), r: 120, d: 55 }); if (W.craters.length > 12) W.craters.shift(); recomputeTerrain();
+  if (W.nat) applyNat({ f: -.9, w: -.8, s: .1 }, { scope: 'local', r: 1400 }, x, []);
+  W.tempShift -= 4.5; V.erupt.push({ x, t0: V.t, dur: 40 }); V.fx.push({ type: 'ash', x: null, r: 0, t0: V.t, dur: 20 }); if (!REDUCED) V.shake = 14;
+  worldWinter('ash', 60, 42, pop0);
+  return true;
+}
+function startAsteroid(size) {
+  if (W.rock) return false;
+  const sz = size != null ? clamp(size, .3, 1) : +rand(.5, 1).toFixed(2), L = pick(V.lands);
+  W.rockCycle = W.fates.cycle;
+  W.rock = { t0: W.simTime, eta: W.simTime + ROCK_ETA, x: Math.round(rand(L.l + 80, L.r - 80)), size: sz, seen: maxEra() >= 9, tries: 0, next: W.simTime + 18, name: pick(['Vesh', 'Kharon', 'Orrin', 'Thale', 'Ysmir', 'Dovra']) };
+  if (W.rock.seen) { log(`Astronomers find a rock ${sz > .8 ? 'ten' : 'several'} kilometres across on a course that crosses the world’s path. They name it ${W.rock.name}, and the countdown to impact begins.`, 'event'); banner('Killer Asteroid', `${W.rock.name} · impact in ${fmtSpan(clockYear(W.rock.eta) - clockYear(W.simTime))}`, '#c8553d'); for (const c of alive()) queueReaction(c, 'threat'); }
+  return true;
+}
+// a people can try to push the rock aside once it has space technology; earlier tries have more time to work
+const canDeflect = c => c.alive && c.era >= 11;
+function deflectChance(c) { const r = W.rock, lead = clamp((r.eta - W.simTime) / ROCK_ETA, 0, 1); return clamp((.12 + .12 * (c.era - 11) + (c.trait === 'Curious' ? .1 : 0) + .04 * Math.min(3, basesOf(c).length)) * (.5 + .7 * lead) * (1.15 - .4 * r.size), .03, .85); }
+function tryDeflect(c) {
+  const r = W.rock; if (!r || !canDeflect(c)) return false;
+  r.tries++; const p = deflectChance(c), ok = Math.random() < p;
+  if (ok) { log(fillT(`A mission launched by {civ} reaches ${r.name}. The push is tiny, but years of it add up: the rock will miss the world.`, names(c)), 'event'); banner('Asteroid deflected', `${c.name} · ${r.name} will miss`, '#8fd18a'); c.culture = Math.min(100, c.culture + 15); c.stability = Math.min(100, c.stability + 10); for (const o of alive()) if (o !== c) relAdd(c, o, 20); W.rock = null; return true; }
+  log(fillT(Math.random() < .5 ? `The mission of {civ} to ${r.name} fails: the rock spins too fast to hold.` : `The mission of {civ} to ${r.name} breaks off a piece, but the rest is still coming.`, names(c)), 'event');
+  r.size = Math.max(.3, +(r.size - .05).toFixed(2)); c.stability = Math.max(0, c.stability - 5); return false;
+}
+function rockTick() {
+  const r = W.rock;
+  if (!r.seen && (maxEra() >= 9 || r.eta - W.simTime < 25)) { r.seen = true; log(maxEra() >= 9 ? `Telescopes find ${r.name}, a rock on a collision course. The countdown to impact begins.` : 'A new star grows brighter every night. Some say it is falling toward the world.', 'event'); }
+  if (W.simTime >= r.next && r.eta - W.simTime > 8) { r.next = W.simTime + 26; const cs = alive().filter(canDeflect).sort((a, b) => deflectChance(b) - deflectChance(a)); if (cs.length && tryDeflect(cs[0])) return; }
+  if (W.simTime >= r.eta) rockImpact();
+}
+function rockImpact() {
+  const r = W.rock; W.rock = null; const cs = alive(), pop0 = cs.reduce((s, o) => s + o.pop, 0), x = r.x, hit = civAt(x);
+  log(`${esc(r.name)} strikes${hit ? ' the lands of ' + nm(hit) : ''}. A fireball wider than any city, then a wall of fire and a sky full of falling rock. Dust rises around the whole world.`, 'event');
+  banner('Impact', `${r.name} · ${fmtYear(W.year)}`, '#c8553d');
+  for (const c of cs) { const k = c === hit ? 1 : .55; applyFx(c, { pop: -(.25 + .45 * r.size) * k, food: -40, stability: -25, tech: -20 * k }, 1); c.ruin = Math.max(c.ruin, .9 * k); queueReaction(c, 'loss'); }
+  W.craters.push({ x, r: 120, d: 60 }); if (W.craters.length > 12) W.craters.shift(); recomputeTerrain();
+  if (W.nat) { applyNat({ f: -1, w: -1, s: -.3 }, { scope: 'local', r: 900 }, x, []); for (let i = 0; i < NCELL; i++) { W.nat.w[i] *= .6; W.nat.fish[i] *= .7; } }
+  W.tempShift -= 3 + 3 * r.size; V.meteors.push({ x, t0: V.t, hit: false, big: true }); if (!REDUCED) V.shake = 20; V.flash = 1;
+  for (const c of alive()) if (c.pop < 35) extinct(c);
+  if (!alive().length) { reachEnding('impact'); return; }
+  worldWinter('impact', 50 + 30 * r.size, 30 + 25 * r.size, pop0);
 }
 function crisisChips(c) {
   const out = [], PD = W.pandemic, lv = PD && PD.inf[c.id];
@@ -2194,7 +2264,8 @@ function crisisChips(c) {
 }
 function crisisMeta() {
   const out = [];
-  if (W.winter) out.push(`<span class="doom">${W.winter.full ? 'nuclear winter' : 'smoke-dark sky'}</span>`);
+  if (W.winter) out.push(`<span class="doom">${W.winter.kind === 'ash' ? 'volcanic winter' : W.winter.kind === 'impact' ? 'impact winter' : W.winter.full ? 'nuclear winter' : 'smoke-dark sky'}</span>`);
+  if (W.rock && W.rock.seen) out.push(`<span class="doom">asteroid: impact in ${fmtSpan(Math.max(1, clockYear(W.rock.eta) - clockYear(W.simTime)))}</span>`);
   if (W.hot && W.hot.on) out.push('<span class="doom">runaway warming</span>');
   if (W.seaRise > 1) out.push(`seas +${Math.round(W.seaRise * 2)} m`);
   if (W.pandemic) out.push('<span class="doom">engineered plague</span>');
@@ -2331,7 +2402,10 @@ function boom(x, y, size) {
 }
 function impact(x) {
   W.craters.push({ x, r: 70, d: 34 }); if (W.craters.length > 12) W.craters.shift();
-  recomputeTerrain(); boom(x, gy(x), 90);
+  recomputeTerrain(); impactFx(x);
+}
+function impactFx(x) {
+  boom(x, gy(x), 90);
   if (!REDUCED) V.shake = 16; V.flash = Math.max(V.flash, .6);
   V.fx.push({ type: 'ash', x, r: 420, t0: V.t, dur: 14 });
 }
@@ -2719,6 +2793,9 @@ function drawSky(c2, w, h, fm = 1) {
   if (p > 0 && p < 1) { const sx = w * (.08 + .84 * p), sy = h * .62 - Math.sin(p * Math.PI) * h * .5; const sg = c2.createRadialGradient(sx, sy, 2, sx, sy, 60); sg.addColorStop(0, 'rgba(255,240,200,.55)'); sg.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = sg; c2.fillRect(sx - 60, sy - 60, 120, 120); c2.fillStyle = grey > .4 ? '#d9cfb8' : '#fff4d8'; c2.beginPath(); c2.arc(sx, sy, 11, 0, 6.2832); c2.fill(); }
   const pm = (((V.dayT + .5) % 1) - .22) / .56;
   if (pm > 0 && pm < 1) { const mx = w * (.08 + .84 * pm), my = h * .62 - Math.sin(pm * Math.PI) * h * .5; c2.fillStyle = '#e8e4d8'; c2.beginPath(); c2.arc(mx, my, 9, 0, 6.2832); c2.fill(); c2.fillStyle = rgb(top); c2.beginPath(); c2.arc(mx + 4, my - 2, 8, 0, 6.2832); c2.fill(); }
+  if (W.rock && W.rock.seen) { const k = clamp(1 - (W.rock.eta - W.simTime) / ROCK_ETA, 0, 1), rx = w * (.78 - .25 * k), ry = h * (.12 + .1 * k), rr = 1.5 + 9 * k * k;
+    const tg = c2.createLinearGradient(rx, ry, rx + 30 + 120 * k, ry - 12 - 50 * k); tg.addColorStop(0, `rgba(255,230,200,${(.35 + .5 * k).toFixed(3)})`); tg.addColorStop(1, 'rgba(255,230,200,0)');
+    c2.strokeStyle = tg; c2.lineWidth = rr * 1.4; c2.beginPath(); c2.moveTo(rx, ry); c2.lineTo(rx + 30 + 120 * k, ry - 12 - 50 * k); c2.stroke(); c2.fillStyle = '#fff1dc'; c2.beginPath(); c2.arc(rx, ry, rr, 0, 6.2832); c2.fill(); }
   const ga = c2.globalAlpha; if (fm <= .01) return; c2.globalAlpha = ga * fm;
   const layers = [[.14, 0, '#16203a', '#9fb3c4'], [.32, 1, '#121a30', '#7f99ab']];
   for (const [par, k, nc, dc] of layers) {
@@ -3418,7 +3495,7 @@ function updateVisuals(vdt, rdt) {
   for (let i = V.P.length - 1; i >= 0; i--) { const p = V.P[i]; p.life -= vdt; if (p.life <= 0) { V.P.splice(i, 1); continue; } p.x += p.vx * vdt; p.y += p.vy * vdt; p.vy += p.g * vdt; p.r += p.grow * vdt; }
   if (V.P.length > 900) V.P.splice(0, V.P.length - 900);
   V.fx = V.fx.filter(f => V.t - f.t0 < f.dur); V.flashes = V.flashes.filter(f => V.t - f.t0 < f.dur); V.nukes = V.nukes.filter(n => V.t - n.t0 < 14); V.erupt = V.erupt.filter(e => V.t - e.t0 < e.dur); V.floaters = V.floaters.filter(f => V.t - f.t0 < 3.2);
-  for (const m of V.meteors) if (!m.hit && V.t - m.t0 >= 1.1) { m.hit = true; impact(m.x); }
+  for (const m of V.meteors) if (!m.hit && V.t - m.t0 >= 1.1) { m.hit = true; m.big ? impactFx(m.x) : impact(m.x); }
   V.meteors = V.meteors.filter(m => V.t - m.t0 < 2.5);
   V.showers = V.showers || []; V.rainbows = V.rainbows || [];
   if (vdt > 0 && !V.b && V.showers.length < 2 && Math.random() < rdt / 18) V.showers.push({ x: V.cam + V.vw * rand(.15, .85), t0: V.t, dur: rand(8, 12), d: Math.random() < .5 ? -1 : 1 });
@@ -3489,6 +3566,8 @@ const EVINFO = {
   quake: 'The ground shakes and buildings fall.',
   meteor: 'A rock from space flattens everything around it and leaves a crater.',
   plague: 'Disease kills many and spreads to trading partners. Later ages fight it far better.',
+  supervolcano: 'A world-scale eruption. The land around it is buried and a volcanic winter hides the Sun for years. If humanity falls below 30% of its size, the world collapses and begins again. Happens on its own very rarely where there is a Volcano.',
+  asteroid: 'A rock kilometres across is found on a collision course, with a countdown. Peoples with space technology (from the Future Age) launch missions to push it aside: earlier tries, more advanced and Curious peoples and space bases do better; a failed try can still chip it smaller. Happens on its own very rarely once someone has telescopes (the Modern Age). If it strikes: a huge crater, fire and an impact winter that can end the world.',
   bioplague: 'A virus made in a laboratory escapes. It spreads along every contact between peoples and kills far more than any natural plague. Peoples that close their borders fare better. If too few people survive, the world collapses and begins again.',
   wildfire: 'Fire races through forests and farms. Thick forests in a warm world burn more often.',
   locusts: 'A swarm eats the harvest.',
@@ -3995,6 +4074,9 @@ function sanitizeWorld(d) {
   w.hot = { on: !!(d.hot && d.hot.on), acc: n(d.hot && d.hot.acc, 0, 100), t0: n(d.hot && d.hot.t0, -1e9, 1e12), nextMig: n(d.hot && d.hot.nextMig, 0, 1e12) }; w.seaRise = n(d.seaRise, 0, SEA_MAX); w.plagueCycle = n(d.plagueCycle, 0, 99) | 0;
   w.pandemic = null; if (d.pandemic && typeof d.pandemic === 'object') { const inf = {}, at = {}; for (const [k, v] of Object.entries(d.pandemic.inf || {})) if (/^\d+$/.test(k) && ids.has(+k) && n(v, 0, 1) > 0) { inf[k] = n(v, 0, 1); at[k] = n(d.pandemic.at && d.pandemic.at[k], -1e9, 1e12, w.simTime); }
     w.pandemic = { t0: n(d.pandemic.t0, -1e9, 1e12), src: n(d.pandemic.src, 0, 1e9) | 0, inf, at, rec: (Array.isArray(d.pandemic.rec) ? d.pandemic.rec : []).filter(id => ids.has(id)).slice(0, 40), pop0: n(d.pandemic.pop0, 1, 1e12, 1) }; }
+  w.winter && (w.winter.kind = ['ash', 'impact'].includes(d.winter.kind) ? d.winter.kind : 'nuke', w.winter.pop0 = n(d.winter.pop0, 0, 1e12));
+  w.rock = d.rock && typeof d.rock === 'object' ? { t0: n(d.rock.t0, -1e9, 1e12), eta: n(d.rock.eta, -1e9, 1e12), x: n(d.rock.x, 0, WORLD_W) | 0, size: n(d.rock.size, .3, 1, .7), seen: !!d.rock.seen, tries: n(d.rock.tries, 0, 99) | 0, next: n(d.rock.next, -1e9, 1e12), name: String(d.rock.name || 'Rock').slice(0, 20) } : null;
+  w.rockCycle = n(d.rockCycle, 0, 99) | 0; w.svCycle = n(d.svCycle, 0, 99) | 0;
   w.fates = sanitizeFates(d.fates); if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
   w.chron = (Array.isArray(d.chron) ? d.chron : []).slice(0, 260).filter(e => e && typeof e.h === 'string').map(e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) }));
   return w;
@@ -4343,7 +4425,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

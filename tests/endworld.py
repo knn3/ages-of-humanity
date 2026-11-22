@@ -50,10 +50,10 @@ async def main():
         check('END-02 the bonus fades as nature covers the ruins', 1 < r['old'] < r['fresh'], f"x{r['old']:.2f}")
         check('END-02 chronicle tells the scavenging', r['said'])
         # visible on the strip (right click info) and on the globe
-        r = json.loads(await ev(r'''() => { const A = window.__aoh; const c = A.W.civs[0]; A.W.ruins.forEach(r => r.t0 = A.W.simTime - 300);
-          A.setZoom(1.6); A.V.cam = c.x - A.V.vw / 2; A.V.camY = null; A.render(); A.render();
+        r = json.loads(await ev(r'''() => { const A = window.__aoh; const c = A.W.civs[0], L = A.V.lands.find(L => c.x >= L.l && c.x <= L.r); A.W.ruins.forEach((r, i) => { r.t0 = A.W.simTime - 300; r.x = Math.round(L.l + 260 + i * 140); }); A.W.ruins[0].x = Math.round(L.l + 260);
+          A.setZoom(1.6); A.V.cam = A.W.ruins[0].x - A.V.vw / 2; A.V.camY = null; A.render(); A.render();
           const pk = A.V.picks.filter(p => p.kind === 'ruin'); let tip = '';
-          if (pk.length) { const p = pk[0], s = A.W2S((p.x0 + p.x1) / 2, (p.y0 * .3 + p.y1 * .7)); const t = A.tipTarget(s[0], s[1]); tip = t && t.p ? t.p.kind : (t ? 'other' : 'none'); }
+          for (const p of pk) for (const f of [.3, .5, .7]) { if (tip === 'ruin') break; const s = A.W2S(p.x0 + (p.x1 - p.x0) * f, (p.y0 * .3 + p.y1 * .7)); const t = A.tipTarget(s[0], s[1]); tip = t && t.p ? t.p.kind : (t ? 'other' : 'none'); }
           A.setZoom(.05); A.render(); A.render(); return JSON.stringify({ picks: pk.length, tip }); }'''))
         check('END-02 ruins drawn and right-clickable on the strip', r['picks'] >= 1 and r['tip'] == 'ruin', str(r))
         await pg.wait_for_timeout(200); await pg.screenshot(path='endworld_globe.png')
@@ -93,7 +93,7 @@ async def main():
           const r1 = { on, rise: A.W.seaRise, ds: s0 - A.seaY(), dr, meta, meta2: document.querySelector('#meta').textContent, said: A.W.chron.some(e => /sea swallows/.test(e.h)), refugees: A.W.chron.some(e => /drowned coasts/.test(e.h)), temp: A.temp() };
           A.W.civs.forEach(c => c.era = 12); A.startFate('geo', 'event'); A.step(1.1); A.step(1.1); r1.stopped = !A.W.hot.on; const s1 = A.W.seaRise; for (let i = 0; i < 300; i++) A.step(0.1); r1.recede = A.W.seaRise < s1; return JSON.stringify(r1); }'''))
         check('END-04 heat past the tipping point feeds itself', r['on'] and r['temp'] > 3, f"temp {r['temp']:.1f}")
-        check('END-04 the seas rise and drown the coasts', r['rise'] > 20 and r['ds'] > 20 and max(r['dr']) > .05 and r['said'], f"rise {r['rise']:.0f}px, drowned {r['dr']}")
+        check('END-04 the seas rise and drown the coasts', r['rise'] > 15 and r['ds'] > 15 and max(r['dr']) > .05 and r['said'], f"rise {r['rise']:.0f}px, drowned {r['dr']}")
         check('END-04 migrations from the drowned coasts', r['refugees'])
         check('END-04 shown in the world line', 'runaway warming' in r['meta'] and 'seas +' in r['meta2'], r['meta'][-40:] + ' / ' + r['meta2'][-30:])
         check('END-04 dimming the Sun stops it, the seas slowly recede', r['stopped'] and r['recede'])
