@@ -53,7 +53,7 @@ tests/                Python + Playwright test scripts and JS summaries (endworl
 
 1. **One file.** Keep the game in `index.html`. No frameworks, no build, no external JS. Fonts: Marcellus (display), IBM Plex Sans Condensed (body), IBM Plex Mono (numbers). Theme: dark obsidian and bronze; futures use violet `#a593f2`.
 2. **Do not change the map type.** The user explicitly decided to keep the side-view strip + globe + solar system + galaxy zoom chain as it is.
-3. **Info on the map opens with a RIGHT CLICK** (contextmenu), only when zoomed in close (`TIP_ZOOM = 1.3`), only on an actual object (building, person, vehicle, animal, tree, ship, element, deposit…). No hover tags. Left click places tools / selects / drags.
+3. **Info on the map opens with a RIGHT CLICK** (contextmenu), only when zoomed in close (`TIP_ZOOM = 1.3`) — except objects in orbit, which can be right-clicked on the curved globe/orbit views (`orbitTarget`); in the solar-system view a LEFT click on the Sun, the Moon or a planet opens its close-up (`focusBody`) — only on an actual object (building, person, vehicle, animal, tree, ship, element, deposit…). No hover tags. Left click places tools / selects / drags.
 4. **City info** is the small **i** button on each city label (click, not hover).
 5. **Toolbox and panels:** show only the name, with an **i** button for details (hover or click shows a popover).
 6. **Normal cursor** on the map (no grab hand, no crosshair).

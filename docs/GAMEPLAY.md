@@ -33,6 +33,8 @@ Up to 8 peoples on 4 landmasses separated by sea. Each has a **character** (Warl
 - **Workshop**: custom elements and events. **Rules**: "When X, trigger Y" (including futures and energy conditions, and "end a future").
 - **Random history** toggle, day/night, speed, full screen, save/load and world codes.
 - **Right click** any object when zoomed in for its info; **i** on city labels for a people's details.
+- On the globe and orbit views, **right click** an object in orbit (satellite, space telescope, space station, ring habitat, space cylinder, space elevator station or climber) for what it is and who built it.
+- In the solar-system view, **left click** the Sun, the Moon or a planet for a close-up. The Sun shows the swarm in its builders' colours and who owns what share. The Moon and Mars show their named bases with their peoples and populations, colonies (with unrest or a war of independence) and Helium-3 rigs. Jupiter shows its ice moons and who mines them; the other worlds say who, if anyone, has been there. A click anywhere, scrolling or Esc zooms back out, and clicking Earth zooms back down to the globe. With a tool selected, a click still uses the tool.
 
 ## Futures (fates)
 

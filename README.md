@@ -18,6 +18,8 @@ Live version: https://claude.ai/artifact/GFVdMcCoxYPrnCGJKF9ihw (owner's account
 | Full screen | F (T shows the tools in full screen, Esc leaves) |
 | Place an element or event | Pick it in the toolbox, then left click the land |
 | Info about anything on the map | **Right click** it (zoomed in close) |
+| Info about things in orbit (satellites, telescopes, stations, ring habitats, space cylinders, space elevators) | **Right click** them on the globe and orbit views |
+| A close look at the Sun, the Moon or a planet | In the solar-system view, **left click** it (bases, colonies, mines and the Sun's swarm, and what is going on). Click anywhere, scroll or press Esc to zoom back out; clicking Earth takes you back down to the globe |
 | Info about a people | The **i** on its city label |
 | Details of a tool, event or future | Its **i** button |
 | Reset view | Home |

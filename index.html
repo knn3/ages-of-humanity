@@ -3611,13 +3611,13 @@ function drawSpaceExtras(c2, w, h) {
 // the orbit layer: satellites, telescopes, stations, rings and space elevators, all growing with progress
 function drawOrbit(c2, w, h, R, P2, k) {
   const off = (x, y, m = 20) => x < -m || x > w + m || y < -m || y > h + m;
-  const kess = W.kessler && W.simTime < W.kessler;
+  const kess = W.kessler && W.simTime < W.kessler, op = (x, y, r, kind, c, i) => V.orbPicks.push({ x, y, r, kind, c, i });
   let n = 0;
   for (const c of V.alive) n += c.era >= 12 ? 6 + 3 * (c.era - 12) : c.era >= 11 ? 7 : c.era >= 10 ? 3 : c.era >= 9 || c.nuclear ? 1 : 0;
   n = Math.min(kess ? 10 : W.flareUntil > W.simTime ? 4 : 64, n);
   for (let i = 0; i < n; i++) {
     const alt = i % 3 === 0 ? 1600 + (i % 4) * 150 : i % 3 === 1 ? 2300 + (i % 6) * 160 : 3300 + (i % 5) * 220, ph = h01(i * 7 + 3) * 6.2832 + V.t * (i % 3 === 0 ? .09 : i % 3 === 1 ? .05 : .025) * (i % 2 ? 1 : -1);
-    const [x, y] = P2(ph, R(alt)); if (off(x, y, 5)) continue;
+    const [x, y] = P2(ph, R(alt)); if (off(x, y, 5)) continue; op(x, y, 7, 'sat', null, i);
     c2.fillStyle = `rgba(235,240,250,${(.9 * k).toFixed(3)})`; c2.fillRect(x - 1, y - 1, 2.2, 2.2);
     if (Math.sin(V.t * 4 + i) > .6) { c2.fillStyle = `rgba(255,90,80,${(.9 * k).toFixed(3)})`; c2.fillRect(x + 1.5, y - .5, 1.4, 1.4); }
   }
@@ -3628,19 +3628,19 @@ function drawOrbit(c2, w, h, R, P2, k) {
   for (const c of V.alive) {
     const col = hexRGB(c.color);
     // space telescopes from the Information Age
-    if (c.era >= 10) { const ph = V.t * .03 + c.id * 1.7, [x, y] = P2(ph, R(2150 + (c.id % 3) * 90)); if (!off(x, y)) { c2.save(); c2.translate(x, y); c2.rotate(ph + 1.2); c2.fillStyle = `rgba(210,214,220,${k})`; c2.fillRect(-2, -5, 4, 9); c2.fillStyle = `rgba(30,32,40,${k})`; c2.fillRect(-1.5, -5.5, 3, 1.2); c2.fillStyle = `rgba(70,110,180,${k})`; c2.fillRect(-7, -1, 4, 3); c2.fillRect(3, -1, 4, 3); c2.restore(); } }
+    if (c.era >= 10) { const ph = V.t * .03 + c.id * 1.7, [x, y] = P2(ph, R(2150 + (c.id % 3) * 90)); if (!off(x, y)) { op(x, y, 7, 'scope', c, 0); c2.save(); c2.translate(x, y); c2.rotate(ph + 1.2); c2.fillStyle = `rgba(210,214,220,${k})`; c2.fillRect(-2, -5, 4, 9); c2.fillStyle = `rgba(30,32,40,${k})`; c2.fillRect(-1.5, -5.5, 3, 1.2); c2.fillStyle = `rgba(70,110,180,${k})`; c2.fillRect(-7, -1, 4, 3); c2.fillRect(3, -1, 4, 3); c2.restore(); } }
     // stations from the Future Age, more with each space age
     const nst = c.era >= 12 ? 1 + (c.era - 11) : c.era >= 11 ? 1 : 0;
     for (let q = 0; q < nst; q++, si++) {
       const ph = V.t * .045 + si * 2.1 + c.id, [x, y] = P2(ph, R(2000 + si * 110 % 700)); if (off(x, y)) continue;
-      const sz = 1 + (c.era >= 12 ? .5 : 0);
+      const sz = 1 + (c.era >= 12 ? .5 : 0); op(x, y, 9 * sz, 'station', c, q);
       c2.save(); c2.translate(x, y); c2.rotate(ph); c2.scale(sz, sz); c2.fillStyle = `rgba(220,228,236,${k})`; c2.fillRect(-1.5, -6, 3, 12); c2.fillStyle = `rgba(80,120,190,${k})`; c2.fillRect(-9, -2, 6, 4); c2.fillRect(3, -2, 6, 4);
       c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-1.5, -1, 3, 2); c2.restore();
     }
     // a great ring habitat in the Stellar Age and beyond
-    if (c.era >= 13) { const ph = V.t * .012 + c.id * 2.4, [x, y] = P2(ph, R(4600 + (c.id % 3) * 300)); if (!off(x, y, 30)) { c2.strokeStyle = `rgba(210,220,230,${(.85 * k).toFixed(3)})`; c2.lineWidth = 2.2; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); c2.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${(.8 * k).toFixed(3)})`; c2.lineWidth = .8; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); } }
+    if (c.era >= 13) { const ph = V.t * .012 + c.id * 2.4, [x, y] = P2(ph, R(4600 + (c.id % 3) * 300)); if (!off(x, y, 30)) { op(x, y, 15, 'ring', c, 0); c2.strokeStyle = `rgba(210,220,230,${(.85 * k).toFixed(3)})`; c2.lineWidth = 2.2; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); c2.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${(.8 * k).toFixed(3)})`; c2.lineWidth = .8; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); } }
     // space cylinders: long turning worlds
-    for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = V.t * .008 + m.a, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue;
+    for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = V.t * .008 + m.a, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue; op(x, y, 16, 'cylinder', c, W.megas.indexOf(m));
       c2.save(); c2.translate(x, y); c2.rotate(ph + 1.57); c2.fillStyle = `rgba(200,208,216,${k})`; c2.fillRect(-14, -3, 28, 6); c2.fillStyle = `rgba(95,174,106,${k})`; c2.fillRect(-12, -1, 24, 2); c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-15, -3, 2, 6); c2.fillRect(13, -3, 2, 6); c2.restore(); }
     // the space elevator rises from the capital to a counterweight station high above
     if (c.era >= 12) {
@@ -3649,11 +3649,136 @@ function drawOrbit(c2, w, h, R, P2, k) {
       if (!(off(x0, y0, 400) && off(x1, y1, 400))) {
         c2.strokeStyle = `rgba(214,226,236,${(.55 * k).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.moveTo(x0, y0); c2.lineTo(x1, y1); c2.stroke();
         const f = (V.t * .06 + c.id * .37) % 1, [cx2, cy2] = P2(ph, R(SEA0 - gy(c.x) + (top - SEA0 + gy(c.x)) * f));
-        c2.fillStyle = `rgba(160,230,255,${k})`; c2.fillRect(cx2 - 1.5, cy2 - 1.5, 3, 3);
+        c2.fillStyle = `rgba(160,230,255,${k})`; c2.fillRect(cx2 - 1.5, cy2 - 1.5, 3, 3); op(cx2, cy2, 7, 'climber', c, 0); op(x1, y1, 9, 'elevator', c, 0);
         c2.save(); c2.translate(x1, y1); c2.rotate(ph); c2.fillStyle = `rgba(220,228,236,${k})`; c2.fillRect(-7, -3, 14, 6); c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-7, -1, 14, 1.6); c2.restore();
       }
     }
   }
+}
+/* ---------- close-ups of the Sun, the Moon and the planets ---------- */
+// In the solar-system view a left click on a body zooms in on it: a close-up with whatever peoples have built there,
+// and a panel of what is going on. A click anywhere, Esc or the wheel zooms back out. Earth zooms back down to the globe.
+const BODY_FACT = {
+  Sun: 'A middle-aged yellow star. Everything in this system circles it, and every age of humanity has run on its light.',
+  Mercury: 'Small and airless: scorched by day and frozen by night, the closest world to the Sun.',
+  Venus: 'Clouds of acid over a surface hot enough to melt lead. No one stays here for long.',
+  Moon: 'Earth’s companion: grey dust and craters, with Helium-3 for fusion in its soil.',
+  Mars: 'A cold red desert with thin air and polar ice: humanity’s second home.',
+  Jupiter: 'A giant of gas and storms, wider than ten Earths. Its icy moons hold water for starships.',
+  Saturn: 'A pale giant wrapped in rings of ice and rock.',
+  Uranus: 'An ice giant that rolls around the Sun on its side.',
+  Neptune: 'The windiest world, dark blue at the edge of the system.'
+};
+const BODY_LOOK = { Sun: '#ffd98a', Moon: '#bdb8ad', Mercury: '#a8a29a', Venus: '#e2c98f', Mars: '#c8643c', Jupiter: '#d4b58f', Saturn: '#e0cfa0', Uranus: '#9fd6dc', Neptune: '#5b7fd8' };
+function bodyAt(sx, sy) {
+  if (!V.b || sysK() < .5 || galK() > .3) return null;
+  const cand = [];
+  if (V.sunXY) cand.push(['Sun', V.sunXY[0], V.sunXY[1], 20]);
+  for (const [n, q] of Object.entries(V.bodyPos || {})) cand.push([n, q[0], q[1], Math.max(14, q[2] + 6)]);
+  cand.push(['Earth', V.cx, V.cy, Math.max(14, V.Rb * V.s + 6)]);
+  let best = null, bd = 1e9;
+  for (const [n, x, y, r] of cand) { const d = Math.hypot(x - sx, y - sy) / r; if (d <= 1 && d < bd) { bd = d; best = n; } }
+  return best;
+}
+function focusBody(n) {
+  hideTip(0);
+  if (n === 'Earth') { V.focus = null; setZoom(ZGLOBE * .6); return true; }
+  if (!BODY_FACT[n]) return false;
+  const q = n === 'Sun' ? [V.sunXY[0], V.sunXY[1], 10] : (V.bodyPos || {})[n] || [CW / 2, CH / 2, 6];
+  V.focus = { body: n, t0: performance.now(), x0: q[0], y0: q[1], r0: q[2] };
+  return true;
+}
+// what is going on there, one line each
+function bodyLines(n) {
+  const out = [], key = n === 'Moon' ? 'moon' : n === 'Mars' ? 'mars' : null, ppl = id => { const c = civById(id); return c ? 'the ' + c.name : 'a vanished people'; };
+  if (key) {
+    for (const b of (W.bases || []).filter(b => b.body === key)) out.push(`${b.name}: a base of ${ppl(b.civ)}, ${fmtPop(b.pop)} people`);
+    for (const k of (W.colonies || []).filter(k => k.body === key)) out.push(`The ${k.name}: ${fmtPop(k.pop)} people, ${ERAS[k.era].name}. ${k.free ? 'A free people.' : k.war ? 'Fighting for their freedom.' : `A colony of ${ppl(k.parent)}, unrest ${Math.round(k.tension * 100)}%.`}`);
+  }
+  const res = (W.spaceRes || []).filter(r => (n === 'Moon' && ELEMENTS[r.type].space === 'moon') || (n === 'Jupiter' && ELEMENTS[r.type].space === 'giant'));
+  for (const r of res) out.push(`${ELEMENTS[r.type].name}: ${r.owner != null ? 'mined by ' + ppl(r.owner) : 'no one mines it yet'}`);
+  if (n === 'Sun') {
+    const D = W.dyson, f = swarmFrac();
+    if (D && D.total > 0) { out.push(`A swarm of collectors catches its light: ${Math.round(f * 100)}% built.`); for (const [id, v] of Object.entries(D.by).sort((a, b) => b[1] - a[1]).slice(0, 4)) out.push(`  ${ppl(+id)}: ${Math.round(v / D.total * 100)}% of the swarm`); }
+    if (W.flareUntil > W.simTime) out.push('A great flare is raging. Satellites and power grids are down.');
+    if (W.tb) out.push('Far beyond it, the Hevari fleet is on its way.');
+  }
+  if (n === 'Jupiter' && (W.ships || []).length) out.push(`${W.ships.length} ship${W.ships.length > 1 ? 's' : ''} out among the stars took on water here.`);
+  if (!out.length) out.push(n === 'Sun' ? 'No one has begun to harvest its light yet.' : maxEra() >= 12 ? 'No one has settled here. Ships only pass it by.' : 'No one has been here yet.');
+  return out;
+}
+function wrapLines(c2, text, maxW) { const words = text.split(' '), lines = []; let cur = ''; for (const wd of words) { const t = cur ? cur + ' ' + wd : wd; if (c2.measureText(t).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = t; } if (cur) lines.push(cur); return lines; }
+function drawBodyClose(c2, n, x, y, r) {
+  const col = BODY_LOOK[n] || '#aaa', rgbC = hexRGB(col);
+  if (n === 'Sun') {
+    const g = c2.createRadialGradient(x, y, r * .2, x, y, r * 2); g.addColorStop(0, 'rgba(255,240,200,.9)'); g.addColorStop(.45, 'rgba(255,200,110,.35)'); g.addColorStop(1, 'rgba(255,170,80,0)'); c2.fillStyle = g; c2.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+    const d = c2.createRadialGradient(x - r * .2, y - r * .2, r * .1, x, y, r); d.addColorStop(0, '#fff6d8'); d.addColorStop(.7, '#ffd27a'); d.addColorStop(1, '#f2a24a'); c2.fillStyle = d; c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.fill();
+    c2.save(); c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.clip();
+    for (let i = 0; i < 260; i++) { const a = h01(i * 17) * 6.2832, rr = Math.sqrt(h01(i * 5)) * r, fl = .5 + .5 * Math.sin(V.t * 2 + i); c2.fillStyle = `rgba(255,${200 + 40 * fl | 0},120,${(.25 * fl).toFixed(3)})`; c2.fillRect(x + rr * Math.cos(a) - 2, y + rr * Math.sin(a) - 2, 4, 4); }
+    c2.restore();
+    if (W.flareUntil > W.simTime) { c2.strokeStyle = 'rgba(255,170,90,.7)'; c2.lineWidth = 3; c2.beginPath(); c2.arc(x + r * .75, y - r * .75, r * .35, Math.PI * .7, Math.PI * 1.9); c2.stroke(); }
+    // the swarm: collectors coloured by the people that launched them
+    const D = W.dyson, nsw = Math.round(swarmFrac() * 600);
+    if (D && nsw) { const ids = Object.keys(D.by); for (let i = 0; i < nsw; i++) { const a = h01(i * 31) * 6.2832 + V.t * (.05 + h01(i) * .05), rr = r * (1.12 + h01(i * 7) * .5), tilt = h01(i * 3) * 3.14;
+      let acc = 0, owner = null; const pk2 = h01(i * 11) * D.total; for (const id of ids) { acc += D.by[id]; if (pk2 <= acc) { owner = civById(+id); break; } }
+      c2.fillStyle = owner ? owner.color : '#d8b86a'; c2.fillRect(x + rr * Math.cos(a) - 1.2, y + rr * Math.sin(a) * Math.cos(tilt) - 1.2, 2.4, 2.4); } }
+    return;
+  }
+  if (n === 'Saturn') { c2.strokeStyle = 'rgba(230,215,170,.55)'; c2.lineWidth = r * .12; c2.beginPath(); c2.ellipse(x, y, r * 2, r * .55, -.25, Math.PI, 2 * Math.PI); c2.stroke(); }
+  c2.save(); c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.clip();
+  c2.fillStyle = col; c2.fillRect(x - r, y - r, r * 2, r * 2);
+  const dark = a => `rgba(${rgbC[0] * .6 | 0},${rgbC[1] * .6 | 0},${rgbC[2] * .6 | 0},${a})`, light = a => `rgba(255,250,240,${a})`;
+  if (n === 'Jupiter' || n === 'Saturn' || n === 'Uranus' || n === 'Neptune') {
+    const nb = n === 'Jupiter' ? 11 : 7; for (let i = 0; i < nb; i++) { c2.fillStyle = i % 2 ? dark(n === 'Jupiter' ? .35 : .15) : light(.08); c2.fillRect(x - r, y - r + i * 2 * r / nb + Math.sin(V.t * .3 + i) * 2, r * 2, 2 * r / nb * .6); }
+    if (n === 'Jupiter') { c2.fillStyle = 'rgba(190,90,60,.75)'; c2.beginPath(); c2.ellipse(x + r * .3, y + r * .35, r * .18, r * .1, 0, 0, 6.2832); c2.fill(); }
+  } else if (n === 'Venus') { for (let i = 0; i < 6; i++) { c2.strokeStyle = light(.12); c2.lineWidth = r * .08; c2.beginPath(); c2.arc(x - r * .2, y + r * (i - 3) * .3, r * 1.1, .2 + V.t * .02, 2.6 + V.t * .02); c2.stroke(); } }
+  else { for (let i = 0; i < (n === 'Mars' ? 8 : 18); i++) { c2.fillStyle = dark(.35); c2.beginPath(); c2.arc(x + (h01(i * 7 + n.length) - .5) * 1.7 * r, y + (h01(i * 13 + n.length) - .5) * 1.7 * r, r * (.04 + .1 * h01(i * 3)), 0, 6.2832); c2.fill(); }
+    if (n === 'Mars') { c2.fillStyle = 'rgba(245,245,250,.85)'; c2.beginPath(); c2.ellipse(x, y - r * .95, r * .35, r * .12, 0, 0, 6.2832); c2.fill(); } }
+  const sh = c2.createRadialGradient(x - r * .4, y - r * .4, r * .2, x, y, r * 1.05); sh.addColorStop(0, 'rgba(255,255,255,.12)'); sh.addColorStop(.7, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,10,.55)'); c2.fillStyle = sh; c2.fillRect(x - r, y - r, r * 2, r * 2);
+  c2.restore();
+  if (n === 'Saturn') { c2.strokeStyle = 'rgba(230,215,170,.7)'; c2.lineWidth = r * .12; c2.beginPath(); c2.ellipse(x, y, r * 2, r * .55, -.25, 0, Math.PI); c2.stroke(); }
+  // bases and colonies on the Moon and Mars, with their names
+  const key = n === 'Moon' ? 'moon' : n === 'Mars' ? 'mars' : null;
+  c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'left';
+  if (key) {
+    (W.bases || []).filter(b => b.body === key).forEach((b, i) => { const c = civById(b.civ); if (!c) return; const a = i * 2.4 + .6, d = r * (.35 + .25 * (i % 3) / 2), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * .8, sz = 3 + Math.log10(Math.max(10, b.pop)) * .9;
+      c2.fillStyle = c.color; c2.beginPath(); c2.arc(px, py, sz, Math.PI, 2 * Math.PI); c2.fill(); c2.fillRect(px - sz, py, sz * 2, 1.5);
+      const gl = c2.createRadialGradient(px, py, 0, px, py, sz * 3); gl.addColorStop(0, 'rgba(255,240,200,.45)'); gl.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = gl; c2.fillRect(px - sz * 3, py - sz * 3, sz * 6, sz * 6);
+      c2.fillStyle = 'rgba(240,236,226,.92)'; c2.fillText(b.name, px + sz + 3, py - 1); });
+    (W.colonies || []).filter(k => k.body === key).forEach((k, i) => { const a = i * 1.9 + 3.6, px = x + Math.cos(a) * r * .5, py = y + Math.sin(a) * r * .45, sz = 7;
+      for (let j = -2; j <= 2; j++) { c2.fillStyle = k.color; c2.fillRect(px + j * 4 - 1.5, py - sz - Math.abs(2 - Math.abs(j)) * 3, 3, sz + Math.abs(2 - Math.abs(j)) * 3); }
+      if (k.war) { c2.fillStyle = 'rgba(227,106,85,.9)'; c2.beginPath(); c2.arc(px, py - sz - 8, 2.5, 0, 6.2832); c2.fill(); }
+      c2.fillStyle = 'rgba(240,236,226,.95)'; c2.fillText('the ' + k.name, px + 14, py - 3); });
+  }
+  // claims: Helium-3 rigs on the Moon, ice moons around Jupiter
+  for (const rs of W.spaceRes || []) {
+    const body = ELEMENTS[rs.type].space, o = rs.owner != null ? civById(rs.owner) : null;
+    if (n === 'Moon' && body === 'moon') { const px = x + Math.cos(rs.a) * r * .6, py = y + Math.sin(rs.a) * r * .5; c2.fillStyle = '#7fe3ff'; c2.beginPath(); c2.moveTo(px, py - 5); c2.lineTo(px + 4, py); c2.lineTo(px, py + 5); c2.lineTo(px - 4, py); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, 8, 0, 6.2832); c2.stroke(); } c2.fillStyle = 'rgba(220,240,250,.9)'; c2.fillText('Helium-3', px + 10, py + 4); }
+    if (n === 'Jupiter' && body === 'giant') { const a = rs.a + V.t * .15, px = x + Math.cos(a) * r * 1.45, py = y + Math.sin(a) * r * .5; c2.fillStyle = '#e8f4fb'; c2.beginPath(); c2.arc(px, py, Math.max(4, r * .06), 0, 6.2832); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, Math.max(4, r * .06) + 4, 0, 6.2832); c2.stroke(); } c2.fillStyle = 'rgba(220,240,250,.9)'; c2.fillText('Ice moon', px + 10, py + 4); }
+  }
+}
+function drawFocus(c2, w, h) {
+  const F = V.focus; if (!V.b || sysK() < .3) { V.focus = null; return; }
+  let e = clamp((performance.now() - F.t0) / 650, 0, 1); e = e * e * (3 - 2 * e);
+  c2.save();
+  c2.fillStyle = `rgba(2,3,10,${(.9 * e).toFixed(3)})`; c2.fillRect(0, 0, w, h);
+  const side = w > 760, fb = $('#futures') && $('#futures').getBoundingClientRect(), cb = $('#world').getBoundingClientRect(), L = fb && fb.width && fb.left - cb.left < w * .4 ? fb.right - cb.left + 24 : 24;
+  let R = Math.min(side ? w * .26 : w * .34, h * (side ? .36 : .26)); if (side) R = Math.max(40, Math.min(R, (w * .6 - L) / 2));
+  const cx = side ? L + R : w * .5, cy = side ? h * .5 : h * .34;
+  const x = F.x0 + (cx - F.x0) * e, y = F.y0 + (cy - F.y0) * e, r = F.r0 + (R - F.r0) * e;
+  drawBodyClose(c2, F.body, x, y, r);
+  if (e > .55) {
+    const a = (e - .55) / .45, px = side ? Math.max(w * .62, cx + R + 40) : 24, pw = side ? w - px - 24 : w - 48; let py = side ? Math.max(40, h * .5 - 120) : h * .62;
+    c2.globalAlpha = a; c2.textAlign = 'left'; c2.textBaseline = 'alphabetic';
+    c2.font = '26px Marcellus, Georgia, serif'; c2.fillStyle = '#ece5d5'; c2.fillText(F.body === 'Moon' ? 'The Moon' : F.body === 'Sun' ? 'The Sun' : F.body, px, py); py += 22;
+    c2.font = '12.5px "IBM Plex Sans Condensed", system-ui, sans-serif'; c2.fillStyle = 'rgba(214,208,196,.85)';
+    for (const l of wrapLines(c2, BODY_FACT[F.body], pw)) { c2.fillText(l, px, py); py += 17; }
+    py += 10; c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.fillStyle = '#c9a27c'; c2.fillText('WHAT IS GOING ON', px, py); py += 18;
+    c2.font = '12.5px "IBM Plex Sans Condensed", system-ui, sans-serif'; c2.fillStyle = 'rgba(236,229,213,.95)';
+    for (const ln of bodyLines(F.body).slice(0, 12)) { for (const l of wrapLines(c2, ln, pw)) { c2.fillText(l, px, py); py += 17; } py += 3; }
+    py += 12; c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.fillStyle = 'rgba(200,196,186,.6)'; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', pw)) { c2.fillText(l, px, py); py += 15; }
+  }
+  c2.restore();
 }
 function drawSystem(c2, w, h, sx, sy) {
   const k = sysK() * (1 - galK()), s = V.s; if (k < .01) return;
@@ -3751,6 +3876,7 @@ function renderBent(w, h) {
   if (b > .3) drawSpaceExtras(c2, w, h);
   if (V.sunXY && sysK() > .01) drawSystem(c2, w, h, V.sunXY[0], V.sunXY[1]);
   drawAtmoLabels(c2, w, h);
+  if (V.focus) drawFocus(c2, w, h);
 }
 function updateAltHud(w, h) {
   const el = $('#alt');
@@ -3777,7 +3903,7 @@ function drawFlatten(c2, w, h) {
 function render() {
   updateView();
   const w = CW, h = CH; if (!w || !h) return;
-  V.L = daylight(); V.N = 1 - V.L; V.alive = alive(); V.fronts = []; V.season = ((W.simTime / 60) % 1 + 1) % 1; V.winter = Math.max(0, Math.cos((V.season - .875) * 6.2832)) ** 2;
+  V.L = daylight(); V.N = 1 - V.L; V.alive = alive(); V.fronts = []; V.orbPicks = []; V.bodyPos = {}; V.season = ((W.simTime / 60) % 1 + 1) % 1; V.winter = Math.max(0, Math.cos((V.season - .875) * 6.2832)) ** 2;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (V.b > 0) renderBent(w, h);
   else {
@@ -4470,8 +4596,16 @@ const TIP_ZOOM = 1.3;
 const TIP = { cur: null, open: false, over: false, t: 0, sx: 0, sy: 0 };
 // how far each element reaches around its spot (half width, height above the ground), in world units
 const ELHIT = { seedvault: [16, 16], library: [18, 30], forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
+// objects in orbit are only drawn on the curved views (globe and orbit), so they can be right-clicked there at any zoom
+function orbitTarget(sx, sy) {
+  if (!V.b || sysK() >= .3) return null;
+  let best = null, bd = 1e9;
+  for (const q of V.orbPicks || []) { const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
+  return best ? { key: 'o' + best.kind + (best.c ? best.c.id : '') + ':' + best.i, orb: best } : null;
+}
 function tipTarget(sx, sy) {
-  if (V.b || V.zoom < TIP_ZOOM) return null;
+  if (V.b) return orbitTarget(sx, sy);
+  if (V.zoom < TIP_ZOOM) return null;
   const [wx, wy] = S2W(sx, sy), c = civAt(wx), pad = 1.5 / V.s;
   const hitPick = pr => { const ps = V.picks || []; for (let k = ps.length - 1; k >= 0; k--) { const q = ps[k]; if (q.pr === pr && wx >= q.x0 - pad && wx <= q.x1 + pad && wy >= q.y0 - pad && wy <= q.y1 + pad) return { key: 'p' + q.kind + Math.round(q.x0 / 4), p: q }; } return null; };
   let hp = hitPick(0); if (hp) return hp;
@@ -4491,7 +4625,26 @@ function tipTarget(sx, sy) {
   }
   return el ? { key: 'e' + el.id, el } : hitPick(2) || hitPick(3);
 }
+const ORB_INFO = {
+  sat: ['Satellite', 'Carries phones, maps, weather and spying from orbit. There are more with every space age.'],
+  scope: ['Space telescope', 'Looks far beyond the Sun from above the air, which blurs the view from the ground.'],
+  station: ['Space station', 'A crewed outpost in orbit: laboratories, docks and a stopover on the way to the Moon and Mars.'],
+  ring: ['Ring habitat', 'A great turning ring. Its spin gives weight to the towns and fields along its inside, home to millions.'],
+  cylinder: ['Space cylinder', 'A turning world miles long, with its own sky, farms and towns on the inside of the hull.'],
+  elevator: ['Space elevator station', 'The counterweight station at the top of a cable that rises from the capital. Cargo goes up by climber instead of rocket.'],
+  climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.']
+};
+function orbitTipBody(q) {
+  const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
+  let h = `<span>${esc(I[1])}</span>`;
+  if (c) h += row('Built by', 'the ' + c.name + ' (' + ERAS[c.era].name + ')');
+  if (q.kind === 'sat') { const n = (V.orbPicks || []).filter(p => p.kind === 'sat').length; h += row('Satellites in view', String(n)); if (W.kessler && W.simTime < W.kessler) h += row('Orbit', 'full of wreckage after a chain of collisions'); else if (W.flareUntil > W.simTime) h += row('Status', 'many knocked out by the solar flare'); else if ((W.debris || 0) > .3) h += row('Debris', Math.round(W.debris * 100) + '% of the way to a chain of collisions'); }
+  if (q.kind === 'cylinder' && c) h += row('Cylinders built by the ' + c.name, String((W.megas || []).filter(m => m.civ === c.id).length));
+  if (q.kind === 'station' && c) h += row('Bases off-world', String(basesOf(c).length));
+  return [esc(I[0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), h];
+}
 function tipBody(t) {
+  if (t.orb) return orbitTipBody(t.orb);
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`;
   if (t.p) {
     const q = t.p, d = q.d, c = d.c, own = c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : '';
@@ -4534,7 +4687,7 @@ function tipBody(t) {
 }
 function renderTip(keepPos) {
   const tip = $('#tip'), t = TIP.cur;
-  if (!t || (t.civ && !t.civ.alive) || (t.el && !W.elements.includes(t.el)) || (t.a && !(t.civ._.agents || []).includes(t.a)) || (t.p && t.p.d.c && !t.p.d.c.alive)) { tip.style.display = 'none'; TIP.cur = null; return; }
+  if (!t || (t.civ && !t.civ.alive) || (t.el && !W.elements.includes(t.el)) || (t.a && !(t.civ._.agents || []).includes(t.a)) || (t.p && t.p.d.c && !t.p.d.c.alive) || (t.orb && t.orb.c && !t.orb.c.alive)) { tip.style.display = 'none'; TIP.cur = null; return; }
   const [name, body] = tipBody(t);
   tip.innerHTML = `<div class="tt">${name}<button class="tclose" type="button" id="tipClose" aria-label="Close">×</button></div><div class="td">${body}</div>`;
   tip.classList.toggle('open', TIP.open); tip.style.display = 'block';
@@ -4607,6 +4760,7 @@ function initDOM() {
   });
   const endPtr = e => { V.pts.delete(e.pointerId); if (V.pts.size < 2) V.pinch = null; };
   cv.addEventListener('pointerup', e => { if (e.button === 2) { endPtr(e); V.drag = null; return; }
+    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && (V.focus || sysK() > .5)) { const r = cv.getBoundingClientRect(), n = V.focus ? null : bodyAt(e.clientX - r.left, e.clientY - r.top); if (V.focus || n) { endPtr(e); V.drag = null; if (V.focus) V.focus = null; else focusBody(n); return; } }
     if (UI.tool && UI.tool.kind === 'el' && ELEMENTS[UI.tool.type] && ELEMENTS[UI.tool.type].space && V.drag && !V.drag.moved && !V.pinch) { endPtr(e); V.drag = null; placeSpace(UI.tool.type); return; } const wasPinch = !!V.pinch; endPtr(e); const d = V.drag; V.drag = null; cv.style.cursor = ''; if (d && !d.moved && !wasPinch) { const [wx, wy] = worldAt(e.clientX, e.clientY); if (!V.b || (wy > -320 && wy < WORLD_H)) worldClick(((wx % WORLD_W) + WORLD_W) % WORLD_W); TIP.over = false; hideTip(0); } else showTip(); });
   // right click opens the info of whatever is under the pointer
   cv.addEventListener('contextmenu', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); });
@@ -4630,6 +4784,7 @@ function initDOM() {
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? CH : 1, dx = e.deltaX * unit, dy = e.deltaY * unit;
     if (e.shiftKey || Math.abs(dx) > Math.abs(dy)) { V.cam += (dx || dy) / V.s; V.camTarget = null; return; }
+    if (V.focus) { V.focus = null; return; }
     hideTip(0);
     const r = cv.getBoundingClientRect();
     setZoom(V.zoom * Math.exp(-clamp(dy, -200, 200) * (e.ctrlKey ? .01 : .0016)), e.clientX - r.left, e.clientY - r.top);
@@ -4642,6 +4797,7 @@ function initDOM() {
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input,textarea,select')) { if (e.key === 'Escape' && isFS() && !(document.fullscreenElement || document.webkitFullscreenElement)) exitFS(); return; }
     if ($('#modal').classList.contains('open')) { if (e.key === 'Escape') closeModal(); return; }
+    if (e.key === 'Escape' && V.focus) { V.focus = null; return; }
     if (e.key === 'Escape' && ($('#pop').classList.contains('show') || TIP.cur)) { hidePop(0, true); TIP.over = false; hideTip(0); return; }
     if (e.key === 'ArrowLeft' || e.key === 'a') { V.camTarget = (V.camTarget ?? V.cam) - Math.min(V.vw, 3000) * .35; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { V.camTarget = (V.camTarget ?? V.cam) + Math.min(V.vw, 3000) * .35; e.preventDefault(); }
@@ -4753,7 +4909,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

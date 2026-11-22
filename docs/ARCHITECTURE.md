@@ -27,7 +27,7 @@ Everything lives in `index.html`: a `<style>` block, the page markup, and one `<
 | layout / buildings | settlements laid out per civ in `c._.items` (`{t, x, w, h, base}`), painters per building type (`P.<type>(b, c)`) |
 | rendering | flat view (`drawWorld` into an offscreen canvas, night/lights passes), overlay labels, `drawOverlay`, minimap |
 | atmosphere / globe | bent strip rendering, globe face from a texture, atmosphere shells, `drawSpaceBackdrop` (Sun, Moon), `drawSpaceExtras`/`drawOrbit` (satellites, stations, elevators, cylinders, debris), `drawSystem` (planets, swarm, resources), `drawGalaxy` |
-| interface | tool tabs, info popovers (`infoContent`, `showPop`), map info box (`tipTarget`, `tipBody`, right click), futures panel (`updateFutures`), people cards, ribbon, workshop, rules tab, modal, saving, input, boot |
+| interface | tool tabs, info popovers (`infoContent`, `showPop`), map info box (`tipTarget`, `tipBody`, right click; orbit objects record screen hitboxes in `V.orbPicks` during `drawOrbit`, hit by `orbitTarget`, text in `ORB_INFO`/`orbitTipBody`), body close-ups in the system view (`V.focus`, `bodyAt` using `V.sunXY`/`V.bodyPos` (reset each frame), `focusBody`, `drawFocus` → `drawBodyClose`, `bodyLines`, `BODY_FACT`; left click in the `pointerup` handler, Esc and the wheel close it), futures panel (`updateFutures`), people cards, ribbon, workshop, rules tab, modal, saving, input, boot |
 
 ## Key state
 
@@ -55,7 +55,7 @@ ground (flat strip) → `ZBEND0` .5 the strip starts to bend → `ZGLOBE` .06 fu
 
 ## Debug hook
 
-`window.__aoh` exposes `W` (getter), `V`, `UI`, `setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY`.
+`window.__aoh` exposes `W` (getter), `V`, `UI`, `setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY`.
 
 ## Adding a future's real content (pattern used by the Three-Sun Signal)
 
