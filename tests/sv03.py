@@ -20,7 +20,7 @@ async def main():
         await ev(r'''() => { const A = window.__aoh; A.newWorld(313); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1); const W = A.W; for (const o of W.civs) o.era = 12; W.civs[0].era = 13; W.year = 2400; W.ships = []; W.stars = []; W.lost = []; scrollTo(0, 0); }''')
         # a launch logs the year
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, R = Math.random; Math.random = () => 0; A.shipTick(1); Math.random = R; const sh = W.ships[0]; return JSON.stringify({ n: W.ships.length, log: sh && sh.log, y: Math.round(W.year), crew0: sh && sh.crew0 }); }'''))
-        check('a launch starts the ship\'s log with the year', r['n'] == 1 and r['log'] == [{'y': r['y'], 'k': 'launch'}] and r['crew0'] == 1e5, str(r))
+        check('a launch starts the ship\'s log with the year', r['n'] == 1 and r['log'] == [{'y': r['y'], 'k': 'launch', 'f': 0}] and r['crew0'] == 1e5, str(r))
         # events on the way, one at each quarter: mutiny, plague, forgetting (each with the year it happened)
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, sh = W.ships[0], R = Math.random, out = [];
           for (const [q, roll] of [[.26, .1], [.51, .3], [.76, .45]]) { sh.t0 = W.simTime - q * sh.dur; W.year += 40; Math.random = () => roll; A.shipTick(.001); Math.random = R; out.push(Math.round(W.year)); }
@@ -39,6 +39,7 @@ async def main():
         nm = await ev("() => window.__aoh.W.ships[0].name"); civ = await ev("() => window.__aoh.W.civs[0].name")
         under = await ev("() => Math.round(window.__aoh.W.year - window.__aoh.W.ships[0].y0)")
         check('right click on the ship opens its card: name, people, years under way', c['shown'] and nm in c['text'] and civ in c['text'] and f'{under:,} years' in c['text'], f'{nm} / {civ} / {under}')
+        check('the card gives how far the destination is from Earth', 'Bound for: Proxima Centauri, 4.2 light years from Earth' in c['text'], [l for l in c['text'].split('\n') if 'Bound' in l])
         check('the progress bar matches the voyage', c['bar'] is not None and abs(c['bar'] - f) < 1.5 and f'{round(f)}% of the way' in c['text'], f'bar {c["bar"]} vs {f:.1f}')
         check('crew left, out of how many set out', '30,000 of 100,000' in c['text'] or ('30' in c['text'] and 'of' in c['text']), re.findall(r'Crew left:[^\n]*', c['text']))
         check('the log is listed with years, in order', len(c['logs']) == 4 and 'Leaves home' in c['logs'][0] and 'Mutiny' in c['logs'][1] and 'Plague' in c['logs'][2] and 'forget' in c['logs'][3] and all(re.search(r'\d', x) for x in c['logs']), str(c['logs']))
@@ -52,7 +53,7 @@ async def main():
           const bad = JSON.parse(JSON.stringify(d)); bad.ships[0].log = [null, 7, { k: 'party', y: 1 }, { k: 'plague', y: 'x' }, ...Array.from({ length: 30 }, (_, i) => ({ k: 'mutiny', y: i }))]; const b2 = A.sanitizeWorld(bad);
           return JSON.stringify({ same: JSON.stringify(back.ships[0].log) === JSON.stringify(A.W.ships[0].log), old: o2.ships[0].log, oldC0: o2.ships[0].crew0, y0: d.ships[0].y0, bad: b2.ships[0].log.length, badK: [...new Set(b2.ships[0].log.map(e => e.k))] }); }'''))
         check('the log is saved and loaded back unchanged', r['same'], str(r))
-        check('an old save without logs loads: the log starts with the launch year', r['old'] == [{'y': r['y0'], 'k': 'launch'}] and r['oldC0'] == 1e5, str(r['old']))
+        check('an old save without logs loads: the log starts with the launch year', r['old'] == [{'y': r['y0'], 'k': 'launch', 'f': 0}] and r['oldC0'] == 1e5, str(r['old']))
         check('bad log entries are dropped and the log is capped', r['bad'] <= 12 and set(r['badK']) <= {'mutiny', 'plague'}, str(r))
         # arrival: the log ends with the arrival and goes to the colony; a loss: the log goes to its mark
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, sh = W.ships[0]; sh.t0 = W.simTime - sh.dur * 1.01; sh.told = 3; A.shipTick(.001); const st = W.stars[W.stars.length - 1];

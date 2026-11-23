@@ -609,13 +609,23 @@ function drawLens(c2, w, h, sx, sy) {
     c2.globalAlpha = a * .9; c2.lineWidth = 1.6; c2.beginPath(); c2.moveTo(px - 4, py - 4); c2.lineTo(px + 4, py + 4); c2.moveTo(px + 4, py - 4); c2.lineTo(px - 4, py + 4); c2.stroke(); c2.globalAlpha = a;
     shipsAt.push({ id: m.id, x: px, y: py, f: m.f, lost: true });
   }
-  // the destination's name, clear of the Sun, the ship and the disc's edge
+  // SV-05: what happened on the way, marked where it happened, with the year: mutiny, plague, the crew forgetting; a lost ship's
+  // silence is the cross above
+  const marks = [], log = (T.kind === 'ship' ? T.sh.log : T.m.log) || [];
+  for (const e of log) { if (!VMARK[e.k] || e.f == null) continue; const [mx, my] = S(clamp(e.f, 0, 1)); marks.push({ k: e.k, y: e.y, f: e.f, x: mx, y2: my }); }
+  for (const m of marks) { const g = VMARK[m.k]; c2.globalAlpha = a; c2.fillStyle = g.col; c2.strokeStyle = 'rgba(10,9,12,.9)'; c2.lineWidth = 1.5; c2.beginPath();
+    if (g.shape === 'diamond') { c2.moveTo(m.x, m.y2 - 4); c2.lineTo(m.x + 4, m.y2); c2.lineTo(m.x, m.y2 + 4); c2.lineTo(m.x - 4, m.y2); c2.closePath(); c2.stroke(); c2.fill(); }
+    else if (g.shape === 'dot') { c2.arc(m.x, m.y2, 3.3, 0, 6.2832); c2.stroke(); c2.fill(); }
+    else { c2.arc(m.x, m.y2, 3.3, 0, 6.2832); c2.lineWidth = 3; c2.stroke(); c2.strokeStyle = g.col; c2.lineWidth = 1.4; c2.stroke(); } }
+  // labels: the destination, then each mark (and the place a lost ship went silent), clear of each other, the Sun, the ship and every mark
   c2.font = '11px "IBM Plex Sans Condensed", sans-serif'; c2.textBaseline = 'top';
-  const nm = XSTARS[T.star][0], dots = [[L.x, L.y], ...shipsAt.map(q => [q.x, q.y])];
-  const labs = lensLabels(c2, L, [{ i: T.star, x: dx, y: dy, name: nm }], dots);
-  for (const lb of labs) { c2.textAlign = 'left'; c2.lineWidth = 3; c2.strokeStyle = 'rgba(10,9,12,.9)'; c2.strokeText(lb.name, lb.x, lb.y); c2.fillStyle = 'rgba(232,224,210,.95)'; c2.fillText(lb.name, lb.x, lb.y); }
+  const nm = XSTARS[T.star][0], dots = [[L.x, L.y], [dx, dy], ...shipsAt.map(q => [q.x, q.y]), ...marks.map(m => [m.x, m.y2])];
+  const items = [{ i: T.star, x: dx, y: dy, name: nm, col: 'rgba(232,224,210,.95)' }, ...marks.map(m => ({ x: m.x, y: m.y2, name: `${VMARK[m.k].name} · ${fmtYear(m.y)}`, col: VMARK[m.k].txt }))];
+  if (T.kind === 'lost') { const e = log.find(x => x.k === 'lost'); items.push({ x: shipsAt[0].x, y: shipsAt[0].y, name: 'Silent' + (e ? ' · ' + fmtYear(e.y) : ''), col: 'rgba(214,206,190,.85)' }); }
+  const labs = lensLabels(c2, L, items, dots), colOf = new Map(items.map(it => [it.name, it.col]));
+  for (const lb of labs) { const mk = lb.name !== nm; c2.font = mk ? '10px "IBM Plex Sans Condensed", sans-serif' : '11px "IBM Plex Sans Condensed", sans-serif'; c2.textAlign = 'left'; c2.lineWidth = 3; c2.strokeStyle = 'rgba(10,9,12,.9)'; c2.strokeText(lb.name, lb.x, lb.y); c2.fillStyle = colOf.get(lb.name); c2.fillText(lb.name, lb.x, lb.y); }
   c2.restore();
-  V.lens = { x: L.x, y: L.y, r: R, kind: T.kind, id: T.id, labels: labs.map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h, name: l.name })), stars: [{ i: T.star, x: dx, y: dy }], ships: shipsAt };
+  V.lens = { x: L.x, y: L.y, r: R, kind: T.kind, id: T.id, labels: labs.map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h, name: l.name })), stars: [{ i: T.star, x: dx, y: dy }], ships: shipsAt, marks: marks.map(m => ({ k: m.k, f: m.f, x: m.x, y: m.y2 })) };
 }
 // Clicking a chronicle line about a ship: a ship on its way or lost opens the lens out in the galaxy; a ship that arrived opens a
 // close-up of the world it settled. instant: no glide (tests).
@@ -665,7 +675,8 @@ function drawWorldClose(c2, st, x, y, r) {
 }
 function worldLines(st) {
   const c = civById(st.civ), out = [];
-  out.push(`Around ${XSTARS[st.star][0]}, settled in ${fmtYear(st.t0)} by the crew of the ${st.name}${c ? ', sent by the ' + c.name : ''}.`);
+  out.push(`Around ${XSTARS[st.star][0]}, ${starLy(st.star)}.`);
+  out.push(`Settled in ${fmtYear(st.t0)} by the crew of the ${st.name}${c ? ', sent by the ' + c.name : ''}.`);
   out.push(`${fmtPop(st.pop)} people live here now.`);
   if (st.forgot) out.push('Its first settlers had forgotten they were on a ship; they stepped out under a strange sun and remembered.');
   for (const e of st.log || []) out.push(`${fmtYear(e.y)}: ${vlogText(e.k, st)}`);
@@ -1930,13 +1941,22 @@ function colonyTick(dt) {
 // generation ships: voyages of centuries to other stars. positions are in the galaxy's own units (Sun at the origin)
 const XSTARS = [['Proxima Centauri', .010, .7], ['Barnard’s Star', .013, 2.1], ['Wolf 359', .017, 3.4], ['Ross 128', .024, 5.3], ['Epsilon Eridani', .023, 1.4], ['Tau Ceti', .025, 4.4], ['Gliese 667', .053, .2],
   ['Teegarden’s Star', .028, 2.8], ['Trappist-1', .09, 5.9], ['Kepler-442', .26, 1.0], ['Kapteyn’s Star', .029, 3.9], ['Luyten’s Star', .028, .9], ['Kepler-186', .14, 4.9], ['HD 40307', .099, 2.5]];
+// how far each star really is from Earth, in light years (the galaxy positions above are a layout, not to scale)
+const STAR_LY = { 'Proxima Centauri': 4.2, 'Barnard’s Star': 6, 'Wolf 359': 7.9, 'Ross 128': 11, 'Epsilon Eridani': 10.5, 'Tau Ceti': 11.9, 'Gliese 667': 23.6, 'Teegarden’s Star': 12.5, 'Trappist-1': 40.7, 'Kepler-442': 1206, 'Kapteyn’s Star': 12.8, 'Luyten’s Star': 12.4, 'Kepler-186': 579, 'HD 40307': 42.4 };
+const starLy = i => { const d = STAR_LY[XSTARS[i][0]]; return d == null ? '' : (d < 20 ? d.toFixed(1).replace(/\.0$/, '') : Math.round(d).toLocaleString('en-US')) + ' light years from Earth'; };
 const SHIPNAME = ['Long Hope', 'Patience', 'Far Shore', 'Seedling', 'Wayfarer', 'Covenant', 'Memory', 'Morning', 'Ark of Ages', 'Second Spring', 'Distant Light', 'Lantern'];
 const starXY = i => [XSTARS[i][1] * Math.cos(XSTARS[i][2]), XSTARS[i][1] * Math.sin(XSTARS[i][2])];
 // SV-03: each ship keeps a log of its voyage, { y: year, k: kind }; it goes with the ship to its colony (or its lost mark)
 const VLOG_K = ['launch', 'mutiny', 'plague', 'forgot', 'arrive', 'lost'], VLOG_MAX = 12;
-const shipLog = (sh, k) => { (sh.log = sh.log || []).push({ y: Math.round(W.year), k }); if (sh.log.length > VLOG_MAX) sh.log.splice(1, 1); };
+// SV-05: how each event is marked on a ship's path in its lens
+const VMARK = { mutiny: { name: 'Mutiny', shape: 'diamond', col: '#e0664f', txt: '#f0a090' }, plague: { name: 'Plague', shape: 'dot', col: '#9bc45a', txt: '#c4dd9a' }, forgot: { name: 'Forgotten', shape: 'ring', col: '#c9c2b4', txt: '#d8d2c6' } };
+const shipLog = (sh, k) => { (sh.log = sh.log || []).push({ y: Math.round(W.year), k, f: k === 'arrive' ? 1 : +clamp((W.simTime - sh.t0) / sh.dur, 0, 1).toFixed(3) }); if (sh.log.length > VLOG_MAX) sh.log.splice(1, 1); };
 const vlogText = (k, sh) => ({ launch: 'Leaves home', mutiny: 'Mutiny: the rebels take the bridge', plague: 'Plague: half the crew die', forgot: 'The crew forget they are on a ship', arrive: 'Reaches ' + XSTARS[sh.star][0], lost: 'Falls silent' })[k] || k;
-const sanVlog = (a, y0) => { const out = (Array.isArray(a) ? a : []).filter(e => e && VLOG_K.includes(e.k)).slice(-VLOG_MAX).map(e => ({ y: Math.round(Number.isFinite(+e.y) ? clamp(+e.y, -60000, 1e6) : y0), k: e.k })); return out.length || y0 == null ? out : [{ y: y0, k: 'launch' }]; };
+// f: how far along the voyage it happened. Old logs have none: events come at each quarter of the way (see shipTick), so the
+// n-th event after the launch is placed at n quarters
+const sanVlog = (a, y0) => { let q = 0; const out = (Array.isArray(a) ? a : []).filter(e => e && VLOG_K.includes(e.k)).slice(-VLOG_MAX).map(e => { const o = { y: Math.round(Number.isFinite(+e.y) ? clamp(+e.y, -60000, 1e6) : y0), k: e.k };
+  const ev = e.k !== 'launch' && e.k !== 'arrive'; if (ev) q++; o.f = Number.isFinite(+e.f) && e.f !== null && e.f !== '' ? +clamp(+e.f, 0, 1).toFixed(3) : e.k === 'launch' ? 0 : e.k === 'arrive' ? 1 : Math.min(.99, .25 * q + .01); return o; });
+  return out.length || y0 == null ? out : [{ y: y0, k: 'launch', f: 0 }]; };
 function shipTick(dt) {
   if (!W.ships) W.ships = []; if (!W.stars) W.stars = [];
   for (const c of alive()) {
@@ -1945,7 +1965,7 @@ function shipTick(dt) {
       const taken = new Set(W.ships.map(sh => sh.star).concat(W.stars.map(st => st.star)));
       let si = XSTARS.findIndex((st, i) => !taken.has(i)); if (si < 0) si = (Math.random() * XSTARS.length) | 0;
       const usedN = new Set(W.ships.map(x => x.name).concat(W.stars.map(x => x.name))), nm = SHIPNAME.find(x => !usedN.has(x)) || SHIPNAME[(W.nextId * 7) % SHIPNAME.length] + ' ' + ROMAN[(W.ships.length + W.stars.length) % ROMAN.length], dur = 120 + XSTARS[si][1] * 1400 * (c.era >= 14 ? .5 : 1);
-      W.ships.push({ id: W.nextId++, civ: c.id, star: si, name: nm, t0: W.simTime, dur, crew: 1e5, crew0: 1e5, y0: Math.round(W.year), told: 0, log: [{ y: Math.round(W.year), k: 'launch' }] });
+      W.ships.push({ id: W.nextId++, civ: c.id, star: si, name: nm, t0: W.simTime, dur, crew: 1e5, crew0: 1e5, y0: Math.round(W.year), told: 0, log: [{ y: Math.round(W.year), k: 'launch', f: 0 }] });
       c.culture = Math.min(100, c.culture + 4);
       log(fillT(`{Civ} launch the generation ship ${nm} toward ${XSTARS[si][0]}. Its crew will not live to see the voyage end; their grandchildren's grandchildren will.`, names(c)), 'event', W.ships[W.ships.length - 1].id);
     }
@@ -5144,10 +5164,10 @@ const ORB_INFO = {
 function orbitTipBody(q) {
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
   if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
-  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop)) + (st.world ? row('World', st.world + ' (left click to see it)') : '')]; }
+  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Distance', starLy(st.star)) + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop)) + (st.world ? row('World', st.world + ' (left click to see it)') : '')]; }
   if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), col = c ? c.color : '#c9a27c', c0 = sh.crew0 || 1e5;
     const lg = (sh.log && sh.log.length ? sh.log : [{ y: sh.y0, k: 'launch' }]).map(e => `<span class="vl"><b>${esc(fmtYear(e.y))}</b> ${esc(vlogText(e.k, sh))}</span>`).join('');
-    return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0]) + row('Sent by', c ? 'the ' + c.name : 'a people now gone') + row('Under way', fmtSpan(Math.max(0, Math.round(W.year - sh.y0))))
+    return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0] + ', ' + starLy(sh.star)) + row('Sent by', c ? 'the ' + c.name : 'a people now gone') + row('Under way', fmtSpan(Math.max(0, Math.round(W.year - sh.y0))))
       + `<span class="pb"><i style="width:${(f * 100).toFixed(1)}%;background:${col}"></i></span><span class="pbl">${Math.round(f * 100)}% of the way</span>`
       + row('Crew left', fmtPop(sh.crew) + (sh.crew < c0 * .99 ? ' of ' + fmtPop(c0) : '')) + (sh.forgot ? row('Aboard', 'the crew have forgotten they are on a ship') : '') + `<span class="vlh">Ship’s log</span>` + lg]; }
   let h = `<span>${esc(I[1])}</span>`;
@@ -5480,7 +5500,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
