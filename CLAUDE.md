@@ -74,7 +74,8 @@ tests/                Python + Playwright test scripts and JS summaries (endworl
 
 ## Gotchas
 
-- `W.chron` is capped at 260 entries: counting chronicle lines in long runs undercounts.
+- `W.chron` is capped at 260 entries: counting chronicle lines in long runs undercounts. `W.hist` holds the whole story (oldest first, up to 5,000 lines).
+- `#modal` is moved into `#stage` while in full screen (`openModal`), so dialogs show in real full screen.
 - The clock runs fast in the Galactic Age (~30 years per sim second), so countdowns read in thousands of years late in the game.
 - An epilogue modal can open at any time in long runs and block clicks; tests close it (see `run2.py`).
 - Clicking toolbox tabs scrolls the page; tests that click the map should `scrollTo(0,0)` first.

@@ -85,13 +85,14 @@ async def main():
         r = json.loads(await ev("(n0) => JSON.stringify({ f: window.__aoh.V.focus, placed: window.__aoh.W.spaceRes.length - n0 })", n0))
         check('with a space tool selected, a click places it instead of zooming in', r['f'] is None and r['placed'] == 1, str(r))
         await ev("() => window.__aoh.setTool(null)")
-        # the text card never covers the body, its rings, swarm or moons, on wide and narrow screens
+        # the text never covers the body: on wide screens the disc stays left of the text (its glow, rings and swarm may pass
+        # under the dark fade behind the text, on purpose); on narrow screens the card stays below the body, rings and moons
         bad = []
         for vw, vh in [(2000, 1000), (1300, 850), (900, 700), (640, 800)]:
             await pg.set_viewport_size({'width': vw, 'height': vh}); await pg.wait_for_timeout(300)
             for n in ['Sun', 'Saturn', 'Jupiter', 'Mars']:
                 fb = json.loads(await ev(r'''async (n) => { const A = window.__aoh; A.V.focus = null; A.setZoom(.0015); A.render(); A.focusBody(n); A.V.focus.t0 -= 2000; await new Promise(r => setTimeout(r, 120)); A.render(); return JSON.stringify(A.V.focusBox); }''', n))
-                ext = fb['R'] * fb['reach']
+                ext = fb['R'] * (1 if fb['side'] else fb['reach'])
                 clear = (fb['cx'] + ext <= fb['cardX'] + 1) if fb['side'] else (fb['cy'] + min(fb['reach'], 1.2) * fb['R'] <= fb['cardY'] + 1)
                 ov = json.loads(await ev(r'''() => { const cb = document.querySelector('#world').getBoundingClientRect(), b = window.__aoh.V.focusBox, hit = el => { if (!el || el.offsetParent === null) return false; const q = el.getBoundingClientRect(); if (!q.width) return false; const l = q.left - cb.left, r = q.right - cb.left, t = q.top - cb.top, bt = q.bottom - cb.top; return l < b.cardX + b.cardW && r > b.cardX && t < b.cardY + b.cardH && bt > b.cardY; }; return JSON.stringify({ alt: hit(document.querySelector('#alt')), hint: hit(document.querySelector('#hint')) }); }'''))
                 if ov['alt'] or ov['hint']: clear = False
@@ -99,7 +100,7 @@ async def main():
                 if (vw, n) in [(2000, 'Saturn'), (2000, 'Sun'), (640, 'Saturn'), (2000, 'Jupiter'), (2000, 'Mars')]:
                     await (await pg.query_selector('#world')).screenshot(path=f'bodies_{n.lower()}_{vw}.png')
             await ev("() => { window.__aoh.V.focus = null; }")
-        check('the text card never covers the body, its rings, swarm or moons, nor the hint bar or altitude box (2000, 1300, 900, 640 wide)', not bad, str(bad))
+        check('the text never covers the body (wide: the disc; narrow: rings, swarm and moons too), nor the hint bar or altitude box (2000, 1300, 900, 640 wide)', not bad, str(bad))
         print('\n'.join(errs) or 'no errors')
         print(f'{sum(results)}/{len(results)} passed')
         await b.close()

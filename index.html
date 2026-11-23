@@ -49,7 +49,9 @@ h1,h2,h3{text-wrap:balance}
 
 .stage{position:relative;height:clamp(330px,58vh,560px);background:#0b0d11;border-bottom:1px solid var(--stone);overflow:hidden}
 #world{display:block;width:100%;height:calc(100% - 42px);touch-action:none;cursor:default}
-#mini{display:block;width:100%;height:42px;border-top:1px solid var(--stone);cursor:pointer;touch-action:none}
+#mini{display:block;width:100%;height:42px;border-top:1px solid var(--stone);cursor:pointer;touch-action:none;transition:opacity .3s,visibility .3s}
+/* the strip map of the ground is hidden once the land bends into the globe and beyond (its space keeps the layout still) */
+#mini.off{opacity:0;visibility:hidden;pointer-events:none}
 .hint{position:absolute;left:16px;top:12px;z-index:2;max-width:calc(100% - 32px);padding:5px 10px;font-size:12.5px;background:rgba(14,16,20,.8);border:1px solid var(--stone);border-radius:3px;pointer-events:none}
 .hint b{color:var(--bronze);font-weight:600}
 .toast{position:absolute;right:16px;top:48px;max-width:min(360px,calc(100% - 32px));padding:6px 12px;font-size:13px;background:#2a1f12;border:1px solid var(--bronze);border-radius:3px;opacity:0;transition:opacity .25s;pointer-events:none}
@@ -88,6 +90,8 @@ h1,h2,h3{text-wrap:balance}
 .fsclock b{font:600 18px/1 var(--mono);font-variant-numeric:tabular-nums}
 .fsclock span{font:400 11px/1 var(--display);letter-spacing:.26em;text-transform:uppercase;color:var(--bronze)}
 .stage.fs .hint{top:auto;bottom:54px}
+/* in full screen the general hint is left out; only a tool's own hint shows, and the chronicle feed drops into its place */
+.stage.fs.nohint .hint{display:none}.stage.fs.nohint .fschron{bottom:54px}
 .labinfo{position:absolute;left:0;top:0;width:0;height:0;z-index:1}
 .labinfo .ibtn{position:absolute;transform:translate(-50%,-50%);background:rgba(14,16,20,.6)}
 .labinfo .ibtn[hidden]{display:none}
@@ -217,6 +221,16 @@ h1,h2,h3{text-wrap:balance}
 .log .k-world,.log .k-rule{border-left-color:#555c66;color:#d2cbbb}
 .log .k-nature{border-left-color:#8fd18a;background:#121912}
 .log .k-fate{border-left-color:#a593f2;background:#16141f}
+.chron .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.chron .hd h2{margin-bottom:10px}
+.seeall{padding:2px 8px;font-size:12px}
+.fshrow{display:flex;gap:4px}.fsall{padding:5px 10px;background:rgba(14,16,20,.8);border:0;border-radius:2px;color:var(--dim);font:400 11px/1 var(--display);letter-spacing:.16em;text-transform:uppercase;cursor:pointer}.fsall:hover,.fsall:focus-visible{color:var(--parchment)}
+.dialog.hist{max-width:860px;display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
+.hist .hbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+.hist .hbar input{flex:1 1 180px;min-width:0;padding:4px 8px;background:var(--ink);border:1px solid var(--stone);border-radius:2px;color:var(--parchment);font:400 13px/1.3 var(--body)}
+.hist .log{max-height:none;flex:1 1 auto;min-height:120px;overflow-y:auto;border-top:1px solid #1f232a}
+.hist .log li.miss{display:none}
+.hist .hnote{font-size:12.5px;color:var(--dim);margin:0 0 8px}
+.hist .none{padding:14px 8px;color:var(--dim);font-size:13.5px}
 .log[data-filter="fate"] li:not(.k-fate){display:none}
 .log[data-filter="nature"] li:not(.k-nature){display:none}
 .planet{margin:0 0 14px;padding:10px 12px;background:var(--slab);border:1px solid var(--stone);border-left:4px solid #6fb36a;border-radius:3px}
@@ -316,7 +330,7 @@ h1,h2,h3{text-wrap:balance}
     <button class="btn" id="fsTools" aria-pressed="false" title="Tools (T)">Tools</button>
     <button class="btn js-fs" title="Exit full screen (Esc)">Exit full screen</button>
   </div>
-  <div class="fschron" id="fschron"><button class="fsh" type="button" id="fslogToggle" aria-expanded="true" aria-controls="fslog"><span class="chev" aria-hidden="true">▾</span>Chronicle<span class="ct" id="fslogNew"></span></button><ul class="fslog" id="fslog" aria-live="polite"></ul></div>
+  <div class="fschron" id="fschron"><div class="fshrow"><button class="fsh" type="button" id="fslogToggle" aria-expanded="true" aria-controls="fslog"><span class="chev" aria-hidden="true">▾</span>Chronicle<span class="ct" id="fslogNew"></span></button><button class="fsall" type="button" id="fsAll" title="Everything that has happened in this world">See all</button></div><ul class="fslog" id="fslog" aria-live="polite"></ul></div>
 </section>
 
 <ol class="ages" id="ages" aria-label="The ages of humanity"></ol>
@@ -342,7 +356,7 @@ h1,h2,h3{text-wrap:balance}
     <div id="civs"></div>
   </section>
   <section class="panel chron" aria-labelledby="h-chron">
-    <h2 id="h-chron">Chronicle</h2>
+    <div class="hd"><h2 id="h-chron">Chronicle</h2><button class="btn seeall" type="button" id="seeAll" title="Everything that has happened in this world">See all</button></div>
     <div class="filters" id="filters" role="group" aria-label="Show in the chronicle">
       <button class="btn" data-filter="all" aria-pressed="true">All</button>
       <button class="btn" data-filter="era" aria-pressed="false">Ages</button>
@@ -818,9 +832,12 @@ function fmtYear(y) { y = Math.round(y); if (y <= 0) return Math.max(1, Math.abs
 function fmtPop(p) { if (p < 1e4) return Math.round(p).toLocaleString('en-US'); if (p < 1e6) return (p / 1e3).toFixed(p < 1e5 ? 1 : 0) + 'k'; if (p < 1e9) return (p / 1e6).toFixed(p < 1e8 ? 1 : 0) + 'M'; return (p / 1e9).toFixed(2) + 'B'; }
 const fmtSpan = n => Math.round(n).toLocaleString('en-US') + ' years';
 const aOrAn = w => /^(?!One|Uni|Eu)[AEIOU]/i.test(w) ? 'an' : 'a';
+// the chronicle keeps the latest 260 lines; the whole story (up to HIST_MAX lines, oldest first) is kept in W.hist for "See all"
+const HIST_MAX = 5000;
 function log(h, kind = 'world') {
   const e = { y: Math.round(W.year), k: kind, h };
   W.chron.unshift(e); if (W.chron.length > 260) W.chron.length = 260;
+  W.hist.push(e); if (W.hist.length > HIST_MAX + 200) { const cut = W.hist.length - HIST_MAX; W.hist.splice(0, cut); W.histLost = (W.histLost || 0) + cut; }
   addLogDOM(e, true);
 }
 
@@ -837,7 +854,7 @@ function makeCiv(x, opts = {}) {
   W.civs.push(c); return c;
 }
 function freshWorld(seed) {
-  return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], reactQ: [], tempShift: 0, pollution: 0,
+  return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], hist: [], histLost: 0, reactQ: [], tempShift: 0, pollution: 0,
     wwCount: 0, nextId: 1, tradeUntil: 0, nat: null, extinct: {}, nextRandom: rand(22, 32), ruleState: {}, topEra: 0, thresholdNoted: false,
     acts: 0, lastWarT: 0, sig: null, nukeT: null, fates: freshFates(), bases: [], spaceRes: defaultSpaceRes(), colonies: [], ships: [], stars: [],
     ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0, care: null, mw: null };
@@ -3383,6 +3400,7 @@ function drawOverlay(c2, w, h) {
   if (V.flash > 0) { c2.fillStyle = `rgba(255,250,240,${(V.flash * .85).toFixed(3)})`; c2.fillRect(0, 0, w, h); }
 }
 function drawMini() {
+  const off = V.b > .15; if (mini.classList.contains('off') !== off) mini.classList.toggle('off', off); if (off) return;
   const w = mini.width, h = mini.height, sx = w / WORLD_W, d = DPR;
   mctx.setTransform(1, 0, 0, 1, 0, 0);
   mctx.fillStyle = '#0c0e12'; mctx.fillRect(0, 0, w, h);
@@ -3815,37 +3833,56 @@ function drawFocus(c2, w, h) {
   const F = V.focus; if (!V.b || sysK() < .3) { V.focus = null; return; }
   let e = clamp((performance.now() - F.t0) / 650, 0, 1); e = e * e * (3 - 2 * e);
   c2.save();
-  c2.fillStyle = `rgba(2,3,10,${(.9 * e).toFixed(3)})`; c2.fillRect(0, 0, w, h);
-  // the text card: on the right on wide screens, under the body on narrow ones; laid out first so the body can keep clear of it
-  const side = w > 760, fb = $('#futures') && $('#futures').getBoundingClientRect(), cb = $('#world').getBoundingClientRect(), L = fb && fb.width && fb.left - cb.left < w * .4 ? fb.right - cb.left + 24 : 24;
-  const cardW = side ? clamp(w * .3, 280, 380) : w - 32, pad = 16, tw = cardW - pad * 2, title = F.body === 'Moon' ? 'The Moon' : F.body === 'Sun' ? 'The Sun' : F.body;
-  const body = '12.5px "IBM Plex Sans Condensed", system-ui, sans-serif', mono = '11px "IBM Plex Mono", ui-monospace, monospace', items = [];
-  c2.font = body; for (const l of wrapLines(c2, BODY_FACT[F.body], tw)) items.push([l, body, 'rgba(214,208,196,.9)', 17]);
-  items.push(['', body, '', 10]); items.push(['WHAT IS GOING ON', mono, '#c9a27c', 18]);
-  for (const ln of bodyLines(F.body).slice(0, 12)) { c2.font = body; for (const l of wrapLines(c2, ln.trim(), tw)) items.push([l, body, 'rgba(240,235,224,.97)', 17]); items.push(['', body, '', 3]); }
-  items.push(['', body, '', 9]); c2.font = mono; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', tw)) items.push([l, mono, 'rgba(200,196,186,.65)', 15]);
-  // keep clear of the hint bar (top left) and the altitude box (bottom right)
-  const rel = el => { if (!el || el.offsetParent === null) return null; const q = el.getBoundingClientRect(); return q.width ? { l: q.left - cb.left, r: q.right - cb.left, t: q.top - cb.top, b: q.bottom - cb.top } : null; };
-  const hb = rel($('#hint')), ab = rel($('#alt')), top = hb ? Math.max(16, hb.b + 10) : 16;
-  const cardX = side ? w - cardW - 20 : 16, over = q => q && q.l < cardX + cardW && q.r > cardX, floor = over(ab) ? ab.t - 12 : h - 16;
-  const cardH = Math.min(floor - (over(hb) ? top : 16), pad * 2 + 30 + items.reduce((a, it) => a + it[3], 0));
-  const cardY = side ? clamp(h / 2 - cardH / 2, over(hb) ? top : 16, floor - cardH) : floor - cardH;
-  // the body fills the space left of the card (or above it), with room for its rings, swarm or moons
-  const reach = BODY_REACH[F.body] || 1.12, zoneL = side ? L : 16, zoneR = side ? cardX - 24 : w - 16, zoneT = top, zoneB = side ? h - 16 : cardY - 16;
-  const R = Math.max(30, Math.min((zoneR - zoneL) / 2 / reach, (zoneB - zoneT) / 2 / Math.min(reach, 1.2), side ? h * .4 : h * .3));
-  const cx = (zoneL + zoneR) / 2, cy = (zoneT + zoneB) / 2;
+  c2.fillStyle = `rgba(2,3,10,${(.92 * e).toFixed(3)})`; c2.fillRect(0, 0, w, h);
+  // wide screens: the body is huge on the left and runs off the edges; the text floats on the right over a dark fade.
+  // Narrow screens: the body above, the text in a card below.
+  const side = w > 760, cb = $('#world').getBoundingClientRect(), title = F.body === 'Moon' ? 'The Moon' : F.body === 'Sun' ? 'The Sun' : F.body;
+  const sc = side ? clamp(w / 1100, 1, 1.35) : 1, pad = side ? 0 : 16;
+  const cardW = side ? clamp(w * .3, 300, 440) : w - 32, tw = cardW - pad * 2;
+  const body = `${(13.5 * sc).toFixed(1)}px "IBM Plex Sans Condensed", system-ui, sans-serif`, mono = `${(11 * sc).toFixed(1)}px "IBM Plex Mono", ui-monospace, monospace`, lh = 19 * sc, items = [];
+  c2.font = body; for (const l of wrapLines(c2, BODY_FACT[F.body], tw)) items.push([l, body, 'rgba(222,216,204,.92)', lh]);
+  items.push(['', body, '', 12 * sc]); items.push(['WHAT IS GOING ON', mono, '#c9a27c', 21 * sc]);
+  for (const ln of bodyLines(F.body).slice(0, 12)) { c2.font = body; for (const l of wrapLines(c2, ln.trim(), tw)) items.push([l, body, 'rgba(244,239,228,.98)', lh]); items.push(['', body, '', 3]); }
+  items.push(['', body, '', 11 * sc]); c2.font = mono; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', tw)) items.push([l, mono, 'rgba(200,196,186,.6)', 16 * sc]);
+  // keep the text clear of the boxes laid over the map (hint bar, altitude box, the full-screen chronicle): each one in the
+  // top half of the map pushes the top edge down, each in the bottom half pulls the bottom edge up (the hint bar is at the
+  // top of the page view but at the bottom in full screen)
+  const rel = el => { if (!el || el.offsetParent === null) return null; const q = el.getBoundingClientRect(); return q.width && q.bottom > cb.top && q.top < cb.bottom ? { l: q.left - cb.left, r: q.right - cb.left, t: q.top - cb.top, b: q.bottom - cb.top } : null; };
+  const obs = ['#hint', '#alt', '#fschron'].map(k => rel($(k))).filter(Boolean);
+  const clear = (x0, x1) => { let t = 16, b = h - 16; for (const q of obs) if (q.l < x1 && q.r > x0) { if ((q.t + q.b) / 2 < h / 2) t = Math.max(t, q.b + 10); else b = Math.min(b, q.t - 10); } return [t, b]; };
+  const titleH = (side ? 62 : 30) * sc, cardX = side ? w - cardW - clamp(w * .04, 24, 64) : 16, [cT, cB] = clear(cardX, cardX + cardW);
+  const cardH = Math.min(cB - cT, pad * 2 + titleH + items.reduce((a, it) => a + it[3], 0));
+  const cardY = side ? clamp(h / 2 - cardH / 2, cT, cB - cardH) : cB - cardH;
+  const reach = BODY_REACH[F.body] || 1.12;
+  let R, cx, cy;
+  if (side) {
+    // big: most of the height, and it may run off the top, bottom and left; its glow, rings or swarm may pass under the text fade
+    R = Math.min(h * .62, (cardX - 40) / (1 + Math.min(reach, 1.25) * .55)) / (reach > 1.9 ? 1.25 : 1);
+    cx = cardX - 40 - R * Math.min(reach, 1.25) * .9; cy = h / 2;
+  } else {
+    const zT = clear(16, w - 16)[0], zB = cardY - 16;
+    R = Math.max(30, Math.min((w - 32) / 2 / reach, (zB - zT) / 2 / Math.min(reach, 1.2), h * .3)); cx = w / 2; cy = (zT + zB) / 2;
+  }
   V.focusBox = { side, cardX, cardY, cardW, cardH, cx, cy, R, reach };
   const x = F.x0 + (cx - F.x0) * e, y = F.y0 + (cy - F.y0) * e, r = F.r0 + (R - F.r0) * e;
   drawBodyClose(c2, F.body, x, y, r);
   if (e > .55) {
     const a = (e - .55) / .45; c2.globalAlpha = a;
-    c2.fillStyle = 'rgba(12,14,19,.94)'; c2.fillRect(cardX, cardY, cardW, cardH);
-    c2.strokeStyle = 'rgba(201,162,124,.35)'; c2.lineWidth = 1; c2.strokeRect(cardX + .5, cardY + .5, cardW - 1, cardH - 1);
-    c2.fillStyle = '#a593f2'; c2.fillRect(cardX, cardY, 2, cardH);
-    c2.save(); c2.beginPath(); c2.rect(cardX, cardY, cardW, cardH); c2.clip();
-    let py = cardY + pad + 22; c2.textAlign = 'left'; c2.textBaseline = 'alphabetic';
-    c2.font = '24px Marcellus, Georgia, serif'; c2.fillStyle = '#ece5d5'; c2.fillText(title, cardX + pad, py); py += 22;
-    for (const [t, f, col, lh] of items) { if (t) { c2.font = f; c2.fillStyle = col; c2.fillText(t, cardX + pad, py); } py += lh; }
+    if (side) {
+      // a dark fade from the right so the text reads over the body's glow, rings and swarm
+      const fx = cardX - 140, g = c2.createLinearGradient(fx, 0, cardX - 10, 0); g.addColorStop(0, 'rgba(4,5,12,0)'); g.addColorStop(1, 'rgba(4,5,12,.86)');
+      c2.fillStyle = g; c2.fillRect(fx, 0, cardX - 10 - fx, h); c2.fillStyle = 'rgba(4,5,12,.86)'; c2.fillRect(cardX - 10, 0, w - cardX + 10, h);
+    } else {
+      c2.fillStyle = 'rgba(12,14,19,.94)'; c2.fillRect(cardX, cardY, cardW, cardH);
+      c2.strokeStyle = 'rgba(201,162,124,.35)'; c2.lineWidth = 1; c2.strokeRect(cardX + .5, cardY + .5, cardW - 1, cardH - 1);
+      c2.fillStyle = '#a593f2'; c2.fillRect(cardX, cardY, 2, cardH);
+    }
+    c2.save(); c2.beginPath(); c2.rect(cardX - 4, cardY, cardW + 8, cardH); c2.clip();
+    let py = cardY + pad + titleH * .78; c2.textAlign = 'left'; c2.textBaseline = 'alphabetic';
+    c2.font = `${Math.round((side ? 38 : 24) * sc)}px Marcellus, Georgia, serif`; c2.fillStyle = '#f2ecdf'; c2.fillText(title, cardX + pad, py);
+    if (side) { c2.fillStyle = '#a593f2'; c2.fillRect(cardX + pad, py + 10 * sc, 44 * sc, 2); }
+    py += titleH * .22 + lh * .8;
+    for (const [t, f, col, l] of items) { if (t) { c2.font = f; c2.fillStyle = col; c2.fillText(t, cardX + pad, py); } py += l; }
     c2.restore();
   }
   c2.restore();
@@ -4047,7 +4084,7 @@ function setHint() {
   else if (t.kind === 'ev') { const ev = findEvent(t.id); h = `<b>${esc(ev ? ev.name : '')}</b>: ${ev && ev.scope === 'target' ? 'click a people' : 'click where it strikes'}. <b>Esc</b> to stop.`; }
   else if (t.kind === 'erase') h = '<b>Remove</b>: click near an element or a crater. <b>Esc</b> to stop.';
   else h = '<b>Look</b>: click a people to select it.';
-  $('#hint').innerHTML = h; cv.classList.toggle('tooling', !!t);
+  $('#hint').innerHTML = h; cv.classList.toggle('tooling', !!t); $('#stage').classList.toggle('nohint', !t && isFS());
 }
 function setTool(t) {
   UI.tool = t;
@@ -4544,7 +4581,7 @@ function submitRule(e) {
 
 /* ---------- modal ---------- */
 let lastFocus = null;
-function openModal(html) { lastFocus = document.activeElement; $('#dialog').innerHTML = html; $('#modal').classList.add('open'); const f = $('#dialog [autofocus]') || $('#dialog button'); if (f) f.focus(); }
+function openModal(html) { lastFocus = document.activeElement; const m = $('#modal'), host = isFS() ? $('#stage') : document.body; if (m.parentNode !== host) host.append(m); $('#dialog').classList.toggle('hist', false); $('#dialog').innerHTML = html; $('#modal').classList.add('open'); const f = $('#dialog [autofocus]') || $('#dialog button'); if (f) f.focus(); }
 function closeModal() { $('#modal').classList.remove('open'); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
 function confirmModal(title, body, ok, onOk) {
   openModal(`<h3 id="dlgTitle">${esc(title)}</h3><p>${esc(body)}</p><div class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="dlgOk" autofocus>${esc(ok)}</button></div>`);
@@ -4605,7 +4642,10 @@ function sanitizeWorld(d) {
   w.rock = d.rock && typeof d.rock === 'object' ? { t0: n(d.rock.t0, -1e9, 1e12), eta: n(d.rock.eta, -1e9, 1e12), x: n(d.rock.x, 0, WORLD_W) | 0, size: n(d.rock.size, .3, 1, .7), seen: !!d.rock.seen, tries: n(d.rock.tries, 0, 99) | 0, next: n(d.rock.next, -1e9, 1e12), name: String(d.rock.name || 'Rock').slice(0, 20) } : null;
   w.rockCycle = n(d.rockCycle, 0, 99) | 0; w.svCycle = n(d.svCycle, 0, 99) | 0;
   w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); w.mw = sanitizeMW(d.mw, w); if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
+  const chronE = e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) });
   w.chron = (Array.isArray(d.chron) ? d.chron : []).slice(0, 260).filter(e => e && typeof e.h === 'string').map(e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) }));
+  // the full story; saves from before it existed start from the lines the chronicle still holds
+  w.hist = Array.isArray(d.hist) ? d.hist.slice(-HIST_MAX).filter(e => e && typeof e.h === 'string').map(chronE) : w.chron.slice().reverse(); w.histLost = Array.isArray(d.hist) ? n(d.histLost, 0, 1e9) | 0 : 0;
   return w;
 }
 function sanitizeCustom(d) {
@@ -4819,7 +4859,7 @@ function enterFS() {
   renderFsLog(); updateUI(); setHint();
 }
 function exitFS() {
-  const st = $('#stage'); if (!isFS()) return;
+  const st = $('#stage'); if (!isFS()) return; if ($('#modal').parentNode === st) document.body.append($('#modal'));
   st.classList.remove('fs', 'tools-open'); $('#fsTools').setAttribute('aria-pressed', 'false');
   $('.desk').prepend($('#toolbox'));
   $$('.js-fs').forEach(b => b.setAttribute('aria-pressed', 'false')); setHint();
@@ -4836,6 +4876,36 @@ function renderFsLog() {
   if (closed) { const i = UI.fslogSeen ? W.chron.indexOf(UI.fslogSeen) : 0, n = i < 0 ? W.chron.length : i; $('#fslogNew').textContent = n ? (n > 99 ? '99+' : n) + ' new' : ''; ul.innerHTML = ''; return; }
   $('#fslogNew').textContent = '';
   ul.innerHTML = W.chron.slice(0, 3).map(e => `<li class="k-${e.k}"><time>${esc(fmtYear(e.y))}</time>${e.h}</li>`).join('');
+}
+// "See all": the whole story of this world in one window, with the same filters as the chronicle, a search box and either order
+const HIST_K = [['all', 'All'], ['era', 'Ages'], ['event', 'Events'], ['react', 'Reactions'], ['war', 'Wars'], ['nature', 'Nature'], ['fate', 'Futures'], ['world', 'World']];
+function openHistory() {
+  if (!W) return;
+  const H = W.hist, first = H[0], last = H[H.length - 1];
+  const span = H.length ? `${H.length.toLocaleString('en-US')} line${H.length === 1 ? '' : 's'}, from ${esc(fmtYear(first.y))} to ${esc(fmtYear(last.y))}.` : 'Nothing has happened yet.';
+  const lost = W.histLost ? ` The ${W.histLost.toLocaleString('en-US')} oldest lines have faded from the record.` : '';
+  openModal(`<div class="hist-wrap"><h3 id="dlgTitle">The whole chronicle</h3><p class="hnote">${span}${lost}</p>
+    <div class="hbar"><div class="filters" id="hFilters" role="group" aria-label="Show in the whole chronicle" style="margin:0">${HIST_K.map(([k, l]) => `<button class="btn" type="button" data-hf="${k}" aria-pressed="${k === 'all'}">${l}</button>`).join('')}</div></div>
+    <div class="hbar"><input type="search" id="hSearch" placeholder="Search: a people, a war, a year…" aria-label="Search the whole chronicle"><button class="btn" type="button" id="hOrder" aria-pressed="false">Oldest first</button><span class="hnote" id="hCount" style="margin:0" aria-live="polite"></span></div></div>
+    <ul class="log" id="hLog" data-filter="all"></ul>
+    <div class="row"><button class="btn primary" type="button" data-close autofocus>Close</button></div>`);
+  $('#dialog').classList.add('hist');
+  const ul = $('#hLog'), st = { old: false };
+  const filt = () => {
+    const q = $('#hSearch').value.trim().toLowerCase(), f = ul.dataset.filter; let n = 0;
+    for (const li of ul.children) { if (li.id === 'hNone') continue; const hit = !q || li.textContent.toLowerCase().includes(q); li.classList.toggle('miss', !hit);
+      if (hit && (f === 'all' || li.classList.contains('k-' + f) || (f === 'world' && li.classList.contains('k-rule')))) n++; }
+    $('#hCount').textContent = n.toLocaleString('en-US') + ' shown'; $('#hNone').hidden = n > 0;
+  };
+  const draw = () => {
+    const list = st.old ? H : H.slice().reverse();
+    ul.innerHTML = list.map(e => `<li class="k-${e.k}"><time>${esc(fmtYear(e.y))}</time><p>${e.h}</p></li>`).join('') + '<li class="none" id="hNone" hidden>Nothing matches.</li>';
+    ul.scrollTop = 0; filt();
+  };
+  $('#hFilters').onclick = e => { const b = e.target.closest('[data-hf]'); if (!b) return; $$('#hFilters [data-hf]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); ul.dataset.filter = b.dataset.hf; filt(); };
+  $('#hSearch').oninput = filt;
+  $('#hOrder').onclick = () => { st.old = !st.old; $('#hOrder').setAttribute('aria-pressed', String(st.old)); draw(); };
+  draw();
 }
 function toggleFsLog(closed) { UI.fslogClosed = closed == null ? !UI.fslogClosed : !!closed; UI.fslogSeen = UI.fslogClosed ? W.chron[0] || null : null; lsSet('aoh.fslogClosed', UI.fslogClosed ? '1' : '0'); renderFsLog(); }
 function setSpeed(s) { UI.speed = s; UI.paused = false; $$('[data-speed]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.speed === s ? 'true' : 'false')); $$('.js-pause').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.textContent = 'Pause'; }); }
@@ -4869,7 +4939,7 @@ function initDOM() {
   $('#futures').addEventListener('click', e => { if (!e.target.closest('#tbPick') || !W.tb) return;
     openModal(`<h3 id="dlgTitle">Choose the hidden strategist</h3><p>One people will be given a secret plan against the Hevari. No one, not even you, will learn what it is until the end.</p><div class="row" style="flex-wrap:wrap;justify-content:flex-start;gap:8px">${alive().map(c => `<button class="btn" type="button" data-tbc="${c.id}" style="border-left:3px solid ${c.color}">${esc(c.name)}</button>`).join('')}</div><div class="row"><button class="btn" type="button" data-close>Let fate decide</button></div>`);
     $('#dialog').querySelectorAll('[data-tbc]').forEach(b => b.onclick = () => { tbChoose(+b.dataset.tbc, 'you'); closeModal(); $('#futBody').dataset.k = ''; updateFutures(); }); });
-  UI.fslogClosed = lsGet('aoh.fslogClosed') === '1'; $('#fslogToggle').addEventListener('click', () => toggleFsLog());
+  UI.fslogClosed = lsGet('aoh.fslogClosed') === '1'; $('#fslogToggle').addEventListener('click', () => toggleFsLog()); $('#seeAll').addEventListener('click', openHistory); $('#fsAll').addEventListener('click', openHistory);
   $('#futToggle').addEventListener('click', () => { const box = $('#futures'), closed = box.classList.toggle('closed'); $('#futToggle').setAttribute('aria-expanded', String(!closed)); $('#futBody').dataset.k = ''; updateFutures(); });
   const tipEl = $('#tip');
   tipEl.addEventListener('pointerenter', () => { TIP.over = true; clearTimeout(TIP.t); });
@@ -5010,7 +5080,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

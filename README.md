@@ -21,6 +21,7 @@ Live version: https://claude.ai/artifact/GFVdMcCoxYPrnCGJKF9ihw (owner's account
 | Info about things in orbit (satellites, telescopes, stations, ring habitats, space cylinders, space elevators) | **Right click** them on the globe and orbit views |
 | Info about things further out: mining claims in the solar system (Helium-3, asteroid mines, ice moons), ships between the stars, star colonies | **Left or right click** them in the solar-system and galaxy views |
 | See the Sun's place in the Milky Way | Zoom all the way out; click the Sun or the galaxy's centre for what they are |
+| Read everything that has happened | **See all** on the Chronicle panel (or on the feed in full screen): every line, with filters, search and either order |
 | Fold away the chronicle feed in full screen | Click **Chronicle** above it (remembered; while folded it counts new lines) |
 | A close look at the Sun, the Moon or a planet | In the solar-system view, **left click** it (bases, colonies, mines and the Sun's swarm, and what is going on). Click anywhere, scroll or press Esc to zoom back out; clicking Earth takes you back down to the globe |
 | Info about a people | The **i** on its city label |
