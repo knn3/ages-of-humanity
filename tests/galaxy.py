@@ -57,6 +57,31 @@ async def main():
               const t = document.querySelector('#tip'), txt = t.style.display !== 'none' ? t.innerText.replace(/\n/g, ' | ') : ''; const b = document.querySelector('#tipClose'); if (b) b.click(); return txt.slice(0, 120); }''', [kind, how])
         print('  clicks:', got)
         check('click the Sun: home, on the Orion Spur; click the centre: the bar and Sagittarius A*', 'Orion Spur' in got['sungal'] and 'Sagittarius A' in got['gcore'], str(got))
+        # the galaxy turns like a real disc galaxy (flat rotation curve, a faster bar, arms as density waves), and stops when paused
+        r = json.loads(await ev(r'''() => JSON.stringify({ paused: window.__aoh.UI.paused, t0: window.__aoh.V.galT || 0 })'''))
+        await pg.wait_for_timeout(1200)
+        r2 = json.loads(await ev(r'''() => JSON.stringify({ t1: window.__aoh.V.galT || 0, paused: window.__aoh.UI.paused })'''))
+        await pg.keyboard.press('Space'); await pg.wait_for_timeout(1200)
+        r3 = json.loads(await ev(r'''() => JSON.stringify({ t2: window.__aoh.V.galT || 0, paused: window.__aoh.UI.paused })'''))
+        await pg.keyboard.press('Space')
+        moved = (r3['t2'] - r2['t1']) if not r3['paused'] else (r2['t1'] - r['t0'])
+        still = (r2['t1'] - r['t0']) if r2['paused'] else (r3['t2'] - r2['t1'])
+        check('the galaxy turns while the game runs and stands still when paused', moved > .8 and still < .05, str([r, r2, r3]))
+        r = json.loads(await ev(r'''() => { const A = window.__aoh, V = A.V, Ws = A.gOmega(.53), v = r => A.gOmega(r) * r, per = r => 6.2832 / A.gOmega(r);
+          V.galT = 0; const s0 = A.sunG(); V.galT = A.GYEAR / 4; const s1 = A.sunG(); const ang = (Math.atan2(s1[1], s1[0]) - Math.atan2(s0[1], s0[0]) + 6.2832) % 6.2832;
+          A.setZoom(.00002); A.render(); const cv = document.querySelector('#world'), core = V.orbPicks.find(q => q.kind === 'gcore'), sun = V.orbPicks.find(q => q.kind === 'sungal');
+          const spread = T => { let s = 0, n = 0; for (const st of A.GAL) { if (st[4] !== 'a') continue; const af = (T / st[7] + st[8]) % 1; s += Math.abs((st[9] - A.GARM_W * Ws) * af * st[7]); n++; } return +(s / n).toFixed(3); };
+          const shear = (A.gOmega(.25) - A.gOmega(.8)) * A.GYEAR; V.galT = 0;
+          return JSON.stringify({ quarter: +ang.toFixed(3), flat: +(v(.9) / v(.4)).toFixed(3), inner: +(v(.02) / v(.4)).toFixed(3), perSun: +per(.53).toFixed(1), perCore: +per(.05).toFixed(1), perEdge: +per(1).toFixed(1), bar: A.GBAR_W, arms: A.GARM_W,
+            centred: !!core && Math.abs(core.x - cv.clientWidth / 2) < cv.clientWidth * .1, sunR: core && sun ? Math.round(Math.hypot(sun.x - core.x, sun.y - core.y)) : 0, s1: spread(A.GYEAR), s50: spread(50 * A.GYEAR), shear: +shear.toFixed(2) }); }'''))
+        print('  rotation:', r)
+        check('the Sun goes round the centre once per galactic year (a quarter turn in a quarter year), and the centre stays in the middle', abs(r['quarter'] - 1.5708) < .01 and r['centred'] and r['sunR'] > 50, str(r))
+        check('a flat rotation curve: outer stars move at about the same speed, the core turns like a wheel, inner stars go round faster', abs(r['flat'] - 1) < .1 and r['inner'] < .5 and r['perCore'] < r['perSun'] < r['perEdge'], str(r))
+        check('the bar turns faster than the Sun and the arms just slower (the Sun near corotation); the disc shears', r['bar'] > 1.2 and .85 < r['arms'] < 1 and r['shear'] > 3, str(r))
+        check('young stars are born in the arms and drift out as they age, so the arms never wind up', r['s1'] < .3 and abs(r['s50'] - r['s1']) < .08, str(r))
+        for i, T in enumerate([0, 40, 80]):
+            await ev(f"() => {{ const A = window.__aoh; A.V.galT = {T}; A.setZoom(.00002); A.render(); }}")
+            await pg.screenshot(path=str(pathlib.Path(__file__).with_name(f'galaxy_turn{i}.png')))
         print('\n'.join(errs) or 'no errors')
         print(f'{sum(results)}/{len(results)} passed')
         await b.close()

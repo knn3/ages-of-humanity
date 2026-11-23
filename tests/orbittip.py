@@ -55,7 +55,7 @@ async def main():
         check('an orbit tip stays open as the game runs, and closes when you zoom back down to the ground', r['open'] and not r['after'], str(r))
 
         # out in the solar system: claims; out in the galaxy: ships on their way and star colonies
-        CLICK = r'''async ([z, kind, how]) => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); A.V.focus = null; A.UI.day = false; A.setZoom(z); await new Promise(res => setTimeout(res, 250));
+        CLICK = r'''async ([z, kind, how]) => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); A.V.focus = null; A.UI.day = false; A.V.galT = 0; A.setZoom(z); await new Promise(res => setTimeout(res, 250));
           const q = A.V.orbPicks.find(q => q.kind === kind && q.x > 280 && q.x < cv.clientWidth - 30 && q.y > 70 && q.y < cv.clientHeight - 30); if (!q) return JSON.stringify({ none: true, kinds: [...new Set(A.V.orbPicks.map(q => q.kind))] });
           const o = { bubbles: true, cancelable: true, clientX: r.left + q.x, clientY: r.top + q.y, pointerId: 1, pointerType: 'mouse', isPrimary: true };
           if (how === 'left') { cv.dispatchEvent(new PointerEvent('pointerdown', { ...o, button: 0 })); cv.dispatchEvent(new PointerEvent('pointerup', { ...o, button: 0 })); } else cv.dispatchEvent(new MouseEvent('contextmenu', { ...o, button: 2 }));

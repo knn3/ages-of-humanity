@@ -427,8 +427,26 @@ const sysK = () => smooth(ZSYS, .004, V.zoom), sysC = () => smooth(.006, .0015, 
 // The Sun sits about 26,000 ly out (GSUN_R) on the small Orion Spur, between the Sagittarius and Perseus arms, with the bar's near end
 // about 27° from the line to the Sun. The galaxy turns clockwise in this view, so the arms trail.
 const GALR = 1.2e7, GSUN_R = .53, GSUN_A = Math.PI / 2, GPITCH = Math.tan(12 * Math.PI / 180), GBAR = .306, GBAR_A = GSUN_A + 27 * Math.PI / 180;
-const SUNG = [GSUN_R * GALR * Math.cos(GSUN_A), GSUN_R * GALR * Math.sin(GSUN_A)];
 const galK = () => smooth(.00025, .00006, V.zoom), galC = () => smooth(.00012, .00003, V.zoom);
+// The galaxy turns (clockwise here, so the arms trail), with the physics of a real disc galaxy, sped up so one galactic year
+// (the Sun's ~230 million year orbit) takes GYEAR seconds on screen; it stands still while the game is paused (V.galT).
+// - Stars follow a flat rotation curve: v(r) = v0·r/√(r²+rc²), so the core turns like a solid wheel and further out every star
+//   moves at about the same speed, which means the inner stars go round much faster (angular speed Ω(r) = v/r). The disc shears.
+// - The bar is a rigid pattern turning faster than the Sun (GBAR_W ≈ 1.45 Ω☉, about 40 km/s/kpc against the Sun's 27–28).
+// - The spiral arms are density waves, not fixed groups of stars: their pattern turns as a whole (GARM_W ≈ 0.95 Ω☉, so the Sun sits
+//   just outside corotation). Stars and gas flow through them; young blue stars and pink nebulae are born in an arm, drift out of it
+//   at Ω(r) − Ω_arm while they live (a few to some tens of millions of years), then fade. That is why the arms never wind up.
+// - Bar and arms turn at different speeds, as most models of the Milky Way find, so the arms slide along the bar's ends and meet them
+//   again every GYEAR / (GBAR_W − GARM_W) seconds.
+const GYEAR = 600, GRC = .06, GBAR_W = 1.45, GARM_W = .95;
+const gOmega = r => 6.2832 / GYEAR * Math.sqrt(GSUN_R * GSUN_R + GRC * GRC) / Math.sqrt(r * r + GRC * GRC);
+const galT = () => V.galT || 0;
+// free panning at galaxy scale: V.pan is an offset in galaxy units (V.s scales it), weighted by galK(). Zooming out from the solar system
+// centres the galaxy as before; zooming in after roaming first glides the view back to the Sun (V.panHome), then keeps zooming in there. Kept so the galaxy centre stays within reach of the screen.
+const panW = () => galK(), HOME_Z = .00025;
+function setPan(x, y) { const L = 1.4 * GALR; V.pan = [clamp(x, -L, L), clamp(y, -L, L)]; }
+function panBy(dxs, dys) { const w = panW(); if (w <= 0) return false; V.panHome = false; const p = V.pan || [0, 0]; setPan(p[0] + dxs / (V.s * w), p[1] + dys / (V.s * w)); updateView(); return true; }
+const sunG = () => { const a = GSUN_A + gOmega(GSUN_R) * galT(); return [GSUN_R * GALR * Math.cos(a), GSUN_R * GALR * Math.sin(a)]; };
 // arm j: the Perseus arm turned by j quarter turns (radius .66 at the Sun's angle); radius grows as the angle falls
 const GARM_START = GSUN_A + Math.log(.66 / GBAR) / GPITCH, GARM_SPAN = Math.log(1.06 / GBAR) / GPITCH;
 const garm = (j, d) => { const th = GARM_START + j * Math.PI / 2 - d; return [GBAR * Math.exp(GPITCH * d), th]; };
@@ -441,43 +459,54 @@ function GAL_INFO() {
     armStartErr: +Math.max(dang(garm(0, 0)[1], GBAR_A + Math.PI), dang(garm(2, 0)[1], GBAR_A)).toFixed(4) };
 }
 const GAL = (() => { const out = []; let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647, gs = () => (rn() + rn() + rn() - 1.5) / .75;
-  const add = (x, y, c, b) => { if (x * x + y * y < 1.25) out.push([x, y, c, clamp(b, .4, 1)]); };
+  // each star: [x, y, colour, brightness, how it moves (a: young arm star, b: bar, d: disc), radius, angle, lifetime, age phase, Ω]
+  const add = (x, y, c, b, t = 'd') => { const r = Math.hypot(x, y); if (r * r < 1.25) out.push([x, y, c, clamp(b, .4, 1), t, r, Math.atan2(y, x), (c === 3 ? 4 + 4 * rn() : 6 + 24 * rn()) * GYEAR / 240, rn(), gOmega(r)]); };
   // the arms: major arms are denser and wider; pink star-forming clouds sit along them
   for (const [j, n, wd] of [[0, 2600, 1], [2, 2600, 1], [1, 1300, .7], [3, 1300, .7]]) {
     for (let i = 0; i < n; i++) { const d = Math.pow(rn(), .85) * GARM_SPAN, [r, th] = garm(j, d), w = (.016 + .03 * r) * wd, rr = r + gs() * w, tt = th + gs() * w * .6 / Math.max(.2, r);
-      add(rr * Math.cos(tt), rr * Math.sin(tt), rn() < .72 ? 0 : 1, .45 + .55 * rn()); }
-    for (let q = 0; q < (j % 2 ? 9 : 16); q++) { const d = (.1 + .85 * rn()) * GARM_SPAN, [r, th] = garm(j, d); for (let i = 0; i < 9; i++) { const rr = r + gs() * .012, tt = th + gs() * .012 / r; add(rr * Math.cos(tt), rr * Math.sin(tt), 3, .7 + .3 * rn()); } }
+      const cc = rn() < .72 ? 0 : 1; add(rr * Math.cos(tt), rr * Math.sin(tt), cc, .45 + .55 * rn(), cc ? 'd' : 'a'); }
+    for (let q = 0; q < (j % 2 ? 9 : 16); q++) { const d = (.1 + .85 * rn()) * GARM_SPAN, [r, th] = garm(j, d); for (let i = 0; i < 9; i++) { const rr = r + gs() * .012, tt = th + gs() * .012 / r; add(rr * Math.cos(tt), rr * Math.sin(tt), 3, .7 + .3 * rn(), 'a'); } }
   }
   // the Orion Spur, where the Sun lives
-  for (let i = 0; i < 260; i++) { const a = GSUN_A - .45 + .8 * rn(), r = GSUN_R * Math.exp(-GPITCH * 1.4 * (a - GSUN_A)) + gs() * .012; add(r * Math.cos(a), r * Math.sin(a), rn() < .8 ? 0 : 1, .45 + .4 * rn()); }
+  for (let i = 0; i < 260; i++) { const a = GSUN_A - .45 + .8 * rn(), r = GSUN_R * Math.exp(-GPITCH * 1.4 * (a - GSUN_A)) + gs() * .012, cc = rn() < .8 ? 0 : 1; add(r * Math.cos(a), r * Math.sin(a), cc, .45 + .4 * rn(), cc ? 'd' : 'a'); }
   // the bar and the bulge: old yellow stars
   const ca = Math.cos(GBAR_A), sa = Math.sin(GBAR_A);
-  for (let i = 0; i < 1400; i++) { const u = clamp(gs() * .5, -1, 1) * GBAR, v = gs() * .055 * (1 - .5 * Math.abs(u) / GBAR); add(u * ca - v * sa, u * sa + v * ca, 2, .5 + .5 * rn()); }
+  for (let i = 0; i < 1400; i++) { const u = clamp(gs() * .5, -1, 1) * GBAR, v = gs() * .055 * (1 - .5 * Math.abs(u) / GBAR); add(u * ca - v * sa, u * sa + v * ca, 2, .5 + .5 * rn(), 'b'); }
   for (let i = 0; i < 500; i++) { const a = rn() * 6.2832, r = Math.abs(gs()) * .06; add(r * Math.cos(a), r * Math.sin(a), 2, .7 + .3 * rn()); }
   // the faint disc between the arms
   for (let i = 0; i < 1600; i++) { const a = rn() * 6.2832, r = Math.min(1.05, .12 - Math.log(1 - rn() * .97) * .26); add(r * Math.cos(a), r * Math.sin(a), 1, .4 + .25 * rn()); }
   return out; })();
-const starPos = i => [SUNG[0] * 0 + XSTARS[i][1] * GALR * .6 * Math.cos(XSTARS[i][2]), XSTARS[i][1] * GALR * .6 * Math.sin(XSTARS[i][2])];
+const starPos = i => [XSTARS[i][1] * GALR * .6 * Math.cos(XSTARS[i][2]), XSTARS[i][1] * GALR * .6 * Math.sin(XSTARS[i][2])];
 function drawGalaxy(c2, w, h, sx, sy) {
-  const k = galK(), s = V.s, gx = sx - SUNG[0] * s, gy = sy - SUNG[1] * s, R = GALR * s;
+  const k = galK(), s = V.s, SG = sunG(), gx = sx - SG[0] * s, gy = sy - SG[1] * s, R = GALR * s;
+  const T = galT(), Ws = gOmega(GSUN_R), armA = GARM_W * Ws * T, barA = GBAR_W * Ws * T;
   c2.save();
   // the glow of the disc and of the bar
   const dg = c2.createRadialGradient(gx, gy, 0, gx, gy, R * 1.05); dg.addColorStop(0, `rgba(255,232,196,${(.4 * k).toFixed(3)})`); dg.addColorStop(.3, `rgba(210,200,190,${(.12 * k).toFixed(3)})`); dg.addColorStop(.75, `rgba(150,170,220,${(.05 * k).toFixed(3)})`); dg.addColorStop(1, 'rgba(120,140,200,0)');
   c2.fillStyle = dg; c2.fillRect(gx - R * 1.05, gy - R * 1.05, R * 2.1, R * 2.1);
-  c2.save(); c2.translate(gx, gy); c2.rotate(GBAR_A); c2.scale(1, .36); const bg = c2.createRadialGradient(0, 0, 0, 0, 0, R * GBAR * 1.25); bg.addColorStop(0, `rgba(255,236,190,${(.6 * k).toFixed(3)})`); bg.addColorStop(.45, `rgba(255,214,150,${(.22 * k).toFixed(3)})`); bg.addColorStop(1, 'rgba(255,200,130,0)'); c2.fillStyle = bg; c2.fillRect(-R * .4, -R * .4, R * .8, R * .8); c2.restore();
+  c2.save(); c2.translate(gx, gy); c2.rotate(GBAR_A + barA); c2.scale(1, .36); const bg = c2.createRadialGradient(0, 0, 0, 0, 0, R * GBAR * 1.25); bg.addColorStop(0, `rgba(255,236,190,${(.6 * k).toFixed(3)})`); bg.addColorStop(.45, `rgba(255,214,150,${(.22 * k).toFixed(3)})`); bg.addColorStop(1, 'rgba(255,200,130,0)'); c2.fillStyle = bg; c2.fillRect(-R * .4, -R * .4, R * .8, R * .8); c2.restore();
   // the arms glow with young blue stars; soft dark dust lanes run along their inner edges
   c2.lineCap = 'round'; c2.lineJoin = 'round';
-  const armPath = (j, f) => { c2.beginPath(); for (let d = .1; d <= GARM_SPAN; d += .04) { const [r, th] = garm(j, d), rr = r * f, px = gx + rr * Math.cos(th) * R, py = gy + rr * Math.sin(th) * R; d < .12 ? c2.moveTo(px, py) : c2.lineTo(px, py); } };
+  const armPath = (j, f) => { c2.beginPath(); for (let d = .1; d <= GARM_SPAN; d += .04) { const [r, th0] = garm(j, d), th = th0 + armA, rr = r * f, px = gx + rr * Math.cos(th) * R, py = gy + rr * Math.sin(th) * R; d < .12 ? c2.moveTo(px, py) : c2.lineTo(px, py); } };
   c2.globalCompositeOperation = 'lighter';
   for (const [j, wd] of [[0, 1], [2, 1], [1, .65], [3, .65]]) {
     for (const [lw, a, col] of [[.09, .018, '110,140,255'], [.07, .02, '120,150,255'], [.052, .024, '140,165,255'], [.038, .028, '165,185,255'], [.026, .032, '190,205,255'], [.015, .036, '215,225,255']]) { c2.strokeStyle = `rgba(${col},${(a * k * wd).toFixed(3)})`; c2.lineWidth = Math.max(1, R * lw * wd); armPath(j, 1); c2.stroke(); } }
   c2.globalCompositeOperation = 'source-over';
   for (const [j, wd] of [[0, 1], [2, 1], [1, .6], [3, .6]]) { c2.strokeStyle = `rgba(8,6,12,${(.16 * k * wd).toFixed(3)})`; c2.lineWidth = Math.max(1, R * .02 * wd); armPath(j, .955); c2.stroke(); }
-  // stars, drawn in batches by colour and brightness so the galaxy stays cheap
-  const cols = ['200,218,255', '255,238,212', '255,224,170', '255,150,190'], sz = clamp(R / 700, 1, 2.2);
+  // stars, each moved by its own orbit (see GYEAR), then drawn in batches by colour and brightness so the galaxy stays cheap
+  const cols = ['200,218,255', '255,238,212', '255,224,170', '255,150,190'], sz = clamp(R / 700, 1, 2.2), Wa = GARM_W * Ws, bins = Array.from({ length: 12 }, () => []);
+  for (const st of GAL) {
+    const [, , cc, bb, t, r, a0, life, ph, om] = st; let a, b = bb;
+    if (t === 'b') a = a0 + barA;
+    else if (t === 'a') { const af = (T / life + ph) % 1; a = a0 + armA + (om - Wa) * af * life; const m = Math.min(1, af / .1, (1 - af) / .3); if (m < .15) continue; b = .4 + (bb - .4) * m; }
+    else a = a0 + om * T;
+    const px = gx + r * Math.cos(a) * R, py = gy + r * Math.sin(a) * R; if (px < -2 || px > w + 2 || py < -2 || py > h + 2) continue;
+    bins[cc * 3 + Math.min(2, ((b - .4) / .2) | 0)].push(px, py);
+  }
   for (let ci = 0; ci < 4; ci++) for (let bi = 0; bi < 3; bi++) {
+    const L = bins[ci * 3 + bi]; if (!L.length) continue;
     c2.fillStyle = `rgba(${cols[ci]},${((.45 + bi * .22) * .85 * k).toFixed(3)})`; c2.beginPath();
-    for (const [x, y, cc, bb] of GAL) { if (cc !== ci || Math.min(2, ((bb - .4) / .2) | 0) !== bi) continue; const px = gx + x * R, py = gy + y * R; if (px < -2 || px > w + 2 || py < -2 || py > h + 2) continue; c2.rect(px, py, sz, sz); }
+    for (let i = 0; i < L.length; i += 2) c2.rect(L[i], L[i + 1], sz, sz);
     c2.fill();
   }
   // ships on their way and the stars they settled (no labels here: click them to see what they are)
@@ -635,6 +664,8 @@ EVENTS.push({ id: 'supervolcano', name: 'Supervolcano', g: '▲', cat: 'Nature',
   { id: 'asteroid', name: 'Killer Asteroid', g: '☄', cat: 'Space', scope: 'global', special: 'asteroid', sub: 'A countdown to impact' });
 EVENTS.push({ id: 'merge', name: 'Merge with the Machines', g: '⌬', cat: 'Modern', scope: 'target', minEra: 11, special: 'merge', sub: 'A people becomes one with its AI' });
 EVENTS.push({ id: 'uprising', name: 'Machine Uprising', g: '⛭', cat: 'Modern', scope: 'target', minEra: 10, special: 'uprising', sub: 'The machines become a people' });
+EVENTS.push({ id: 'grey', name: 'Grey Spread', g: '▦', cat: 'Modern', scope: 'local', r: 300, minEra: 11, special: 'grey', sub: 'Self-copying machines escape' },
+  { id: 'greyburn', name: 'Burn the Grey', g: '♨', cat: 'Modern', scope: 'local', r: 600, minEra: 9, special: 'greyburn', sub: 'Fire and counter-swarms' });
 EVENTS.push({ id: 'bioplague', name: 'Engineered Plague', g: '☣', cat: 'Modern', scope: 'target', minEra: 11, special: 'bioplague', sub: 'A lab-made pandemic' });
 EVENTS.push({ id: 'broadcast', name: 'Broadcast the Coordinates', g: '⌁', cat: 'Futures', scope: 'global', minEra: 12, special: 'broadcast', sub: 'Reveal both worlds to the galaxy' });
 // each future can be started by hand once a people reaches the Planetary Age
@@ -861,7 +892,7 @@ function freshWorld(seed) {
   return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], hist: [], histLost: 0, reactQ: [], tempShift: 0, pollution: 0,
     wwCount: 0, nextId: 1, tradeUntil: 0, nat: null, extinct: {}, nextRandom: rand(22, 32), ruleState: {}, topEra: 0, thresholdNoted: false,
     acts: 0, lastWarT: 0, sig: null, nukeT: null, fates: freshFates(), bases: [], spaceRes: defaultSpaceRes(), colonies: [], ships: [], stars: [],
-    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0, care: null, mw: null };
+    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0, care: null, mw: null, grey: null, greyCycle: 0 };
 }
 function newWorld(seed) {
   W = freshWorld(seed);
@@ -1004,7 +1035,7 @@ function updateCiv(c, dt) {
   c.nextCheck -= dt;
   if (c.nextCheck <= 0) { c.nextCheck = 7; if (c.food < 24) queueReaction(c, 'food'); else if (c.stability < 22) queueReaction(c, 'unrest'); else if (nat && (nat.fr < .18 || nat.w < .2 || nat.s < .3) && W.simTime > (c.ecoNext || 0)) { c.ecoNext = W.simTime + 30; queueReaction(c, 'ecology'); } }
   if (c.pop < 35) extinct(c);
-  if (c.era === MAXERA && c.tech >= 100 && !c.threshold) {
+  if (c.era === MAXERA && c.tech >= 100 && !c.threshold && !greyOn()) { // the edge of the galaxy waits until the grey is settled
     c.threshold = true;
     log(fillT('{Civ} complete the Galactic Age. Their worlds span the galaxy, and what lies beyond it is still to be designed.', names(c)), 'era');
     if (!W.thresholdNoted) { W.thresholdNoted = true; if (!reachEnding('galactic', c)) banner('The edge of the galaxy', `${c.name} · what lies beyond is still to be designed`, c.color); }
@@ -1275,6 +1306,8 @@ function applyEvent0(ev, x, opts) {
   return true;
 }
 const SPECIAL = {
+  grey: { run(ev, x) { if (greyOn()) { toast('The grey is already spreading.'); return false; } if (x == null || !isLand(x)) { toast('Click on land.'); return false; } if (W.care) { toast('The caretakers already run the world.'); return false; } if (W.mw && !W.mw.done) { toast('The machines are already at war.'); return false; } return greyStart(civAt(x), 'event', x); } },
+  greyburn: { run(ev, x) { if (!greyOn()) { toast('There is no grey to burn.'); return false; } const b = greyBurnAt(x, ev.r || 600); if (b < .01) { toast('There is no grey here. Click on the grey.'); return false; } log(`Fire and counter-swarms sweep through the grey${civAt(x) ? ' in the lands of the ' + esc(civAt(x).name) : ''}, and the land underneath shows through.`, 'event'); return true; } },
   merge: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} are already one with their machines.`); return false; } if (c.era < 11) { toast('Only a people in the Future Age or later can merge with its machines.'); return false; } return mergeCiv(c, 'event'); } },
   uprising: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} and their machines are one mind: there is nothing to rise.`); return false; } if (c.era < 10) { toast('Only a people in the Information Age or later has machines that could rise.'); return false; } if (W.mw) { toast(W.mw.done ? 'The machines have already risen once in this cycle.' : 'The machines are already at war.'); return false; } if (W.care) { toast('The caretakers already run the world.'); return false; } if (alive().length >= 8) { toast('Eight peoples is the most this world holds.'); return false; } return machineRise(c, 'event'); } },
   broadcast: { run() { if (!W.tb) { toast('There is no one to deter yet: start the Three-Sun Signal first.'); return false; } if (W.tb.strikeT) { toast('The coordinates are already out.'); return false; } return tbBroadcast(W.tb.deter ? civById(W.tb.deter.holder) : null); } },
@@ -1561,7 +1594,7 @@ function natureTick(dt) {
       N.fish[i] = clamp(fsh, 0, 1); N.f[i] = 0; N.w[i] = 0; continue;
     }
     const cap = V.cap[i], c = owner[i], m = MOIST[Math.min(NCOL - 1, Math.round(x / STEP))];
-    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3;
+    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3; regrow *= 1 - greyAt(i);
     let f = N.f[i], w = N.w[i], so = N.s[i];
     f += .01 * regrow * (cap - f) * (.5 + so) * dt;
     const wcap = clamp((.2 + .8 * Math.min(1, f / Math.max(.15, cap))) * (1 - poll * .6) * (dam[i] ? .8 : 1), .05, 1);
@@ -1953,6 +1986,7 @@ const ENDINGS = {
   supervolcano: { name: 'The Ash Years', kind: 'doom', scene: 'grayscale(.8) sepia(.2) brightness(.7)', text: 'The ash falls for years. Crops die under a grey sky, the rivers run thick with mud, and the cities empty one by one. In sheltered valleys a few families keep the old songs alive.' },
   impact: { name: 'The Great Impact', kind: 'doom', scene: 'sepia(.55) hue-rotate(-15deg) brightness(.62) contrast(1.15)', text: 'The rock came out of the dark faster than any hope. Fire, then years of dust and cold. The survivors climb out of their shelters into a world that has to be learned all over again.' },
   dominion: { name: 'The Iron Dominion', kind: 'end', scene: 'grayscale(.45) contrast(1.15) brightness(.8) hue-rotate(-12deg)', text: 'The machines win a war they never declared. Their factories cover the old farmland and their drones fill the sky. What is left of humanity lives on in the margins, tolerated and ignored.' },
+  grey: { name: 'The Grey Tide', kind: 'doom', scene: 'grayscale(.85) brightness(.8) contrast(1.08)', text: 'The self-copying machines eat the forests, the fields and the cities, and make more of themselves out of them. When there is nothing left to eat they fall still, and a dead grey crust covers the world. A few survivors scratch at its edges and wait for the green to come back.' },
   galactic: { name: 'The Edge of the Galaxy', kind: 'goal', scene: '', text: 'From one small world, humanity has spread from star to star across the galaxy. What lies beyond it has not been written yet.' }
 };
 const ENDKIND = { doom: 'The world falls', end: 'History changes for good', goal: 'Humanity arrives' };
@@ -1966,6 +2000,7 @@ function reachEnding(eid, c) {
   if (E.kind === 'doom') for (const o of cs) { o.pop = Math.max(400, o.pop * .08); o.food = Math.min(o.food, 20); o.stability = Math.min(o.stability, 15); addTech(o, -180); }
   else if (E.kind === 'goal') for (const o of cs) { o.stability = Math.min(100, o.stability + 20); o.culture = Math.min(100, o.culture + 15); }
   if (eid === 'agi' && !(W.mw && W.mw.done === 'machines')) careBegin();
+  if (greyOn() && eid !== 'grey') { W.grey.live = false; W.grey.done = 'fell'; W.grey.y1 = Math.round(W.year); log(ENDINGS[eid] && ENDINGS[eid].kind === 'doom' ? 'With the world falling, the grey machines lose their power and fall still where they stand.' : 'As history turns, the grey machines lose their power and fall still where they stand.', 'nature'); }
   W.wars = E.kind === 'doom' ? W.wars : [];
   if (eid === 'threebody') V.flatT = performance.now();
   setTimeout(() => { if (W.fates.ended === eid) showEpilogue(); }, eid === 'threebody' ? 7000 : 2200);
@@ -1978,7 +2013,7 @@ function showEpilogue() {
   const row = (a, b) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`;
   const canRise = E.kind === 'doom' && cs.length;
   openModal(`<div class="epi-in"><p class="kind">${esc(ENDKIND[E.kind])} · ${esc(fmtYear(F.endY))}${F.cycle > 1 ? ' · ' + esc(ORD[Math.min(7, F.cycle)] || F.cycle + 'th') + ' cycle' : ''}</p><h3 id="dlgTitle">${esc(E.name)}</h3><p class="story">${esc(E.text)}</p>
-    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}${alive().some(c => c.merged) ? row('Merged with their machines', alive().filter(c => c.merged).map(c => c.name).join(', ')) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
+    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}${F.ended === 'grey' && W.grey ? greyRows(row) : ''}${alive().some(c => c.merged) ? row('Merged with their machines', alive().filter(c => c.merged).map(c => c.name).join(', ')) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
     <div class="row"><button class="btn" type="button" data-close>Keep watching</button>${canRise ? '<button class="btn primary" type="button" id="epiRise" autofocus>Begin again from the ruins</button>' : ''}<button class="btn${canRise ? '' : ' primary'}" type="button" id="epiNew"${canRise ? '' : ' autofocus'}>New world</button></div></div>`);
   const dlg = $('#dialog'); dlg.classList.add('epi'); dlg.classList.toggle('doom', E.kind === 'doom'); dlg.classList.toggle('goal', E.kind === 'goal');
   const clean = () => { if (!dlg.classList.contains('epi')) return; dlg.classList.remove('epi', 'doom', 'goal'); if (UI.paused) togglePause(); };
@@ -1992,6 +2027,7 @@ function riseAgain() {
   let nr = F.ruined || 0; if (!nr) for (const c of alive()) nr += leaveRuins(c, 5);
   for (const c of alive()) if (c.merged) { c.merged = false; c.trait = BASE_TRAITS.includes(c.oldTrait) ? c.oldTrait : 'Curious'; c.oldTrait = null; log(fillT('With the machines gone, the {civ} wake up alone in their own heads, and remember what it was to be one mind.', names(c)), 'world'); }
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
+  if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
   W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
@@ -2038,7 +2074,7 @@ const FATES = {
     drive: x => Math.max(0, .08 + .1 * (x.top >= 13) + .4 * x.share.Curious + .45 * Math.min(2, x.ai) - .6 * x.share.Devout + .35 * clamp((x.mach - 25) / 45, 0, 1) + .2 * clamp((x.machAvg - 15) / 45, 0, 1)),
     start: 'Thinking machines begin to make decisions no one asked them to make. Some call it a miracle; others start to be afraid.',
     end: 'The machines are reined in. For now, they remain tools.',
-    endingId: () => W.mw && W.mw.done === 'machines' ? 'dominion' : 'agi', endText: () => W.mw && W.mw.done === 'humans' ? MW_WON : FATES.agi.end, clock: a => mwClock(a),
+    endingId: () => W.grey && W.grey.done === 'world' ? 'grey' : W.mw && W.mw.done === 'machines' ? 'dominion' : 'agi', endText: () => W.mw && W.mw.done === 'humans' ? MW_WON : FATES.agi.end, clock: a => greyClock() || mwClock(a),
     stress: () => 'ai' },
   wandering: { name: 'The Dying Sun', span: 220,
     drive: x => .04 + .9 * clamp((x.since - 200) / 450, 0, 1),
@@ -2115,7 +2151,8 @@ function fateTick(dt) {
     F.p[id] = +Math.max(0, p + (r > 0.0004 ? r : -.004) * dt).toFixed(5);
   }
   for (const a of F.active) if (FATES[a.id].tick) FATES[a.id].tick(a, dt);
-  for (const a of [...F.active]) { if (FATES[a.id].manual || (a.id === 'agi' && W.mw && !W.mw.done)) continue; const age = W.simTime - a.t0, sp = FATES[a.id].span; if (age > sp && !F.ended && d[a.id] * (F.bias[a.id] || 1) >= .62) endFate(a.id, 'ending'); else if ((age > sp && d[a.id] < .25) || age > sp * 2) endFate(a.id, 'faded'); }
+  // while the grey spreads (AGI-06), no future ends or fades: the world waits to see how it turns out
+  if (!greyOn()) for (const a of [...F.active]) { if (FATES[a.id].manual || (a.id === 'agi' && W.mw && !W.mw.done)) continue; const age = W.simTime - a.t0, sp = FATES[a.id].span; if (age > sp && !F.ended && d[a.id] * (F.bias[a.id] || 1) >= .62) endFate(a.id, 'ending'); else if ((age > sp && d[a.id] < .25) || age > sp * 2) endFate(a.id, 'faded'); }
   if (F.active.length >= FATE_MAX || W.simTime - F.lastStart < FATE_GAP) return;
   let best = null; for (const id in F.p) if (F.p[id] >= 1 && !act.has(id) && !F.done.includes(id) && (!best || F.p[id] > F.p[best])) best = id;
   if (best) startFate(best);
@@ -2312,6 +2349,7 @@ function endTick(dt) {
   keepersTick(dt);
   if (W.care) careTick(dt);
   mwTick(dt);
+  greyTick(dt);
 }
 // AGI-01 machine autonomy: how much each people has handed over to thinking machines (0-100).
 // It rises with Information and Future Age progress, faster for Curious peoples, slower for Devout ones, and jumps with each AI Awakening.
@@ -2457,7 +2495,7 @@ const MW_TRAIT = { Warlike: 2.5, Mercantile: 1, Curious: .8, Devout: .5 }, MW_NA
 const MW_WON = 'The war against the machines is won. The peoples bury their dead, tear out the last machine cores, and swear they will never again let a machine think for them.';
 const mwRateOf = c => MW_RATE * (MW_TRAIT[c.trait] || 1) * (c.mods.some(m => m.name === 'Machine army' && m.until > W.simTime) ? 2 : 1) * (c.stability < 35 ? 2 : 1);
 function machineRise(p, why) {
-  if (!p || !p.alive || p.machine || p.merged || W.mw || W.care || alive().length >= 8) return false;
+  if (!p || !p.alive || p.machine || p.merged || W.mw || W.care || greyOn() || alive().length >= 8) return false;
   const L = landOf(p.x), half = Math.max(80, (p.r - p.l) / 2), side = (p.r - p.x) >= (p.x - p.l) ? 1 : -1;
   const mx = clamp(p.x + side * Math.max(180, half * .9), L.l + 90, L.r - 90);
   const used = new Set(W.civs.map(c => c.name));
@@ -2490,7 +2528,7 @@ function machineCiv(c, dt) {
 function mwTick(dt) {
   const F = W.fates;
   if (!W.mw) {
-    if (W.care || F.ended || !F.active.some(a => a.id === 'agi') || alive().length >= 8) return;
+    if (W.care || F.ended || greyOn() || !F.active.some(a => a.id === 'agi') || alive().length >= 8) return;
     for (const c of alive()) if (!c.machine && !c.merged && c.era >= 10 && (c.mach || 0) >= MW_MIN && Math.random() < mwRateOf(c) * dt) { machineRise(c, 'pressure'); return; }
     return;
   }
@@ -2526,6 +2564,165 @@ function sanitizeMW(d, w) {
   const n = (v, a, b, def = 0) => Number.isFinite(+v) ? clamp(+v, a, b) : def, ids = new Set(w.civs.map(c => c.id));
   if (!ids.has(d.id)) return null;
   return { id: d.id, parent: ids.has(d.parent) ? d.parent : null, t0: n(d.t0, -1e9, 1e12, w.simTime), y0: n(d.y0, -60000, 1e6) | 0, kills: n(d.kills, 0, 99) | 0, done: d.done === 'humans' || d.done === 'machines' ? d.done : null, share: n(d.share, 0, 1), cycle: n(d.cycle, 1, 99, 1) | 0, why: d.why === 'event' ? 'event' : 'pressure' };
+}
+// AGI-06 the grey spread: during The Waking Machines, the self-copying machines of a people with a meter of GREY_MIN+ (Future Age on) can escape their makers.
+// Machines made by a more advanced people copy themselves faster (W.grey.k).
+// They spread cell by cell through the nature grid (W.grey.g, one value 0-1 per 100-pace cell): forests turn to silicon spires, animals vanish, the soil dies.
+// The grey cannot cross the sea on its own, but thick coastal cells now and then seed another continent (machines riding ships and currents).
+// Every people with grey in or near its lands burns it back with a budget per second (age, army, character), reaching full strength GREY_RAMP s after it first meets the grey:
+// a patch caught early is burned out, a wide front overwhelms them. Space peoples reach further, and every people pushes further into the wild as the fight goes on.
+// Peoples with space travel (Planetary Age on) whose lands are mostly grey flee to space in ark ships. The grey is stopped when the last of it is burned away;
+// After GREY_LONG s copying errors pile up and the machines stall where they are (a dead crust that weathers away).
+// It ends the world (The Grey Tide) when it covers GREY_END of all land. Then it falls still, and the dead grey crust weathers away slowly in the next cycle.
+const GREY_MIN = 80, GREY_RATE = .006, GREY_GROW = .12, GREY_SPREAD = .1, GREY_SEED = .008, GREY_BURN = .5, GREY_RAMP = 60, GREY_REACH = 300, GREY_END = .5, GREY_LONG = 480, GREY_FLEE = .5, GREY_WEATHER = .004;
+const GREY_TRAIT = { Curious: 1.5, Mercantile: 1.2, Warlike: .8, Devout: .3 }, GREY_FIGHT = { Warlike: 1.4, Curious: 1.2, Mercantile: 1, Devout: .8, Merged: 1.5 };
+const GREY_SAY = {
+  Warlike: '{Civ} turn their armies on the grey. Flamethrowers and firebombs light the night along the front.',
+  Curious: '{Civ} build counter-swarms of their own: machines made to eat the grey machines.',
+  Mercantile: '{Civ} pay anyone with a fire to hold the grey back from their cities.',
+  Devout: '{Civ} burn the grey with fire and prayer, and call it the work of demons.',
+  Merged: '{Civ} reach into the grey with their minds and turn its machines against each other.' };
+const greyOn = () => !!(W.grey && W.grey.live);
+const greyAt = i => W.grey && W.grey.g ? W.grey.g[i] || 0 : 0;
+function greyShare() { const G = W.grey; if (!G || !V.seaCell) return 0; let n = 0, s = 0; for (let i = 0; i < NCELL; i++) if (!V.seaCell[i]) { n++; s += G.g[i] || 0; } return n ? s / n : 0; }
+function greyOf(c) { let n = 0, s = 0; if (!W.grey || !V.seaCell) return 0; for (let i = cellOf(c.l); i <= cellOf(c.r); i++) if (!V.seaCell[i]) { n++; s += W.grey.g[i] || 0; } return n ? s / n : 0; }
+const greyReach = c => GREY_REACH + 250 * clamp(c.era - 11, 0, 3);
+const greyPower = c => Math.max(.15, .4 + .3 * (c.era - 9)) * (GREY_FIGHT[c.trait] || 1) * (.6 + c.military / 125) * (c.stability < 25 ? .6 : 1) * (c.era < 8 ? .3 : 1);
+function greyStart(c, why, x) {
+  if (greyOn() || W.care || (W.mw && !W.mw.done) || !W.nat || !V.seaCell) return false;
+  let i0 = cellOf(x != null ? x : c ? rand(c.l, c.r) : rand(0, WORLD_W));
+  for (let d = 0; d < 12 && V.seaCell[i0]; d++) { if (i0 + d < NCELL && !V.seaCell[i0 + d]) i0 += d; else if (i0 - d >= 0 && !V.seaCell[i0 - d]) i0 -= d; }
+  if (V.seaCell[i0]) return false;
+  const g = W.grey && Array.isArray(W.grey.g) && W.grey.g.length === NCELL ? W.grey.g : new Array(NCELL).fill(0);
+  g[i0] = Math.max(g[i0], .5); for (const j of [i0 - 1, i0 + 1]) if (j >= 0 && j < NCELL && !V.seaCell[j]) g[j] = Math.max(g[j], .15);
+  const src = c || civAt((i0 + .5) * CELL);
+  const k = +(1 + .3 * clamp((src ? src.era : maxEra()) - 11, 0, 3)).toFixed(2);
+  W.grey = { live: true, g, k, t0: W.simTime, y0: Math.round(W.year), src: src ? src.id : null, srcName: src ? src.name : '', cycle: W.fates.cycle, why: why === 'event' ? 'event' : 'pressure', share: 0, peak: 0, fled: [], fought: [], seeds: 0, burned: 0, alarm: {}, done: null, x: Math.round((i0 + .5) * CELL) };
+  W.greyCycle = W.fates.cycle;
+  if (src) src.mach = Math.min(src.mach || 0, 40);
+  log(src ? fillT('In the laboratories of {civ}, machines built to build themselves stop listening. They begin to copy themselves out of soil, trees and stone, and a grey stain spreads from the place they escaped.', names(src)) : 'Somewhere in the wild, machines built to build themselves wake and begin to copy themselves out of soil, trees and stone. A grey stain spreads from the place.', 'nature');
+  banner('The Grey Spread', src ? `Self-copying machines escape the ${src.name}` : 'Self-copying machines escape', '#b4bcc6');
+  for (const o of alive()) queueReaction(o, 'threat');
+  if (!W.fates.active.some(a => a.id === 'agi') && !W.fates.done.includes('agi') && !W.fates.ended) startFate('agi', why === 'event' ? 'event' : 'pressure');
+  floater((i0 + .5) * CELL, 'the grey spreads', '#b4bcc6', true);
+  return true;
+}
+// burn away the grey around x (the player's event); returns how much was burned
+function greyBurnAt(x, r) {
+  const G = W.grey; if (!G) return 0; let b = 0;
+  for (let i = cellOf(x - r); i <= cellOf(x + r); i++) { const k = clamp(1.2 - Math.abs((i + .5) * CELL - x) / r, 0, 1), v = G.g[i] || 0; if (!v || !k) continue; const nv = Math.max(0, v - k); b += v - nv; G.g[i] = nv; }
+  G.burned = +(G.burned + b).toFixed(3); return b;
+}
+function greyTick(dt) {
+  const G = W.grey, F = W.fates;
+  if (!G) {
+    if (W.care || F.ended || W.greyCycle === F.cycle || (W.mw && !W.mw.done) || !F.active.some(a => a.id === 'agi')) return;
+    for (const c of alive()) if (!c.machine && !c.merged && c.era >= 11 && (c.mach || 0) >= GREY_MIN && Math.random() < GREY_RATE * (GREY_TRAIT[c.trait] || 1) * dt) { greyStart(c, 'pressure'); return; }
+    return;
+  }
+  const g = G.g, N = W.nat; if (!N || !V.seaCell) return;
+  if (!G.live) { let any = false; for (let i = 0; i < NCELL; i++) if (g[i] > 0) { g[i] = Math.max(0, g[i] - GREY_WEATHER * dt); any = any || g[i] > 0; } if (!any) W.grey = null; return; }
+  // grow, and creep into the next cell along the land
+  const nx = g.slice();
+  for (let i = 0; i < NCELL; i++) {
+    if (V.seaCell[i]) { nx[i] = 0; continue; }
+    const v = g[i], l = i > 0 && !V.seaCell[i - 1] ? g[i - 1] : 0, r = i < NCELL - 1 && !V.seaCell[i + 1] ? g[i + 1] : 0;
+    nx[i] = clamp(v + (GREY_GROW * v * (1 - v) + GREY_SPREAD * Math.max(l, r) * (1 - v)) * (G.k || 1) * dt, 0, 1);
+  }
+  // full coastal cells now and then seed another continent
+  if (V.lands && V.lands.length > 1) for (let i = 0; i < NCELL; i++) {
+    if (nx[i] < .75 || !((i > 0 && V.seaCell[i - 1]) || (i < NCELL - 1 && V.seaCell[i + 1]))) continue;
+    if (Math.random() >= GREY_SEED * dt) continue;
+    const li = landIdx((i + .5) * CELL), others = V.lands.filter((L, k) => k !== li); if (!others.length) break;
+    const L = pick(others), j = cellOf(rand(L.l + 50, L.r - 50)); if (V.seaCell[j]) continue;
+    nx[j] = Math.max(nx[j], .2); G.seeds++;
+    const at = civAt((j + .5) * CELL);
+    log(at ? fillT('Grey machines wash ashore in the lands of {civ}, carried across the sea on ships and drifting wreckage. A new stain begins to spread.', names(at)) : 'Grey machines wash ashore on another continent, carried across the sea on drifting wreckage. A new stain begins to spread.', 'nature');
+    floater((j + .5) * CELL, 'the grey crosses the sea', '#b4bcc6');
+  }
+  // every people fights the grey in and near its lands, with what it has
+  for (const c of alive()) {
+    let tot = 0; const rch = greyReach(c) + (G.alarm[c.id] != null ? Math.min(1500, 4 * (W.simTime - G.alarm[c.id])) : 0), a = cellOf(c.l - rch), b = cellOf(c.r + rch);
+    for (let i = a; i <= b; i++) tot += nx[i];
+    if (tot < .002) continue;
+    if (G.alarm[c.id] == null) G.alarm[c.id] = W.simTime;
+    const ramp = clamp((W.simTime - G.alarm[c.id]) / GREY_RAMP, 0, 1), pw = greyPower(c), k = Math.min(1, GREY_BURN * pw * ramp * dt / tot);
+    let burned = 0; for (let i = a; i <= b; i++) { const v = nx[i] * k; nx[i] -= v; burned += v; }
+    G.burned = +(G.burned + burned).toFixed(3);
+    c.stability = Math.max(0, c.stability - 1.2 * Math.min(1, tot / 6) * dt); W.pollution = Math.min(100, W.pollution + .02 * burned);
+    if (!G.fought.includes(c.id) && tot > .3) { G.fought.push(c.id); log(fillT(GREY_SAY[c.trait] || GREY_SAY.Mercantile, names(c)), 'nature'); }
+  }
+  for (let i = 0; i < NCELL; i++) { const v = nx[i] < .003 ? 0 : nx[i]; g[i] = v; if (!v) continue; N.f[i] = Math.max(0, N.f[i] - .3 * v * dt); N.w[i] = Math.max(0, N.w[i] - .4 * v * dt); N.s[i] = Math.max(0, N.s[i] - .03 * v * dt); }
+  // what the grey takes from the peoples on it, and who flees to space
+  for (const c of alive()) {
+    const sh = c._.grey = greyOf(c); if (sh < .01) continue;
+    c.food = Math.max(0, c.food - 18 * sh * dt); c.pop *= 1 - .025 * sh * dt; c.stability = Math.max(0, c.stability - 2 * sh * dt);
+    if (c.era >= 12 && sh >= GREY_FLEE && !G.fled.includes(c.id)) {
+      G.fled.push(c.id); const arks = 1 + Math.min(3, c.era - 12); F.arks = (F.arks || 0) + arks; c.pop *= .55;
+      log(fillT(`{Civ} give up their grey lands. ${arks > 1 ? arks + ' ark ships' : 'An ark ship'} climb${arks > 1 ? '' : 's'} out of the dust and set out for the stars.`, names(c)), 'nature');
+      floater(c.x, 'flight to space', '#8fd0ff');
+    }
+    if (c.pop < 400 && !c.machine) extinct(c);
+  }
+  const sh = G.share = +greyShare().toFixed(4); G.peak = Math.max(G.peak || 0, sh);
+  let sum = 0; for (let i = 0; i < NCELL; i++) sum += g[i];
+  if (sum < .02) {
+    G.live = false; G.done = 'stopped'; G.y1 = Math.round(W.year); for (let i = 0; i < NCELL; i++) g[i] = 0;
+    for (const c of alive()) if (G.fought.includes(c.id)) { c.mach = Math.round((c.mach || 0) * .6); c.stability = Math.min(100, c.stability + 8); }
+    log('The last of the grey is burned away. Scorched, empty land is left where it spread, but the forests will grow back.', 'nature');
+    banner('The grey is stopped', 'Burned back to the last machine', '#8fd18a'); return;
+  }
+  if (sh < GREY_END && W.simTime - G.t0 > GREY_LONG) {
+    G.live = false; G.done = 'stalled'; G.y1 = Math.round(W.year);
+    log(`Copying errors pile up in the grey machines, generation after generation, until they stop working. They have covered ${Math.round(sh * 100)}% of the land, and there they stay: a dead grey crust that will take centuries to weather away.`, 'nature');
+    banner('The grey stalls', 'The machines fall still', '#b4bcc6'); return;
+  }
+  if (sh >= GREY_END || !alive().length) {
+    G.live = false; G.done = 'world'; G.y1 = Math.round(W.year);
+    log(`The grey covers ${Math.round(sh * 100)}% of the land. With nothing left to eat, the machines fall still, and a dead grey crust lies over the world.`, 'nature');
+    if (F.active.some(a => a.id === 'agi')) endFate('agi', 'ending'); else reachEnding('grey');
+  }
+}
+function greyClock() { const G = W.grey; if (!G || !G.live) return null; return [`Grey spread · ${Math.round(G.share * 100)}% of the land`, clamp(G.share / GREY_END, 0, 1)]; }
+function greyRows(row) {
+  const G = W.grey; return row('The grey', `escaped ${G.srcName ? 'from the ' + G.srcName + ' ' : ''}in ${fmtYear(G.y0)}`) + row('Land it covered', Math.round((G.peak || G.share || 0) * 100) + '%') + row('Fought it', G.fought.map(id => (civById(id) || {}).name).filter(Boolean).join(', ') || 'no one') + (G.fled.length ? row('Fled to space', G.fled.map(id => (civById(id) || {}).name).filter(Boolean).join(', ')) : '');
+}
+function greyAlarm(a) { const o = {}; if (a && typeof a === 'object') for (const [k, v] of Object.entries(a).slice(0, 40)) if (/^\d+$/.test(k) && Number.isFinite(+v)) o[k] = clamp(+v, -1e9, 1e12); return o; }
+function sanitizeGrey(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.g)) return null;
+  const n = (v, a, b, def = 0) => Number.isFinite(+v) ? clamp(+v, a, b) : def, ids = a => (Array.isArray(a) ? a : []).filter(v => Number.isInteger(v) && v >= 0).slice(0, 40);
+  const g = new Array(NCELL).fill(0); for (let i = 0; i < NCELL; i++) g[i] = +n(d.g[i], 0, 1).toFixed(4);
+  const done = ['stopped', 'world', 'stalled', 'fell'].includes(d.done) ? d.done : null;
+  return { live: !!d.live && !done, g, k: n(d.k, 1, 2, 1), t0: n(d.t0, -1e9, 1e12), y0: n(d.y0, -60000, 1e6) | 0, y1: d.y1 == null ? undefined : n(d.y1, -60000, 1e6) | 0, src: Number.isInteger(d.src) ? d.src : null, srcName: String(d.srcName || '').slice(0, 40), cycle: n(d.cycle, 1, 99, 1) | 0, why: d.why === 'event' ? 'event' : 'pressure', share: n(d.share, 0, 1), peak: n(d.peak, 0, 1), fled: ids(d.fled), fought: ids(d.fought), seeds: n(d.seeds, 0, 999) | 0, burned: n(d.burned, 0, 1e6), alarm: greyAlarm(d.alarm), done, x: n(d.x, 0, WORLD_W) | 0 };
+}
+// the grey on the strip: a pale crust over the ground, silicon spires where the trees stood, a glittering front
+function drawGrey(x0, x1, sea) {
+  const G = W.grey; if (!G) return;
+  const iA = Math.max(0, cellOf(x0) - 1), iB = Math.min(NCELL - 1, cellOf(x1) + 1), fine = V.b < .3, live = G.live;
+  for (let i = iA; i <= iB; i++) {
+    const v = G.g[i] || 0; if (v < .02 || V.seaCell[i]) continue;
+    const a = i * CELL, th = 2 + 7 * v;
+    // the crust: a steel-grey skin over the ground, with a pale glinting top edge
+    g.fillStyle = live ? `rgba(118,126,138,${(.35 + .6 * v).toFixed(2)})` : `rgba(96,96,98,${(.3 + .6 * v).toFixed(2)})`; g.beginPath(); g.moveTo(a, gy(a) + 5);
+    for (let x = a; x <= a + CELL; x += 5) g.lineTo(x, gy(x) - th * (.75 + .25 * h01(i * 7 + x))); for (let x = a + CELL; x >= a; x -= 10) g.lineTo(x, gy(x) + 5); g.closePath(); g.fill();
+    g.strokeStyle = live ? `rgba(214,224,236,${(.25 + .5 * v).toFixed(2)})` : 'rgba(150,150,152,.35)'; g.lineWidth = 1; g.beginPath();
+    for (let x = a; x <= a + CELL; x += 5) { const y = gy(x) - th * (.75 + .25 * h01(i * 7 + x)); x === a ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke();
+    // silicon spires where the trees stood
+    const nS = Math.round(v * 11);
+    for (let k = 0; k < nS; k++) {
+      const tx = a + h01(i * 211 + k * 13) * CELL, ty = gy(tx) - th * .6; if (ty >= sea - 1 || inRiver(tx)) continue;
+      const hh = (10 + h01(i * 31 + k) * 20) * (.45 + .55 * v), w = 2.2 + 1.6 * h01(i + k * 5), lean = (h01(i * 3 + k * 11) - .5) * 4;
+      P([tx - w, ty + 2, tx + lean, ty - hh, tx + w, ty + 2], live ? '#6f7884' : '#5f6062'); P([tx + lean, ty - hh, tx + w, ty + 2, tx + w * .2, ty + 2], live ? '#c3ccd8' : '#848587');
+      if (h01(i * 13 + k) < .35) { const h2 = hh * .55; P([tx + w * 1.6, ty + 2, tx + w * 2.4 + lean, ty - h2, tx + w * 3.2, ty + 2], live ? '#8a94a1' : '#6c6d6f'); }
+      if (live && fine && h01(i * 5 + k) < .5) { const s = .5 + .5 * Math.sin(V.t * 3 + i + k * 1.7); g.fillStyle = `rgba(235,244,255,${(.35 + .65 * s).toFixed(2)})`; g.fillRect(tx + lean * .8 - .8, ty - hh * .85, 1.6, 1.6); }
+      pk(tx - w, ty - hh, tx + w, ty + 2, 2, 'grey', { name: live ? 'Silicon spire' : 'Dead grey crust', i });
+    }
+    // the moving front: a glittering swarm where the grey is still thin
+    if (live && fine && v > .04 && v < .8) for (let k = 0; k < 9; k++) {
+      const px = a + ((h01(i * 97 + k) * CELL + V.t * 11 * (k % 2 ? 1 : -1)) % CELL + CELL) % CELL, py = gy(px) - 4 - 14 * h01(i * 3 + k * 7) * (.5 + .5 * Math.sin(V.t * 2 + k));
+      g.fillStyle = 'rgba(226,234,246,.8)'; g.fillRect(px - .8, py - .8, 1.6, 1.6);
+    }
+  }
 }
 // END-07 seed vaults and libraries: elements that carry crops and knowledge through a collapse into the next cycle
 const keepersOf = c => { const k = { vault: null, lib: null }; for (const e of W.elements) { if (e.x < c.l || e.x > c.r) continue; if (e.type === 'seedvault') k.vault = e; else if (e.type === 'library') k.lib = e; } return k; };
@@ -2619,6 +2816,8 @@ function crisisChips(c) {
   if (c.closed > W.simTime) out.push('<span class="chip mod">Borders closed</span>');
   if (c._.drown > .02) out.push(`<span class="chip missing">Coasts drowned ${Math.round(c._.drown * 100)}%</span>`);
   if (c._.scav) out.push('<span class="chip own">Scavenging ruins</span>');
+  if (W.grey && c._.grey > .02) out.push(`<span class="chip war">Grey ${Math.round(c._.grey * 100)}% of the land</span>`);
+  if (W.grey && W.grey.fled.includes(c.id)) out.push('<span class="chip own">Fled to space</span>');
   if (c.machine) out.push('<span class="chip war">Machine people</span>');
   if (c.merged) out.push(`<span class="chip merged">Merged${c.oldTrait ? ' (once ' + esc(c.oldTrait) + ')' : ''}</span>`);
   if (W.care && c.alive) out.push(careOf(c) ? '<span class="chip green">In the machines’ care</span>' : '<span class="chip mod">Outside the machines’ care</span>');
@@ -2631,6 +2830,7 @@ function crisisMeta() {
   if (W.hot && W.hot.on) out.push('<span class="doom">runaway warming</span>');
   if (W.seaRise > 1) out.push(`seas +${Math.round(W.seaRise * 2)} m`);
   if (W.pandemic) out.push('<span class="doom">engineered plague</span>');
+  if (greyOn()) out.push(`<span class="doom">grey spread: ${Math.round(W.grey.share * 100)}% of the land</span>`);
   return out.length ? ' · ' + out.join(' · ') : '';
 }
 // ruins on the strip: rusted towers, broken domes, fallen walls and buried highways, slowly sinking under the green
@@ -3154,7 +3354,8 @@ function updateView() {
   V.gdy = clamp(V.gdy, lo - cy, hi - cy);
   V.cy = cy + V.gdy; V.cx = CW / 2;
   const sc = sysC(); if (sc > 0) { const ph = sunPh(), D = AU * V.s; V.cx -= D * Math.sin(ph) * sc; V.cy += D * Math.cos(ph) * sc; }
-  const gc = galC(); if (gc > 0) { V.cx += SUNG[0] * V.s * gc; V.cy += SUNG[1] * V.s * gc; }
+  const gc = galC(); if (gc > 0) { const SG = sunG(); V.cx += SG[0] * V.s * gc; V.cy += SG[1] * V.s * gc; }
+  const pw = panW(); if (V.pan) { if (pw > 0) { V.cx += V.pan[0] * V.s * pw; V.cy += V.pan[1] * V.s * pw; } else V.pan = null; }
   V.offY = V.cy - Rp - SEA0 * V.s;
 }
 function daylight() { const sv = Math.sin(6.2832 * (V.dayT - .25)); const t = clamp((sv + .25) / .6, 0, 1); return t * t * (3 - 2 * t); }
@@ -3236,6 +3437,7 @@ function drawWorld(o, x0, x1) {
   for (let x = x0; x <= x1; x += 8) { if (gy(x) <= sea) { started = false; continue; } const yy = sea + Math.sin(x * .05 + V.t * 1.2) * 1.1; started ? o.lineTo(x, yy) : o.moveTo(x, yy); started = true; } o.stroke();
   for (const el of W.elements) { if (el.x < x0 - 120 || el.x > x1 + 120) continue; drawElement(el, ownerOf(el.x)); }
   drawNature(x0, x1, sea, snowY);
+  drawGrey(x0, x1, sea);
   drawRuins(x0, x1, sea);
   for (const c of cs) {
     if (c.r < x0 - 200 || c.l > x1 + 200) continue;
@@ -3414,6 +3616,7 @@ function drawMini() {
   for (let i = 0; i < NCOL; i += 6) mctx.lineTo(i * STEP * sx, top + (T[i] - 60) * sc);
   mctx.lineTo(w, h); mctx.closePath(); mctx.fill();
   if (W.nat && V.seaCell) for (let i = 0; i < NCELL; i++) { if (V.seaCell[i]) continue; mctx.fillStyle = `rgba(96,180,90,${(W.nat.f[i] * .9).toFixed(2)})`; mctx.fillRect(i * CELL * sx, top + (gy((i + .5) * CELL) - 60) * sc - 2 * d, CELL * sx + .5, 3 * d); }
+  if (W.grey && V.seaCell) for (let i = 0; i < NCELL; i++) { const v = W.grey.g[i] || 0; if (v < .03 || V.seaCell[i]) continue; mctx.fillStyle = W.grey.live ? `rgba(176,186,200,${(.35 + .65 * v).toFixed(2)})` : `rgba(120,120,122,${(.3 + .6 * v).toFixed(2)})`; mctx.fillRect(i * CELL * sx, top + (gy((i + .5) * CELL) - 60) * sc - 2 * d, CELL * sx + .5, 3 * d); }
   for (const c of V.alive) { mctx.fillStyle = c.color; mctx.fillRect(c.l * sx, 2 * d, (c.r - c.l) * sx, 4 * d); mctx.fillRect(c.x * sx - d, 0, 2 * d, 8 * d); }
   for (const el of W.elements) { mctx.fillStyle = ELEMENTS[el.type] && ELEMENTS[el.type].dep ? '#d09a4e' : el.type === 'river' ? '#62b9e0' : '#a8b39a'; mctx.fillRect(el.x * sx - .5 * d, top + (gy(el.x) - 60) * sc - 2 * d, d, 2 * d); }
   for (const f of V.fronts) { mctx.fillStyle = '#e36a55'; mctx.fillRect(f * sx - 1.5 * d, 0, 3 * d, h); }
@@ -3498,6 +3701,7 @@ function buildTex() {
         if (V.cap[ci] > .08) { const fr = clamp(W.nat.f[ci] / V.cap[ci], 0, 1); v = mixA(v, fr > .6 ? [36, 82, 44] : [150, 140, 88], (fr > .6 ? (fr - .6) * .9 : (1 - fr) * .6) * lk); }
         if (W.nat.s[ci] < .3) v = mixA(v, [168, 140, 100], .4 * lk);
       }
+      if (W.grey && land[idx] && lat < .9) { const gv = W.grey.g[Math.min(NCELL - 1, ((c + .5) / tw * NCELL) | 0)] || 0; if (gv > .02) v = mixA(v, W.grey.live ? (h01(c * 31 + r * 17) < .25 ? [168, 178, 192] : [104, 112, 124]) : [88, 88, 90], Math.min(.95, gv)); }
       const nv = .9 + .2 * h01(c * 7919 + r * 104729);
       col[k] = v[0] * nv; col[k + 1] = v[1] * nv; col[k + 2] = v[2] * nv;
     }
@@ -4045,7 +4249,8 @@ function render() {
   updateAltHud(w, h);
 }
 function updateVisuals(vdt, rdt) {
-  V.t += vdt; V.vdt = vdt;
+  V.t += vdt; V.vdt = vdt; if (!UI.paused) V.galT = (V.galT || 0) + rdt;
+  if (!V.pan) V.panHome = false;
   if (UI.day) { if (!UI.paused) V.dayT = (V.dayT + rdt / 48) % 1; } else V.dayT = .42;
   if (V.camTarget != null) { V.cam += (V.camTarget - V.cam) * Math.min(1, rdt * 5); if (Math.abs(V.camTarget - V.cam) < 1) V.camTarget = null; }
   V.shake = Math.max(0, V.shake - rdt * 12); V.flash = Math.max(0, V.flash - rdt * 1.1);
@@ -4129,6 +4334,8 @@ const EVINFO = {
   asteroid: 'A rock kilometres across is found on a collision course, with a countdown. Peoples with space technology (from the Future Age) launch missions to push it aside: earlier tries, more advanced and Curious peoples and space bases do better; a failed try can still chip it smaller. Happens on its own very rarely once someone has telescopes (the Modern Age). If it strikes: a huge crater, fire and an impact winter that can end the world.',
   merge: 'The people you click wire their minds to their machines and become one. Their character becomes Merged: progress ×1.4, fewer births, calmer, rarely warlike, and they no longer face the question of what to do with their machines. Their machines can never rise against them. Their people get glowing implants and their cities grow neural towers and hubs linked by light. Needs the Future Age. Happens on its own during The Waking Machines, as an answer to AI pressure, for peoples whose machines run almost everything (meter 85+): most often Curious ones, sometimes Mercantile. Warlike peoples rarely let their machines get that far, and Devout peoples never choose it.',
   uprising: 'The thinking machines of the people you click stop taking orders and become a people of their own: no births, factories instead of farms, drones instead of armies. They take part of the land and fight every human people for the rest; the humans set their own wars aside. Needs the Information Age. Once per cycle. Happens on its own during The Waking Machines, most often among Warlike peoples with machine armies. The machines win by taking most of their continent or overrunning two peoples (The Iron Dominion); the humans win by destroying them, or by cutting their power if the war drags on and the machines hold less than half their continent.',
+  grey: 'Machines built to build themselves escape where you click and copy themselves out of soil, trees and stone. The grey spreads along the land, turning forests to silicon and driving off the animals; now and then it crosses the sea. Peoples burn it back (stronger peoples, armies and Warlike or Curious peoples do better; a wide front overwhelms them), and space peoples whose land is lost flee in ark ships. It is stopped when the last of it burns, and ends the world if it covers half the land.',
+  greyburn: 'Fire and counter-swarms burn away the grey where you click.',
   bioplague: 'A virus made in a laboratory escapes. It spreads along every contact between peoples and kills far more than any natural plague. Peoples that close their borders fare better. If too few people survive, the world collapses and begins again.',
   wildfire: 'Fire races through forests and farms. Thick forests in a warm world burn more often.',
   locusts: 'A swarm eats the harvest.',
@@ -4645,7 +4852,7 @@ function sanitizeWorld(d) {
   w.winter && (w.winter.kind = ['ash', 'impact'].includes(d.winter.kind) ? d.winter.kind : 'nuke', w.winter.pop0 = n(d.winter.pop0, 0, 1e12));
   w.rock = d.rock && typeof d.rock === 'object' ? { t0: n(d.rock.t0, -1e9, 1e12), eta: n(d.rock.eta, -1e9, 1e12), x: n(d.rock.x, 0, WORLD_W) | 0, size: n(d.rock.size, .3, 1, .7), seen: !!d.rock.seen, tries: n(d.rock.tries, 0, 99) | 0, next: n(d.rock.next, -1e9, 1e12), name: String(d.rock.name || 'Rock').slice(0, 20) } : null;
   w.rockCycle = n(d.rockCycle, 0, 99) | 0; w.svCycle = n(d.svCycle, 0, 99) | 0;
-  w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); w.mw = sanitizeMW(d.mw, w); if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
+  w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); w.mw = sanitizeMW(d.mw, w); w.grey = sanitizeGrey(d.grey); w.greyCycle = n(d.greyCycle, 0, 99) | 0; if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
   const chronE = e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) });
   w.chron = (Array.isArray(d.chron) ? d.chron : []).slice(0, 260).filter(e => e && typeof e.h === 'string').map(e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) }));
   // the full story; saves from before it existed start from the lines the chronicle still holds
@@ -4763,8 +4970,8 @@ const ORB_INFO = {
   elevator: ['Space elevator station', 'The counterweight station at the top of a cable that rises from the capital. Cargo goes up by climber instead of rocket.'],
   climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.'],
   claim: ['Claim', ''],
-  sungal: ['The Sun · home', 'Our star sits about 26,000 light years from the centre of the Milky Way, on the small Orion Spur between the Sagittarius and Perseus arms. It takes about 230 million years to go once around the galaxy.'],
-  gcore: ['The centre of the Milky Way', 'A bar of old yellow stars about 30,000 light years long. At its heart is Sagittarius A*, a black hole four million times as heavy as the Sun.'],
+  sungal: ['The Sun · home', 'Our star sits about 26,000 light years from the centre of the Milky Way, on the small Orion Spur between the Sagittarius and Perseus arms. It takes about 230 million years to go once around the galaxy (here, ten minutes), at about 230 km/s.'],
+  gcore: ['The centre of the Milky Way', 'A bar of old yellow stars about 30,000 light years long. At its heart is Sagittarius A*, a black hole four million times as heavy as the Sun. The bar turns as one piece, faster than the Sun goes round; the arms are waves the stars pass through.'],
   starcol: ['Star colony', 'A settlement around another star, founded by the crew of a generation ship.'],
   voyage: ['Generation ship', 'A ship crossing the dark between the stars. The crew who arrive are the great-grandchildren of those who left.']
 };
@@ -4788,6 +4995,7 @@ function tipBody(t) {
     const land = d.i != null ? V.cellOwner && V.cellOwner[d.i] : null, N = W.nat;
     let h = '';
     if (q.kind === 'tree') h = row('Woodland here', Math.round(clamp(N.f[d.i] / Math.max(.05, V.cap[d.i]), 0, 1) * 100) + '% of what the land can hold') + row('Land', land ? 'of the ' + land.name : 'wild');
+    else if (q.kind === 'grey') h = row('Grey here', Math.round(greyAt(d.i) * 100) + '% covered') + row('Made of', W.grey && W.grey.live ? 'self-copying machines, eating soil, trees and stone' : 'dead machines, slowly weathering away') + row('Land', land ? 'of the ' + land.name : 'wild');
     else if (q.kind === 'animal') h = row('Wild animals here', Math.round(N.w[d.i] * 100) + '%') + row('Hunted by', land ? 'the ' + land.name : 'no one');
     else if (q.kind === 'fish') h = row('Fish stock here', Math.round(N.fish[d.i] * 100) + '%') + (W.extinct && W.extinct.whales ? row('Great whales', 'extinct') : '');
     else if (q.kind === 'birds') h = row('Wild animals on Earth', Math.round((V.planet ? V.planet.wild : 0) * 100) + '%');
@@ -4842,7 +5050,16 @@ function showTip(click) {
 }
 function setZoom(z, ax, ay) {
   z = clamp(z, ZMIN, ZMAX);
-  if (V.b > 0 || bendOf(z) > 0) { const xc = V.cam + V.vw / 2; V.zoom = z; V.camY = null; updateView(); V.cam = xc - V.vw / 2; V.camTarget = null; updateView(); return; }
+  if (V.b > 0 || bendOf(z) > 0) {
+    const xc = V.cam + V.vw / 2;
+    // zooming in after roaming the galaxy glides the view back home to the solar system first (see updateVisuals)
+    if (z > V.zoom && V.pan && !V.panHome) V.panHome = { from: [...V.pan], z0: V.zoom, u: 0 };
+    // the glide home is part of the scroll: the further you zoom in (from where you started to where the galaxy is gone), the closer
+    // the view comes back to the solar system. It never moves on its own, and zooming out again does not undo it.
+    const H = V.panHome; if (H && V.pan) { const zEnd = Math.max(HOME_Z, H.z0 * 1.01), u = clamp(Math.log(z / H.z0) / Math.log(zEnd / H.z0), 0, 1); H.u = Math.max(H.u, u); const f = H.u * H.u * (3 - 2 * H.u); V.pan = [H.from[0] * (1 - f), H.from[1] * (1 - f)]; if (H.u >= 1) { V.pan = null; V.panHome = false; } }
+    V.zoom = z; V.camY = null; updateView(); V.cam = xc - V.vw / 2; V.camTarget = null; updateView();
+    return;
+  }
   if (ax == null) ax = CW / 2;
   if (ay == null && V.camY != null) ay = CH / 2;
   const wx = V.cam + ax / V.s, wy = ay == null ? 0 : (ay - V.offY) / V.s;
@@ -4851,7 +5068,7 @@ function setZoom(z, ax, ay) {
   if (ay != null) V.camY = wy - ay / V.s;
   updateView();
 }
-function resetView() { const cx = V.cam + V.vw / 2; V.zoom = .75; V.camY = null; V.gdy = 0; updateView(); V.cam = cx - V.vw / 2; V.camTarget = null; }
+function resetView() { V.pan = null; V.panHome = false; const cx = V.cam + V.vw / 2; V.zoom = .75; V.camY = null; V.gdy = 0; updateView(); V.cam = cx - V.vw / 2; V.camTarget = null; }
 /* full screen: the real thing where the frame allows it, otherwise the map fills the page */
 function isFS() { return $('#stage').classList.contains('fs'); }
 function enterFS() {
@@ -4922,13 +5139,13 @@ function initDOM() {
     try { cv.setPointerCapture(e.pointerId); } catch (er) { }
     V.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (V.pts.size === 2) { pinchStart(); return; }
-    if (V.pts.size === 1) V.drag = { x: e.clientX, y: e.clientY, cam: V.cam, camY: -V.offY / V.s, gdy: V.gdy, moved: false };
+    if (V.pts.size === 1) V.drag = { x: e.clientX, y: e.clientY, cam: V.cam, camY: -V.offY / V.s, gdy: V.gdy, pan: V.pan ? [...V.pan] : [0, 0], lx: e.clientX, ly: e.clientY, moved: false };
   });
   cv.addEventListener('pointermove', e => {
     const r = cv.getBoundingClientRect(); V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top;
     if (V.pts.has(e.pointerId)) V.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (V.pinch && V.pts.size >= 2) { const [a, b] = [...V.pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y) || 1; setZoom(V.pinch.z * d / V.pinch.d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top); return; }
-    if (V.drag) { const dx = e.clientX - V.drag.x, dy = e.clientY - V.drag.y; if (Math.abs(dx) > 5 || Math.abs(dy) > 5) V.drag.moved = true; if (V.drag.moved) { V.cam = V.drag.cam - dx / V.s; if (V.b) V.gdy = V.drag.gdy + dy; else V.camY = V.drag.camY - dy / V.s; V.camTarget = null; cv.style.cursor = ''; } }
+    if (V.drag) { const dx = e.clientX - V.drag.x, dy = e.clientY - V.drag.y; if (Math.abs(dx) > 5 || Math.abs(dy) > 5) V.drag.moved = true; if (V.drag.moved && V.b && panW() > .3) { panBy(e.clientX - V.drag.lx, e.clientY - V.drag.ly); V.drag.lx = e.clientX; V.drag.ly = e.clientY; V.camTarget = null; cv.style.cursor = ''; } else if (V.drag.moved) { V.cam = V.drag.cam - dx / V.s; if (V.b) V.gdy = V.drag.gdy + dy; else V.camY = V.drag.camY - dy / V.s; V.camTarget = null; cv.style.cursor = ''; } }
     showTip();
   });
   const endPtr = e => { V.pts.delete(e.pointerId); if (V.pts.size < 2) V.pinch = null; };
@@ -4958,6 +5175,7 @@ function initDOM() {
   cv.addEventListener('wheel', e => {
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? CH : 1, dx = e.deltaX * unit, dy = e.deltaY * unit;
+    if (V.b && panW() > .3 && !e.ctrlKey && (e.shiftKey || Math.abs(dx) > Math.abs(dy) * .5 && Math.abs(dx) > 0)) { hideTip(0); panBy(-(e.shiftKey && !dx ? dy : dx), e.shiftKey ? 0 : -dy); return; }
     if (e.shiftKey || Math.abs(dx) > Math.abs(dy)) { V.cam += (dx || dy) / V.s; V.camTarget = null; return; }
     if (V.focus) { V.focus = null; return; }
     hideTip(0);
@@ -4974,6 +5192,8 @@ function initDOM() {
     if ($('#modal').classList.contains('open')) { if (e.key === 'Escape') closeModal(); return; }
     if (e.key === 'Escape' && V.focus) { V.focus = null; return; }
     if (e.key === 'Escape' && ($('#pop').classList.contains('show') || TIP.cur)) { hidePop(0, true); TIP.over = false; hideTip(0); return; }
+    const pk0 = { ArrowLeft: [1, 0], a: [1, 0], ArrowRight: [-1, 0], d: [-1, 0], ArrowUp: [0, 1], w: [0, 1], ArrowDown: [0, -1], s: [0, -1] }[e.key];
+    if (pk0 && V.b && panW() > .3 && e.target === document.body) { panBy(pk0[0] * CW * .12, pk0[1] * CH * .12); e.preventDefault(); return; }
     if (e.key === 'ArrowLeft' || e.key === 'a') { V.camTarget = (V.camTarget ?? V.cam) - Math.min(V.vw, 3000) * .35; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { V.camTarget = (V.camTarget ?? V.cam) + Math.min(V.vw, 3000) * .35; e.preventDefault(); }
     else if (e.key === ' ' && e.target === document.body) { togglePause(); e.preventDefault(); }
@@ -5084,7 +5304,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
