@@ -58,6 +58,7 @@ What was built, in order, from the user's requests (newest last). Published arti
 38. "Sometimes there might be objects out in the space, I want to click on it": mining claims in the solar system and ships and star colonies in the galaxy can be clicked (left or right) for their info.
 39. "The text is hard to see, move it somewhere else better": the close-up text now sits in a solid card on the right (below on narrow screens), and the body is sized to keep its rings, swarm and moons clear of it, as well as the hint bar and altitude box. Also: the regression runner now runs 6 scripts at a time, and the AGI-04 uprising-by-character check uses 16 worlds (merges made 8 too noisy).
 40. "Fix the text" (the Ice moon label was hidden by its moon): close-up labels now start outside each marker and its owner ring, have a dark outline, and scale with the close-up (11–15 px); Jupiter's ice moons are drawn smaller (4–9 px).
+41. "Make the galaxy look more like the Milky Way with the solar system in the exact location (do not show the label names when zoomed out)": the galaxy is now a barred spiral built from the Milky Way's real layout (bar, Perseus and Scutum–Centaurus, Sagittarius and Norma arms, Orion Spur), with the Sun 26,000 ly out on the Orion Spur between the Sagittarius and Perseus arms and the bar's near end 27° from it. Star, Sun and 'The Milky Way' labels are gone from the galaxy view; the Sun and the centre can be clicked instead.
 
 ## Packaging
 26. This folder: game, CLAUDE.md, docs, tests and tickets (xlsx/csv), for other agents to continue.

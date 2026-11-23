@@ -403,34 +403,72 @@ const AU = 40 * RG;
 const PLANETS = [['Mercury', .39, '#a8a29a', 1.4], ['Venus', .72, '#e2c98f', 2.2], ['Earth', 1, null, 0], ['Mars', 1.52, '#c8643c', 1.8], ['Jupiter', 5.2, '#d4b58f', 4.6], ['Saturn', 9.5, '#e0cfa0', 4], ['Uranus', 19.2, '#9fd6dc', 3], ['Neptune', 30, '#5b7fd8', 3]];
 const orbitR = au => AU * Math.pow(au, .55);
 const sysK = () => smooth(ZSYS, .004, V.zoom), sysC = () => smooth(.006, .0015, V.zoom);
-// and past the solar system: the galaxy. the Sun sits out in a spiral arm
-const GALR = 1.2e7, SUNG = [.55 * GALR * Math.cos(2.3), .55 * GALR * Math.sin(2.3)];
+// and past the solar system: the galaxy, drawn as the Milky Way seen from above its north pole.
+// Units: 1 = the disc radius (about 50,000 light years). A central bar (half-length GBAR, about 15,000 ly) and four arms on
+// logarithmic spirals with a 12° pitch: Perseus and Scutum-Centaurus (major, from the bar's ends), Sagittarius and Norma/Outer (minor).
+// The Sun sits about 26,000 ly out (GSUN_R) on the small Orion Spur, between the Sagittarius and Perseus arms, with the bar's near end
+// about 27° from the line to the Sun. The galaxy turns clockwise in this view, so the arms trail.
+const GALR = 1.2e7, GSUN_R = .53, GSUN_A = Math.PI / 2, GPITCH = Math.tan(12 * Math.PI / 180), GBAR = .306, GBAR_A = GSUN_A + 27 * Math.PI / 180;
+const SUNG = [GSUN_R * GALR * Math.cos(GSUN_A), GSUN_R * GALR * Math.sin(GSUN_A)];
 const galK = () => smooth(.00025, .00006, V.zoom), galC = () => smooth(.00012, .00003, V.zoom);
-const GAL = (() => { const out = []; let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 2600; i++) { const arm = i % 2, t = rn(), r = .1 + .9 * Math.pow(t, .8), th = arm * Math.PI + 4.2 * Math.log(r * 8 + 1) + (rn() - .5) * .55 * (1.2 - r);
-    out.push([r * Math.cos(th), r * Math.sin(th), rn() < .3 ? 1 : 0, .4 + rn() * .6]); }
-  for (let i = 0; i < 700; i++) { const a = rn() * 6.2832, r = Math.pow(rn(), 2) * .22; out.push([r * Math.cos(a), r * Math.sin(a) * .8, 2, .5 + rn() * .5]); }
+// arm j: the Perseus arm turned by j quarter turns (radius .66 at the Sun's angle); radius grows as the angle falls
+const GARM_START = GSUN_A + Math.log(.66 / GBAR) / GPITCH, GARM_SPAN = Math.log(1.06 / GBAR) / GPITCH;
+const garm = (j, d) => { const th = GARM_START + j * Math.PI / 2 - d; return [GBAR * Math.exp(GPITCH * d), th]; };
+// the layout in numbers, for the tests: where the arms cross the Sun's line, how the bar sits
+function GAL_INFO() {
+  const wrap = a => ((a % 6.2832) + 6.2832) % 6.2832, at = j => { const out = []; for (let m = -3; m <= 3; m++) { const d = GARM_START + j * Math.PI / 2 - GSUN_A - 6.2832 * m; if (d >= 0 && d <= GARM_SPAN) out.push(garm(j, d)[0]); } return out; };
+  const inner = [...at(1), ...at(3)].filter(r => r < GSUN_R), outer = [...at(0), ...at(2)].filter(r => r > GSUN_R);
+  const dang = (a, b) => Math.abs(((wrap(a) - wrap(b) + 9.4248) % 6.2832) - 3.1416);
+  return { sunR: GSUN_R, sunLy: Math.round(GSUN_R * 50000), sag: +Math.max(...inner).toFixed(3), per: +Math.min(...outer).toFixed(3), barLy: Math.round(2 * GBAR * 50000), barSunDeg: +((GBAR_A - GSUN_A) * 180 / Math.PI).toFixed(1),
+    armStartErr: +Math.max(dang(garm(0, 0)[1], GBAR_A + Math.PI), dang(garm(2, 0)[1], GBAR_A)).toFixed(4) };
+}
+const GAL = (() => { const out = []; let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647, gs = () => (rn() + rn() + rn() - 1.5) / .75;
+  const add = (x, y, c, b) => { if (x * x + y * y < 1.25) out.push([x, y, c, clamp(b, .4, 1)]); };
+  // the arms: major arms are denser and wider; pink star-forming clouds sit along them
+  for (const [j, n, wd] of [[0, 2600, 1], [2, 2600, 1], [1, 1300, .7], [3, 1300, .7]]) {
+    for (let i = 0; i < n; i++) { const d = Math.pow(rn(), .85) * GARM_SPAN, [r, th] = garm(j, d), w = (.016 + .03 * r) * wd, rr = r + gs() * w, tt = th + gs() * w * .6 / Math.max(.2, r);
+      add(rr * Math.cos(tt), rr * Math.sin(tt), rn() < .72 ? 0 : 1, .45 + .55 * rn()); }
+    for (let q = 0; q < (j % 2 ? 9 : 16); q++) { const d = (.1 + .85 * rn()) * GARM_SPAN, [r, th] = garm(j, d); for (let i = 0; i < 9; i++) { const rr = r + gs() * .012, tt = th + gs() * .012 / r; add(rr * Math.cos(tt), rr * Math.sin(tt), 3, .7 + .3 * rn()); } }
+  }
+  // the Orion Spur, where the Sun lives
+  for (let i = 0; i < 260; i++) { const a = GSUN_A - .45 + .8 * rn(), r = GSUN_R * Math.exp(-GPITCH * 1.4 * (a - GSUN_A)) + gs() * .012; add(r * Math.cos(a), r * Math.sin(a), rn() < .8 ? 0 : 1, .45 + .4 * rn()); }
+  // the bar and the bulge: old yellow stars
+  const ca = Math.cos(GBAR_A), sa = Math.sin(GBAR_A);
+  for (let i = 0; i < 1400; i++) { const u = clamp(gs() * .5, -1, 1) * GBAR, v = gs() * .055 * (1 - .5 * Math.abs(u) / GBAR); add(u * ca - v * sa, u * sa + v * ca, 2, .5 + .5 * rn()); }
+  for (let i = 0; i < 500; i++) { const a = rn() * 6.2832, r = Math.abs(gs()) * .06; add(r * Math.cos(a), r * Math.sin(a), 2, .7 + .3 * rn()); }
+  // the faint disc between the arms
+  for (let i = 0; i < 1600; i++) { const a = rn() * 6.2832, r = Math.min(1.05, .12 - Math.log(1 - rn() * .97) * .26); add(r * Math.cos(a), r * Math.sin(a), 1, .4 + .25 * rn()); }
   return out; })();
 const starPos = i => [SUNG[0] * 0 + XSTARS[i][1] * GALR * .6 * Math.cos(XSTARS[i][2]), XSTARS[i][1] * GALR * .6 * Math.sin(XSTARS[i][2])];
 function drawGalaxy(c2, w, h, sx, sy) {
   const k = galK(), s = V.s, gx = sx - SUNG[0] * s, gy = sy - SUNG[1] * s, R = GALR * s;
   c2.save();
-  const bg = c2.createRadialGradient(gx, gy, 0, gx, gy, R * .35); bg.addColorStop(0, `rgba(255,236,200,${(.55 * k).toFixed(3)})`); bg.addColorStop(1, 'rgba(255,220,170,0)'); c2.fillStyle = bg; c2.fillRect(gx - R * .35, gy - R * .35, R * .7, R * .7);
-  const cols = ['205,220,255', '255,236,205', '255,226,180'];
-  // drawn in nine batches (three colours by three brightnesses) so the galaxy stays cheap
-  for (let ci = 0; ci < 3; ci++) for (let bi = 0; bi < 3; bi++) {
-    c2.fillStyle = `rgba(${cols[ci]},${((.5 + bi * .2) * .8 * k).toFixed(3)})`; c2.beginPath();
-    for (const [x, y, cc, bb] of GAL) { if (cc !== ci || Math.min(2, ((bb - .4) / .2) | 0) !== bi) continue; const px = gx + x * R, py = gy + y * R; if (px < -2 || px > w + 2 || py < -2 || py > h + 2) continue; c2.rect(px, py, 1.3, 1.3); }
+  // the glow of the disc and of the bar
+  const dg = c2.createRadialGradient(gx, gy, 0, gx, gy, R * 1.05); dg.addColorStop(0, `rgba(255,232,196,${(.4 * k).toFixed(3)})`); dg.addColorStop(.3, `rgba(210,200,190,${(.12 * k).toFixed(3)})`); dg.addColorStop(.75, `rgba(150,170,220,${(.05 * k).toFixed(3)})`); dg.addColorStop(1, 'rgba(120,140,200,0)');
+  c2.fillStyle = dg; c2.fillRect(gx - R * 1.05, gy - R * 1.05, R * 2.1, R * 2.1);
+  c2.save(); c2.translate(gx, gy); c2.rotate(GBAR_A); c2.scale(1, .36); const bg = c2.createRadialGradient(0, 0, 0, 0, 0, R * GBAR * 1.25); bg.addColorStop(0, `rgba(255,236,190,${(.6 * k).toFixed(3)})`); bg.addColorStop(.45, `rgba(255,214,150,${(.22 * k).toFixed(3)})`); bg.addColorStop(1, 'rgba(255,200,130,0)'); c2.fillStyle = bg; c2.fillRect(-R * .4, -R * .4, R * .8, R * .8); c2.restore();
+  // the arms glow with young blue stars; soft dark dust lanes run along their inner edges
+  c2.lineCap = 'round'; c2.lineJoin = 'round';
+  const armPath = (j, f) => { c2.beginPath(); for (let d = .1; d <= GARM_SPAN; d += .04) { const [r, th] = garm(j, d), rr = r * f, px = gx + rr * Math.cos(th) * R, py = gy + rr * Math.sin(th) * R; d < .12 ? c2.moveTo(px, py) : c2.lineTo(px, py); } };
+  c2.globalCompositeOperation = 'lighter';
+  for (const [j, wd] of [[0, 1], [2, 1], [1, .65], [3, .65]]) {
+    for (const [lw, a, col] of [[.09, .018, '110,140,255'], [.07, .02, '120,150,255'], [.052, .024, '140,165,255'], [.038, .028, '165,185,255'], [.026, .032, '190,205,255'], [.015, .036, '215,225,255']]) { c2.strokeStyle = `rgba(${col},${(a * k * wd).toFixed(3)})`; c2.lineWidth = Math.max(1, R * lw * wd); armPath(j, 1); c2.stroke(); } }
+  c2.globalCompositeOperation = 'source-over';
+  for (const [j, wd] of [[0, 1], [2, 1], [1, .6], [3, .6]]) { c2.strokeStyle = `rgba(8,6,12,${(.16 * k * wd).toFixed(3)})`; c2.lineWidth = Math.max(1, R * .02 * wd); armPath(j, .955); c2.stroke(); }
+  // stars, drawn in batches by colour and brightness so the galaxy stays cheap
+  const cols = ['200,218,255', '255,238,212', '255,224,170', '255,150,190'], sz = clamp(R / 700, 1, 2.2);
+  for (let ci = 0; ci < 4; ci++) for (let bi = 0; bi < 3; bi++) {
+    c2.fillStyle = `rgba(${cols[ci]},${((.45 + bi * .22) * .85 * k).toFixed(3)})`; c2.beginPath();
+    for (const [x, y, cc, bb] of GAL) { if (cc !== ci || Math.min(2, ((bb - .4) / .2) | 0) !== bi) continue; const px = gx + x * R, py = gy + y * R; if (px < -2 || px > w + 2 || py < -2 || py > h + 2) continue; c2.rect(px, py, sz, sz); }
     c2.fill();
   }
-  // ships on their way and the stars they settled
-  const placed = [];
-  const lab = (t, x, y, col) => { if (placed.some(([qx, qy]) => Math.abs(qx - x) < 90 && Math.abs(qy - y) < 12)) return; placed.push([x, y]); c2.font = '10.5px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'left'; c2.fillStyle = col; c2.fillText(t, x + 6, y + 3); };
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; if (k > .5) lab(XSTARS[st.star][0], px, py, `rgba(225,220,205,${((k - .5) * 1.6).toFixed(3)})`); }
+  // ships on their way and the stars they settled (no labels here: click them to see what they are)
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
   for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c';
-    c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
+    c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.lineWidth = 1; c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
     c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; if (k > .3) V.orbPicks.push({ x: sx + x * s * f, y: sy + y * s * f, r: 8, kind: 'voyage', c, i: sh.id, d: sh }); }
-  if (k > .5) { c2.fillStyle = `rgba(255,236,190,${((k - .5) * 2).toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.5, 0, 6.2832); c2.fill(); lab('Sun', sx, sy, `rgba(255,236,190,${((k - .5) * 2).toFixed(3)})`); c2.textAlign = 'center'; c2.font = '12px Marcellus, Georgia, serif'; c2.fillStyle = `rgba(236,229,213,${((k - .5) * 1.4).toFixed(3)})`; c2.fillText('THE MILKY WAY', gx, gy + R * 1.05); }
+  // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
+  if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
 }
 const sunPh = () => (.5 - V.dayT) * 6.2832;
@@ -4637,6 +4675,7 @@ function spaceTipLive(q) {
   if (q.kind === 'claim') return (W.spaceRes || []).includes(q.d) && sysK() * (1 - galK()) > .3;
   if (q.kind === 'voyage') return (W.ships || []).includes(q.d) && galK() > .3;
   if (q.kind === 'starcol') return (W.stars || []).includes(q.d) && galK() > .3;
+  if (q.kind === 'sungal' || q.kind === 'gcore') return galK() > .3;
   if (q.kind === 'cylinder' && !(W.megas || [])[q.i]) return false;
   return sysK() < .3 && (!q.c || q.c.alive);
 }
@@ -4672,6 +4711,8 @@ const ORB_INFO = {
   elevator: ['Space elevator station', 'The counterweight station at the top of a cable that rises from the capital. Cargo goes up by climber instead of rocket.'],
   climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.'],
   claim: ['Claim', ''],
+  sungal: ['The Sun · home', 'Our star sits about 26,000 light years from the centre of the Milky Way, on the small Orion Spur between the Sagittarius and Perseus arms. It takes about 230 million years to go once around the galaxy.'],
+  gcore: ['The centre of the Milky Way', 'A bar of old yellow stars about 30,000 light years long. At its heart is Sagittarius A*, a black hole four million times as heavy as the Sun.'],
   starcol: ['Star colony', 'A settlement around another star, founded by the crew of a generation ship.'],
   voyage: ['Generation ship', 'A ship crossing the dark between the stars. The crew who arrive are the great-grandchildren of those who left.']
 };
@@ -4810,7 +4851,7 @@ function initDOM() {
   });
   const endPtr = e => { V.pts.delete(e.pointerId); if (V.pts.size < 2) V.pinch = null; };
   cv.addEventListener('pointerup', e => { if (e.button === 2) { endPtr(e); V.drag = null; return; }
-    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && !V.focus && sysK() > .5) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top, ot = orbitTarget(bx, by), bn = bodyAt(bx, by), bp = bn && (bn === 'Sun' ? V.sunXY : bn === 'Earth' ? [V.cx, V.cy] : V.bodyPos[bn]); if (ot && ['claim', 'starcol', 'voyage'].includes(ot.orb.kind) && (!bp || Math.hypot(ot.orb.x - bx, ot.orb.y - by) < Math.hypot(bp[0] - bx, bp[1] - by))) { endPtr(e); V.drag = null; V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); return; } }
+    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && !V.focus && sysK() > .5) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top, ot = orbitTarget(bx, by), bn = bodyAt(bx, by), bp = bn && (bn === 'Sun' ? V.sunXY : bn === 'Earth' ? [V.cx, V.cy] : V.bodyPos[bn]); if (ot && ['claim', 'starcol', 'voyage', 'sungal', 'gcore'].includes(ot.orb.kind) && (!bp || Math.hypot(ot.orb.x - bx, ot.orb.y - by) < Math.hypot(bp[0] - bx, bp[1] - by))) { endPtr(e); V.drag = null; V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); return; } }
     if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && (V.focus || sysK() > .5)) { const r = cv.getBoundingClientRect(), n = V.focus ? null : bodyAt(e.clientX - r.left, e.clientY - r.top); if (V.focus || n) { endPtr(e); V.drag = null; if (V.focus) V.focus = null; else focusBody(n); return; } }
     if (UI.tool && UI.tool.kind === 'el' && ELEMENTS[UI.tool.type] && ELEMENTS[UI.tool.type].space && V.drag && !V.drag.moved && !V.pinch) { endPtr(e); V.drag = null; placeSpace(UI.tool.type); return; } const wasPinch = !!V.pinch; endPtr(e); const d = V.drag; V.drag = null; cv.style.cursor = ''; if (d && !d.moved && !wasPinch) { const [wx, wy] = worldAt(e.clientX, e.clientY); if (!V.b || (wy > -320 && wy < WORLD_H)) worldClick(((wx % WORLD_W) + WORLD_W) % WORLD_W); TIP.over = false; hideTip(0); } else showTip(); });
   // right click opens the info of whatever is under the pointer
@@ -4961,7 +5002,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, toggleFsLog, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, GAL_INFO, toggleFsLog, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
