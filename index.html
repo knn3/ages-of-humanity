@@ -4147,7 +4147,9 @@ function drawSpaceBackdrop(c2, w, h) {
     const dimS = 1 - .65 * swarmFrac() * sysK(); c2.globalAlpha = dimS; c2.fillStyle = gr; c2.fillRect(sx - gR, sy - gR, gR * 2, gR * 2); c2.globalAlpha = 1; c2.fillStyle = `rgba(255,250,232,${sv * (1 - .6 * swarmFrac() * sysK())})`; c2.beginPath(); c2.arc(sx, sy, 14 * (1 - .8 * galK()), 0, 6.2832); c2.fill();
   }
   if (b > .85) {
-    const mph = V.t * .012 + 2.2, D = rOut * 1.25 + 40, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph), mr = Math.max(4, V.Rb * s * .2);
+    // close to the globe the Moon hangs well out in the sky; zoomed out to the solar system it closes in on Earth, so it rides along Earth's orbit
+    const mr = Math.max(3, V.Rb * s * .2) * (1 - .25 * sysK()), mk = sysK(), mph = V.t * .012 + 2.2, D = (rOut * 1.25 + 40) * (1 - mk) + (rOut + mr + 5) * mk, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph);
+    if (mk > .3) { c2.strokeStyle = `rgba(236,229,213,${(.12 * smooth(.3, .8, mk) * (1 - smooth(0, .15, galK()))).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(cx, cy, D, 0, 6.2832); c2.stroke(); }
     const ma = smooth(.85, .97, b) * (1 - smooth(0, .15, galK()));
     if (ma > .01 && mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
       c2.save(); c2.globalAlpha = ma; c2.beginPath(); c2.arc(mx, my, mr, 0, 6.2832); c2.clip();
