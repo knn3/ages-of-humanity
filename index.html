@@ -3713,6 +3713,8 @@ function bodyLines(n) {
   return out;
 }
 function wrapLines(c2, text, maxW) { const words = text.split(' '), lines = []; let cur = ''; for (const wd of words) { const t = cur ? cur + ' ' + wd : wd; if (c2.measureText(t).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = t; } if (cur) lines.push(cur); return lines; }
+// close-up labels: always outside the marker, with a dark outline so they read over the planet or the sky
+function closeLabel(c2, t, x, y, col) { c2.save(); c2.lineJoin = 'round'; c2.lineWidth = 3.5; c2.strokeStyle = 'rgba(2,3,10,.85)'; c2.strokeText(t, x, y); c2.fillStyle = col; c2.fillText(t, x, y); c2.restore(); }
 function drawBodyClose(c2, n, x, y, r) {
   const col = BODY_LOOK[n] || '#aaa', rgbC = hexRGB(col);
   if (n === 'Sun') {
@@ -3744,22 +3746,22 @@ function drawBodyClose(c2, n, x, y, r) {
   if (n === 'Saturn') { c2.strokeStyle = 'rgba(230,215,170,.7)'; c2.lineWidth = r * .12; c2.beginPath(); c2.ellipse(x, y, r * 2, r * .55, -.25, 0, Math.PI); c2.stroke(); }
   // bases and colonies on the Moon and Mars, with their names
   const key = n === 'Moon' ? 'moon' : n === 'Mars' ? 'mars' : null;
-  c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'left';
+  c2.font = `${clamp(Math.round(r * .042), 11, 15)}px "IBM Plex Mono", ui-monospace, monospace`; c2.textAlign = 'left';
   if (key) {
     (W.bases || []).filter(b => b.body === key).forEach((b, i) => { const c = civById(b.civ); if (!c) return; const a = i * 2.4 + .6, d = r * (.35 + .25 * (i % 3) / 2), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * .8, sz = 3 + Math.log10(Math.max(10, b.pop)) * .9;
       c2.fillStyle = c.color; c2.beginPath(); c2.arc(px, py, sz, Math.PI, 2 * Math.PI); c2.fill(); c2.fillRect(px - sz, py, sz * 2, 1.5);
       const gl = c2.createRadialGradient(px, py, 0, px, py, sz * 3); gl.addColorStop(0, 'rgba(255,240,200,.45)'); gl.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = gl; c2.fillRect(px - sz * 3, py - sz * 3, sz * 6, sz * 6);
-      c2.fillStyle = 'rgba(240,236,226,.92)'; c2.fillText(b.name, px + sz + 3, py - 1); });
+      closeLabel(c2, b.name, px + sz + 5, py - 1, 'rgba(240,236,226,.95)'); });
     (W.colonies || []).filter(k => k.body === key).forEach((k, i) => { const a = i * 1.9 + 3.6, px = x + Math.cos(a) * r * .5, py = y + Math.sin(a) * r * .45, sz = 7;
       for (let j = -2; j <= 2; j++) { c2.fillStyle = k.color; c2.fillRect(px + j * 4 - 1.5, py - sz - Math.abs(2 - Math.abs(j)) * 3, 3, sz + Math.abs(2 - Math.abs(j)) * 3); }
       if (k.war) { c2.fillStyle = 'rgba(227,106,85,.9)'; c2.beginPath(); c2.arc(px, py - sz - 8, 2.5, 0, 6.2832); c2.fill(); }
-      c2.fillStyle = 'rgba(240,236,226,.95)'; c2.fillText('the ' + k.name, px + 14, py - 3); });
+      closeLabel(c2, 'the ' + k.name, px + 16, py - 3, 'rgba(240,236,226,.97)'); });
   }
   // claims: Helium-3 rigs on the Moon, ice moons around Jupiter
   for (const rs of W.spaceRes || []) {
     const body = ELEMENTS[rs.type].space, o = rs.owner != null ? civById(rs.owner) : null;
-    if (n === 'Moon' && body === 'moon') { const px = x + Math.cos(rs.a) * r * .6, py = y + Math.sin(rs.a) * r * .5; c2.fillStyle = '#7fe3ff'; c2.beginPath(); c2.moveTo(px, py - 5); c2.lineTo(px + 4, py); c2.lineTo(px, py + 5); c2.lineTo(px - 4, py); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, 8, 0, 6.2832); c2.stroke(); } c2.fillStyle = 'rgba(220,240,250,.9)'; c2.fillText('Helium-3', px + 10, py + 4); }
-    if (n === 'Jupiter' && body === 'giant') { const a = rs.a + V.t * .15, px = x + Math.cos(a) * r * 1.45, py = y + Math.sin(a) * r * .5; c2.fillStyle = '#e8f4fb'; c2.beginPath(); c2.arc(px, py, Math.max(4, r * .06), 0, 6.2832); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, Math.max(4, r * .06) + 4, 0, 6.2832); c2.stroke(); } c2.fillStyle = 'rgba(220,240,250,.9)'; c2.fillText('Ice moon', px + 10, py + 4); }
+    if (n === 'Moon' && body === 'moon') { const px = x + Math.cos(rs.a) * r * .6, py = y + Math.sin(rs.a) * r * .5; c2.fillStyle = '#7fe3ff'; c2.beginPath(); c2.moveTo(px, py - 5); c2.lineTo(px + 4, py); c2.lineTo(px, py + 5); c2.lineTo(px - 4, py); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, 8, 0, 6.2832); c2.stroke(); } closeLabel(c2, 'Helium-3', px + 14, py + 4, 'rgba(220,240,250,.95)'); }
+    if (n === 'Jupiter' && body === 'giant') { const mr = clamp(r * .035, 4, 9), a = rs.a + V.t * .15, px = x + Math.cos(a) * r * 1.45, py = y + Math.sin(a) * r * .5; c2.fillStyle = '#e8f4fb'; c2.beginPath(); c2.arc(px, py, mr, 0, 6.2832); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, mr + 4, 0, 6.2832); c2.stroke(); } closeLabel(c2, 'Ice moon', px + mr + 10, py + 4, 'rgba(220,240,250,.95)'); }
   }
 }
 // how far beyond its disc a body's close-up reaches (rings, the swarm and glow, ice moons), so the text card never covers it

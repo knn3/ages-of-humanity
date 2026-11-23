@@ -96,7 +96,7 @@ async def main():
                 ov = json.loads(await ev(r'''() => { const cb = document.querySelector('#world').getBoundingClientRect(), b = window.__aoh.V.focusBox, hit = el => { if (!el || el.offsetParent === null) return false; const q = el.getBoundingClientRect(); if (!q.width) return false; const l = q.left - cb.left, r = q.right - cb.left, t = q.top - cb.top, bt = q.bottom - cb.top; return l < b.cardX + b.cardW && r > b.cardX && t < b.cardY + b.cardH && bt > b.cardY; }; return JSON.stringify({ alt: hit(document.querySelector('#alt')), hint: hit(document.querySelector('#hint')) }); }'''))
                 if ov['alt'] or ov['hint']: clear = False
                 if not clear or fb['R'] < 30: bad.append((vw, n, round(fb['cx'] + ext), round(fb['cardX']), round(fb['R'])))
-                if (vw, n) in [(2000, 'Saturn'), (2000, 'Sun'), (640, 'Saturn')]:
+                if (vw, n) in [(2000, 'Saturn'), (2000, 'Sun'), (640, 'Saturn'), (2000, 'Jupiter'), (2000, 'Mars')]:
                     await (await pg.query_selector('#world')).screenshot(path=f'bodies_{n.lower()}_{vw}.png')
             await ev("() => { window.__aoh.V.focus = null; }")
         check('the text card never covers the body, its rings, swarm or moons, nor the hint bar or altitude box (2000, 1300, 900, 640 wide)', not bad, str(bad))
