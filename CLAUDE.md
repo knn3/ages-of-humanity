@@ -39,21 +39,21 @@ docs/CHANGELOG.md     what was built, in order, with the user's requests
 docs/WORKFLOW.md      how work has been done here (tickets, testing, publishing, user preferences)
 tickets/tickets.xlsx  all 64 tickets + epic progress (formulas)
 tickets/tickets.csv   same tickets as CSV
-tests/                Python + Playwright test scripts and JS summaries (endworld.py, end06.py, end07.py, endnat.py for the END epic; agi01.py, agi02.py, agi03.py, aginat.py for AGI)
+tests/                Python + Playwright test scripts and JS summaries (endworld.py, end06.py, end07.py, endnat.py for the END epic; agi01.py…agi06.py, aginat.py for AGI)
 ```
 
 ## Status (as of 2026-11-22)
 
-- **Done:** Foundation epic (FND-01…07), Into space (SPC-01…10), Three-Body (TB-01…08), End of the world epic (END-01…07: new cycles, ruins, nuclear winter, runaway warming, engineered plague, supervolcano and asteroid, seed vaults and libraries), AGI-01…03 (machine autonomy meter, reactions by character, caretaker ending), plus many UI requests (see CHANGELOG).
+- **Done:** Foundation epic (FND-01…07), Into space (SPC-01…10), Three-Body (TB-01…08), End of the world epic (END-01…07: new cycles, ruins, nuclear winter, runaway warming, engineered plague, supervolcano and asteroid, seed vaults and libraries), AGI takeover epic (AGI-01…06: machine autonomy meter, reactions by character, caretaker ending, war against the machines, the merge, the grey spread), plus many UI requests (see CHANGELOG).
 - **In progress:** FND-08 balance pass (re-run after the remaining epics).
-- **Next:** AGI takeover (AGI-04…06), then Wandering Earth, Ascension, Garden, Great Silence, Simulation reveal, Speciation, Long Night, Geoengineering, First contact, Immortality. All are in `tickets/tickets.xlsx` with descriptions, "done when" criteria and dependencies.
+- **Next:** Wandering Earth (WE-01…04), then Ascension, Garden, Great Silence, Simulation reveal, Speciation, Long Night, Geoengineering, First contact, Immortality. All are in `tickets/tickets.xlsx` with descriptions, "done when" criteria and dependencies.
 - Several later epics already have placeholder behaviour: each future starts, has reactions, a countdown and an ending text (see `FATES` and `ENDINGS`). Their tickets replace placeholders with real content, the way TB-01…08 did for the Three-Sun Signal.
 
 ## Hard rules and user preferences (keep these)
 
 1. **One file.** Keep the game in `index.html`. No frameworks, no build, no external JS. Fonts: Marcellus (display), IBM Plex Sans Condensed (body), IBM Plex Mono (numbers). Theme: dark obsidian and bronze; futures use violet `#a593f2`.
 2. **Do not change the map type.** The user explicitly decided to keep the side-view strip + globe + solar system + galaxy zoom chain as it is.
-3. **Info on the map opens with a RIGHT CLICK** (contextmenu), only when zoomed in close (`TIP_ZOOM = 1.3`), only on an actual object (building, person, vehicle, animal, tree, ship, element, deposit…). No hover tags. Left click places tools / selects / drags.
+3. **Info on the map opens with a RIGHT CLICK** (contextmenu), only when zoomed in close (`TIP_ZOOM = 1.3`) — except objects in orbit, which can be right-clicked on the curved globe/orbit views (`orbitTarget`); in the solar-system view a LEFT click on the Sun, the Moon or a planet opens its close-up (`focusBody`) — only on an actual object (building, person, vehicle, animal, tree, ship, element, deposit…). No hover tags. Left click places tools / selects / drags.
 4. **City info** is the small **i** button on each city label (click, not hover).
 5. **Toolbox and panels:** show only the name, with an **i** button for details (hover or click shows a popover).
 6. **Normal cursor** on the map (no grab hand, no crosshair).
@@ -74,7 +74,8 @@ tests/                Python + Playwright test scripts and JS summaries (endworl
 
 ## Gotchas
 
-- `W.chron` is capped at 260 entries: counting chronicle lines in long runs undercounts.
+- `W.chron` is capped at 260 entries: counting chronicle lines in long runs undercounts. `W.hist` holds the whole story (oldest first, up to 5,000 lines).
+- `#modal` is moved into `#stage` while in full screen (`openModal`), so dialogs show in real full screen.
 - The clock runs fast in the Galactic Age (~30 years per sim second), so countdowns read in thousands of years late in the game.
 - An epilogue modal can open at any time in long runs and block clicks; tests close it (see `run2.py`).
 - Clicking toolbox tabs scrolls the page; tests that click the map should `scrollTo(0,0)` first.
