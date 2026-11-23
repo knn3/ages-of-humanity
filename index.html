@@ -512,8 +512,8 @@ function drawGalaxy(c2, w, h, sx, sy) {
     for (let i = 0; i < L.length; i += 2) c2.rect(L[i], L[i + 1], sz, sz);
     c2.fill();
   }
-  // settled stars keep only a faint tick in their people's colour (no labels, lines or picks): the neighbourhood lens shows them (SV-01)
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 10) continue; c2.strokeStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = .55 * k; c2.lineWidth = 1; c2.beginPath(); c2.moveTo(px, py - 2.5); c2.lineTo(px, py + 2.5); c2.stroke(); c2.globalAlpha = 1; }
+  // settled stars keep only a small dot in their people's colour (no labels, lines or picks); their chronicle lines open the world
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 10) continue; c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = .7 * k; c2.beginPath(); c2.arc(px, py, 1.6, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
   // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
   if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
