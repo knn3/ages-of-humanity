@@ -463,10 +463,10 @@ function drawGalaxy(c2, w, h, sx, sy) {
     c2.fill();
   }
   // ships on their way and the stars they settled (no labels here: click them to see what they are)
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
-  for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c';
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 14) continue; if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
+  for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c'; if (Math.hypot(x * s, y * s) < 14) continue; const onSun = Math.hypot(x * s * f, y * s * f) < 14;
     c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.lineWidth = 1; c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
-    c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; if (k > .3) V.orbPicks.push({ x: sx + x * s * f, y: sy + y * s * f, r: 8, kind: 'voyage', c, i: sh.id, d: sh }); }
+    if (onSun) continue; c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; if (k > .3) V.orbPicks.push({ x: sx + x * s * f, y: sy + y * s * f, r: 8, kind: 'voyage', c, i: sh.id, d: sh }); }
   // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
   if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
@@ -2669,11 +2669,11 @@ function buildLayout(c, tier, st) {
     const rng = mulberry32((c.seed + k * 977 + c.era * 131 + tier * 17) >>> 0);
     const count = Math.round((k === 0 ? 3 + tier * 2.4 : 1.5 + tier * 1.3) + c.era * .25);
     let left = sx, right = sx;
-    const place = (type, center) => {
+    const place = (type, center, cx = sx) => {
       const sz = SIZES[type];
       const w = Math.round(sz[0] + rng() * (sz[1] - sz[0])), h = Math.round(sz[2] + rng() * (sz[3] - sz[2])), gap = 3 + Math.round(rng() * 6);
       let x;
-      if (center) { x = Math.round(sx - w / 2); left = x - gap; right = x + w + gap; }
+      if (center) { x = Math.round(cx - w / 2); left = x - gap; right = x + w + gap; }
       else if (rng() < .5) { x = right; right += w + gap; }
       else { x = left - w; left = x - gap; }
       if (x < c.l + 4 || x + w > c.r - 4) return;
@@ -2684,8 +2684,15 @@ function buildLayout(c, tier, st) {
       items.push({ t: type, x, w, h, base: lo + 1, s: (rng() * 1e9) | 0, k });
       if (k === 0 && lo + 1 - h < capTop) capTop = lo + 1 - h;
     };
-    if (k === 0) place(plan.mark, true);
+    if (k === 0) {
+      // the landmark (temple, castle, machine core...) is the centrepiece: if the capital's spot is too steep, wet or coastal, try further out
+      place(plan.mark, true);
+      for (let off = 15; off <= 240 && !items.some(b => b.t === plan.mark && b.k === 0); off += 15) for (const d of [off, -off]) { if (items.some(b => b.t === plan.mark && b.k === 0)) break; place(plan.mark, true, sx + d); }
+      if (!items.some(b => b.t === plan.mark && b.k === 0)) { left = sx; right = sx; }
+    }
     for (let n = 0; n < count; n++) { let t = plan.fill[Math.floor(rng() * plan.fill.length)]; if (t === 'cooling' && !hasU) t = 'block'; place(t, false); }
+    // a merged people's capital always shows at least one neural tower
+    if (k === 0 && c.merged) for (let t = 0; t < 8 && !items.some(b => b.t === 'nnode'); t++) place('nnode', false);
   });
   items.sort((a, b) => (a.t === 'field' ? 0 : 1) - (b.t === 'field' ? 0 : 1));
   c._.items = items; c._.capTop = capTop;
@@ -3844,7 +3851,8 @@ function drawFocus(c2, w, h) {
   c2.restore();
 }
 function drawSystem(c2, w, h, sx, sy) {
-  const k = sysK() * (1 - galK()), s = V.s; if (k < .01) return;
+  // the solar system fades out quickly as the galaxy comes in, so it never sits as a blob on top of the Milky Way
+  const k = sysK() * (1 - smooth(0, .15, galK())), s = V.s; if (k < .01) return;
   c2.save(); c2.lineWidth = 1;
   // asteroid belt
   c2.fillStyle = `rgba(170,160,150,${(.5 * k).toFixed(3)})`;
@@ -3895,14 +3903,14 @@ function drawSpaceBackdrop(c2, w, h) {
   }
   if (b > .85) {
     const mph = V.t * .012 + 2.2, D = rOut * 1.25 + 40, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph), mr = Math.max(4, V.Rb * s * .2);
-    if (mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
-      const ma = smooth(.85, .97, b);
+    const ma = smooth(.85, .97, b) * (1 - smooth(0, .15, galK()));
+    if (ma > .01 && mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
       c2.save(); c2.globalAlpha = ma; c2.beginPath(); c2.arc(mx, my, mr, 0, 6.2832); c2.clip();
       c2.fillStyle = '#26282e'; c2.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
       const lx = mx + Math.sin(phs) * mr * .9, ly = my - Math.cos(phs) * mr * .9, gr = c2.createRadialGradient(lx, ly, mr * .2, lx, ly, mr * 1.6);
       gr.addColorStop(0, '#e4e0d4'); gr.addColorStop(.6, '#b9b5aa'); gr.addColorStop(1, 'rgba(60,60,64,0)'); c2.fillStyle = gr; c2.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
       c2.fillStyle = 'rgba(90,88,84,.35)'; for (const [ox, oy, rr] of [[-.3, -.2, .18], [.25, .3, .14], [.1, -.45, .1]]) { c2.beginPath(); c2.arc(mx + ox * mr, my + oy * mr, rr * mr, 0, 6.2832); c2.fill(); }
-      drawBases(c2, 'moon', mx, my, mr, 1); (V.bodyPos = V.bodyPos || {}).Moon = [mx, my, mr];
+      drawBases(c2, 'moon', mx, my, mr, ma); (V.bodyPos = V.bodyPos || {}).Moon = [mx, my, mr];
       c2.restore();
     }
   }
@@ -5002,7 +5010,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, GAL_INFO, toggleFsLog, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

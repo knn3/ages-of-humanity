@@ -63,7 +63,7 @@ async def main():
           await new Promise(res => setTimeout(res, 1500)); const t1 = document.querySelector('#tip').style.display !== 'none' ? document.querySelector('#tip').innerText : '';
           const b = document.querySelector('#tipClose'); if (b) b.click(); return JSON.stringify({ t0, stays: !!t1 && t1.startsWith(t0), body: t1.replace(/\n/g, ' | ').slice(0, 160), focus: A.V.focus && A.V.focus.body }); }'''
         await ev(r'''() => { const A = window.__aoh, c = A.W.civs[0], d = A.W.civs[1]; for (const r of A.W.spaceRes) r.owner = c.id;
-          A.W.ships = [{ id: 7001, civ: c.id, star: 4, name: 'Far Hope I', t0: A.W.simTime - 300, dur: 900, crew: 1e5, y0: 3000, told: 0 }]; A.W.stars = [{ star: 2, civ: d.id, name: 'Wayfarer II', pop: 8e4, t0: 2900 }]; }''')
+          const far = A.XSTARS ? A.XSTARS.length - 1 : 6; A.W.ships = [{ id: 7001, civ: c.id, star: far, name: 'Far Hope I', t0: A.W.simTime - 750, dur: 900, crew: 1e5, y0: 3000, told: 0 }]; A.W.stars = [{ star: 2, civ: d.id, name: 'Wayfarer II', pop: 8e4, t0: 2900 }]; }''')
         res = {}
         for z in [.003, .002, .0012, .0008]:
             q = json.loads(await ev(CLICK, [z, 'claim', 'left']))

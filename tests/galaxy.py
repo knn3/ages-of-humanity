@@ -37,6 +37,13 @@ async def main():
             await (await pg.query_selector('#world')).screenshot(path=f'galaxy_{z}.png')
         print('  text drawn per zoom:', {z: t[:6] for z, t in texts.items()})
         check('no name labels when zoomed out to the galaxy', all(len(texts[z]) == 0 for z in [.00004, .00002]), str({z: texts[z][:5] for z in texts}))
+        # the solar system (planets, swarm, claims, the Moon) is not drawn on top of the galaxy; colonies right on the Sun merge into its marker
+        await ev(r'''() => { const A = window.__aoh; for (const o of A.W.civs) { A.foundBase(o, 'mars'); A.foundBase(o, 'moon'); } A.W.dyson = { by: { [A.W.civs[0].id]: 300 }, total: 300, mark: 0 }; for (const r of A.W.spaceRes) r.owner = A.W.civs[0].id; A.W.stars.push({ star: 0, civ: A.W.civs[2].id, name: 'Near', pop: 1e4, t0: 3000 }); }''')
+        r = {}
+        for z in [.00015, .00008, .00003]:
+            r[z] = json.loads(await ev(f'''() => {{ const A = window.__aoh; A.setZoom({z}); A.render(); const sun = A.V.orbPicks.find(q => q.kind === 'sungal'); return JSON.stringify({{ bodies: Object.keys(A.V.bodyPos || {{}}), claims: A.V.orbPicks.filter(q => q.kind === 'claim').length, onSun: sun ? A.V.orbPicks.filter(q => (q.kind === 'starcol' || q.kind === 'voyage') && Math.hypot(q.x - sun.x, q.y - sun.y) < 14).length : 0 }}); }}'''))
+        check('no solar-system cluster at galaxy scale (no planets, Moon or claims; nothing piled on the Sun)', all(not v['bodies'] and v['claims'] == 0 and v['onSun'] == 0 for v in r.values()), str(r))
+
         # at full zoom-out the galaxy is centred and the Sun is off to one side, below the centre
         r = json.loads(await ev(r'''() => { const A = window.__aoh; A.setZoom(.00002); A.render(); const cv = document.querySelector('#world'), sun = A.V.orbPicks.find(q => q.kind === 'sungal'), core = A.V.orbPicks.find(q => q.kind === 'gcore');
           return JSON.stringify({ sun: sun && [sun.x, sun.y], core: core && [core.x, core.y], w: cv.clientWidth, h: cv.clientHeight }); }'''))

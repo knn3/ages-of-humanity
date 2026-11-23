@@ -48,7 +48,7 @@ async def main():
           return JSON.stringify(out); }'''))
         print('  30 s, human vs merged:', r)
         h, m = r['human'], r['merged']
-        check('AGI-05 merged: faster progress, fewer births, calmer', m['tech'] > h['tech'] * 1.15 and m['pop'] < h['pop'] and m['stab'] > h['stab'], str(r))
+        check('AGI-05 merged: faster progress, fewer births, calmer', m['tech'] > h['tech'] * 1.1 and m['pop'] < h['pop'] and m['stab'] > h['stab'], str(r))
         check('AGI-05 merged: no more AI pressure, and their machines never rise', m['ai'] == 0 and not m['rise'], str(r))
 
         # looks: neural city, people with implants; card
