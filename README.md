@@ -19,6 +19,8 @@ Live version: https://claude.ai/artifact/GFVdMcCoxYPrnCGJKF9ihw (owner's account
 | Place an element or event | Pick it in the toolbox, then left click the land |
 | Info about anything on the map | **Right click** it (zoomed in close) |
 | Info about things in orbit (satellites, telescopes, stations, ring habitats, space cylinders, space elevators) | **Right click** them on the globe and orbit views |
+| Info about things further out: mining claims in the solar system (Helium-3, asteroid mines, ice moons), ships between the stars, star colonies | **Left or right click** them in the solar-system and galaxy views |
+| Fold away the chronicle feed in full screen | Click **Chronicle** above it (remembered; while folded it counts new lines) |
 | A close look at the Sun, the Moon or a planet | In the solar-system view, **left click** it (bases, colonies, mines and the Sun's swarm, and what is going on). Click anywhere, scroll or press Esc to zoom back out; clicking Earth takes you back down to the globe |
 | Info about a people | The **i** on its city label |
 | Details of a tool, event or future | Its **i** button |

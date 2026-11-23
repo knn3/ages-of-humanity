@@ -77,13 +77,13 @@ async def main():
 
         # rising on its own during the Waking Machines; Warlike and machine armies most likely
         r = json.loads(await ev(r'''() => { const A = window.__aoh, out = {};
-          for (const t of ['Warlike', 'Curious', 'Devout']) { let n = 0; for (let k = 0; k < 8; k++) { A.newWorld(500 + k); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1);
+          for (const t of ['Warlike', 'Curious', 'Devout']) { let n = 0; for (let k = 0; k < 16; k++) { A.newWorld(500 + k); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1);
             for (const c of A.W.civs) { c.era = 11; c.mach = 10; c.trait = 'Mercantile'; } const c = A.W.civs[0]; c.trait = t; c.mach = 92; A.startFate('agi'); A.W.fates.active[0].t0 = A.W.simTime;
             for (let i = 0; i < 1200; i++) { c.mach = 92; A.step(0.1); if (A.W.mw) break; } if (A.W.mw && A.W.mw.parent === c.id) n++; } out[t] = n; }
           A.newWorld(520); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1); for (const c of A.W.civs) { c.era = 11; c.mach = 95; } for (let i = 0; i < 1200; i++) A.step(0.1); out.noFate = !!A.W.mw;
           return JSON.stringify(out); }'''))
-        print('  uprisings in 8 worlds x 120 s of the Waking Machines:', r)
-        check('AGI-04 the machines rise on their own during the Waking Machines; Warlike far most; never without it', r['Warlike'] >= 3 and r['Warlike'] > max(r['Curious'], r['Devout']) and not r['noFate'], str(r))
+        print('  uprisings in 16 worlds x 120 s of the Waking Machines:', r)
+        check('AGI-04 the machines rise on their own during the Waking Machines; Warlike far most; never without it', r['Warlike'] >= 6 and r['Warlike'] >= max(r['Curious'], r['Devout']) + 2 and not r['noFate'], str(r))
 
         # the player's event
         r = json.loads(await ev(r'''() => { const A = window.__aoh; A.newWorld(530); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1);

@@ -80,7 +80,7 @@ h1,h2,h3{text-wrap:balance}
 .alt{position:absolute;right:16px;bottom:52px;z-index:2;padding:6px 11px;background:rgba(14,16,20,.84);border:1px solid var(--stone);border-radius:3px;font:400 11px/1.35 var(--mono);color:var(--dim);pointer-events:none}
 .alt b{display:block;font:400 13px/1.2 var(--display);letter-spacing:.22em;text-transform:uppercase;color:var(--parchment)}
 .stage.fs.tools-open .alt{right:404px}
-.fsbar,.fslog{display:none}
+.fsbar,.fslog,.fschron{display:none}
 .stage.fs{position:fixed;inset:0;z-index:15;height:100%;border:0}
 .stage.fs #world{touch-action:none}
 .stage.fs .fsbar{position:absolute;left:0;right:0;top:10px;margin:0 auto;width:max-content;z-index:4;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 10px;max-width:calc(100% - 24px);padding:6px 10px;background:rgba(14,16,20,.86);border:1px solid var(--stone);border-radius:4px}
@@ -118,7 +118,12 @@ h1,h2,h3{text-wrap:balance}
 .ages .fmk i{display:block;width:7px;height:7px;transform:rotate(45deg);background:#5f567f}
 .ages .fmk i.on{background:#a593f2;box-shadow:0 0 6px #a593f2}
 .stage.fs .toast{top:66px}
-.stage.fs .fslog{position:absolute;left:16px;bottom:92px;z-index:2;display:flex;flex-direction:column-reverse;gap:4px;width:min(440px,calc(100% - 32px));margin:0;padding:0;list-style:none;pointer-events:none}
+.stage.fs .fschron{position:absolute;left:16px;bottom:92px;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:min(440px,calc(100% - 32px))}
+.stage.fs .fslog{display:flex;flex-direction:column-reverse;gap:4px;width:100%;margin:0;padding:0;list-style:none;pointer-events:none}
+.fschron.closed .fslog{display:none}
+.fsh{display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(14,16,20,.8);border:0;border-radius:2px;color:var(--parchment);font:400 11px/1 var(--display);letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
+.fsh .chev{font-size:10px;color:var(--dim);transition:transform .15s}.fschron.closed .fsh .chev{transform:rotate(-90deg)}
+.fsh .ct{font:400 11px/1 var(--mono);letter-spacing:0;color:var(--bronze)}
 .fslog li{padding:5px 9px;font-size:12.5px;line-height:1.35;background:rgba(14,16,20,.8);border-left:2px solid var(--stone);border-radius:2px;animation:fadein .4s ease}
 .fslog li.k-nature{border-left-color:#8fd18a}.fslog li.k-fate{border-left-color:#a593f2}.fslog li.k-era{border-left-color:var(--bronze)}.fslog li.k-event{border-left-color:var(--warn)}.fslog li.k-react{border-left-color:var(--verdigris)}.fslog li.k-war{border-left-color:var(--bad)}
 .fslog time{margin-right:6px;font:400 11px var(--mono);color:var(--dim)}
@@ -311,7 +316,7 @@ h1,h2,h3{text-wrap:balance}
     <button class="btn" id="fsTools" aria-pressed="false" title="Tools (T)">Tools</button>
     <button class="btn js-fs" title="Exit full screen (Esc)">Exit full screen</button>
   </div>
-  <ul class="fslog" id="fslog" aria-live="polite"></ul>
+  <div class="fschron" id="fschron"><button class="fsh" type="button" id="fslogToggle" aria-expanded="true" aria-controls="fslog"><span class="chev" aria-hidden="true">▾</span>Chronicle<span class="ct" id="fslogNew"></span></button><ul class="fslog" id="fslog" aria-live="polite"></ul></div>
 </section>
 
 <ol class="ages" id="ages" aria-label="The ages of humanity"></ol>
@@ -421,10 +426,10 @@ function drawGalaxy(c2, w, h, sx, sy) {
   // ships on their way and the stars they settled
   const placed = [];
   const lab = (t, x, y, col) => { if (placed.some(([qx, qy]) => Math.abs(qx - x) < 90 && Math.abs(qy - y) < 12)) return; placed.push([x, y]); c2.font = '10.5px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'left'; c2.fillStyle = col; c2.fillText(t, x + 6, y + 3); };
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; if (k > .5) lab(XSTARS[st.star][0], px, py, `rgba(225,220,205,${((k - .5) * 1.6).toFixed(3)})`); }
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; if (k > .5) lab(XSTARS[st.star][0], px, py, `rgba(225,220,205,${((k - .5) * 1.6).toFixed(3)})`); }
   for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c';
     c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
-    c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; }
+    c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; if (k > .3) V.orbPicks.push({ x: sx + x * s * f, y: sy + y * s * f, r: 8, kind: 'voyage', c, i: sh.id, d: sh }); }
   if (k > .5) { c2.fillStyle = `rgba(255,236,190,${((k - .5) * 2).toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.5, 0, 6.2832); c2.fill(); lab('Sun', sx, sy, `rgba(255,236,190,${((k - .5) * 2).toFixed(3)})`); c2.textAlign = 'center'; c2.font = '12px Marcellus, Georgia, serif'; c2.fillStyle = `rgba(236,229,213,${((k - .5) * 1.4).toFixed(3)})`; c2.fillText('THE MILKY WAY', gx, gy + R * 1.05); }
   c2.restore();
 }
@@ -3757,26 +3762,44 @@ function drawBodyClose(c2, n, x, y, r) {
     if (n === 'Jupiter' && body === 'giant') { const a = rs.a + V.t * .15, px = x + Math.cos(a) * r * 1.45, py = y + Math.sin(a) * r * .5; c2.fillStyle = '#e8f4fb'; c2.beginPath(); c2.arc(px, py, Math.max(4, r * .06), 0, 6.2832); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, Math.max(4, r * .06) + 4, 0, 6.2832); c2.stroke(); } c2.fillStyle = 'rgba(220,240,250,.9)'; c2.fillText('Ice moon', px + 10, py + 4); }
   }
 }
+// how far beyond its disc a body's close-up reaches (rings, the swarm and glow, ice moons), so the text card never covers it
+const BODY_REACH = { Sun: 1.75, Saturn: 2.05, Jupiter: 1.55 };
 function drawFocus(c2, w, h) {
   const F = V.focus; if (!V.b || sysK() < .3) { V.focus = null; return; }
   let e = clamp((performance.now() - F.t0) / 650, 0, 1); e = e * e * (3 - 2 * e);
   c2.save();
   c2.fillStyle = `rgba(2,3,10,${(.9 * e).toFixed(3)})`; c2.fillRect(0, 0, w, h);
+  // the text card: on the right on wide screens, under the body on narrow ones; laid out first so the body can keep clear of it
   const side = w > 760, fb = $('#futures') && $('#futures').getBoundingClientRect(), cb = $('#world').getBoundingClientRect(), L = fb && fb.width && fb.left - cb.left < w * .4 ? fb.right - cb.left + 24 : 24;
-  let R = Math.min(side ? w * .26 : w * .34, h * (side ? .36 : .26)); if (side) R = Math.max(40, Math.min(R, (w * .6 - L) / 2));
-  const cx = side ? L + R : w * .5, cy = side ? h * .5 : h * .34;
+  const cardW = side ? clamp(w * .3, 280, 380) : w - 32, pad = 16, tw = cardW - pad * 2, title = F.body === 'Moon' ? 'The Moon' : F.body === 'Sun' ? 'The Sun' : F.body;
+  const body = '12.5px "IBM Plex Sans Condensed", system-ui, sans-serif', mono = '11px "IBM Plex Mono", ui-monospace, monospace', items = [];
+  c2.font = body; for (const l of wrapLines(c2, BODY_FACT[F.body], tw)) items.push([l, body, 'rgba(214,208,196,.9)', 17]);
+  items.push(['', body, '', 10]); items.push(['WHAT IS GOING ON', mono, '#c9a27c', 18]);
+  for (const ln of bodyLines(F.body).slice(0, 12)) { c2.font = body; for (const l of wrapLines(c2, ln.trim(), tw)) items.push([l, body, 'rgba(240,235,224,.97)', 17]); items.push(['', body, '', 3]); }
+  items.push(['', body, '', 9]); c2.font = mono; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', tw)) items.push([l, mono, 'rgba(200,196,186,.65)', 15]);
+  // keep clear of the hint bar (top left) and the altitude box (bottom right)
+  const rel = el => { if (!el || el.offsetParent === null) return null; const q = el.getBoundingClientRect(); return q.width ? { l: q.left - cb.left, r: q.right - cb.left, t: q.top - cb.top, b: q.bottom - cb.top } : null; };
+  const hb = rel($('#hint')), ab = rel($('#alt')), top = hb ? Math.max(16, hb.b + 10) : 16;
+  const cardX = side ? w - cardW - 20 : 16, over = q => q && q.l < cardX + cardW && q.r > cardX, floor = over(ab) ? ab.t - 12 : h - 16;
+  const cardH = Math.min(floor - (over(hb) ? top : 16), pad * 2 + 30 + items.reduce((a, it) => a + it[3], 0));
+  const cardY = side ? clamp(h / 2 - cardH / 2, over(hb) ? top : 16, floor - cardH) : floor - cardH;
+  // the body fills the space left of the card (or above it), with room for its rings, swarm or moons
+  const reach = BODY_REACH[F.body] || 1.12, zoneL = side ? L : 16, zoneR = side ? cardX - 24 : w - 16, zoneT = top, zoneB = side ? h - 16 : cardY - 16;
+  const R = Math.max(30, Math.min((zoneR - zoneL) / 2 / reach, (zoneB - zoneT) / 2 / Math.min(reach, 1.2), side ? h * .4 : h * .3));
+  const cx = (zoneL + zoneR) / 2, cy = (zoneT + zoneB) / 2;
+  V.focusBox = { side, cardX, cardY, cardW, cardH, cx, cy, R, reach };
   const x = F.x0 + (cx - F.x0) * e, y = F.y0 + (cy - F.y0) * e, r = F.r0 + (R - F.r0) * e;
   drawBodyClose(c2, F.body, x, y, r);
   if (e > .55) {
-    const a = (e - .55) / .45, px = side ? Math.max(w * .62, cx + R + 40) : 24, pw = side ? w - px - 24 : w - 48; let py = side ? Math.max(40, h * .5 - 120) : h * .62;
-    c2.globalAlpha = a; c2.textAlign = 'left'; c2.textBaseline = 'alphabetic';
-    c2.font = '26px Marcellus, Georgia, serif'; c2.fillStyle = '#ece5d5'; c2.fillText(F.body === 'Moon' ? 'The Moon' : F.body === 'Sun' ? 'The Sun' : F.body, px, py); py += 22;
-    c2.font = '12.5px "IBM Plex Sans Condensed", system-ui, sans-serif'; c2.fillStyle = 'rgba(214,208,196,.85)';
-    for (const l of wrapLines(c2, BODY_FACT[F.body], pw)) { c2.fillText(l, px, py); py += 17; }
-    py += 10; c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.fillStyle = '#c9a27c'; c2.fillText('WHAT IS GOING ON', px, py); py += 18;
-    c2.font = '12.5px "IBM Plex Sans Condensed", system-ui, sans-serif'; c2.fillStyle = 'rgba(236,229,213,.95)';
-    for (const ln of bodyLines(F.body).slice(0, 12)) { for (const l of wrapLines(c2, ln, pw)) { c2.fillText(l, px, py); py += 17; } py += 3; }
-    py += 12; c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.fillStyle = 'rgba(200,196,186,.6)'; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', pw)) { c2.fillText(l, px, py); py += 15; }
+    const a = (e - .55) / .45; c2.globalAlpha = a;
+    c2.fillStyle = 'rgba(12,14,19,.94)'; c2.fillRect(cardX, cardY, cardW, cardH);
+    c2.strokeStyle = 'rgba(201,162,124,.35)'; c2.lineWidth = 1; c2.strokeRect(cardX + .5, cardY + .5, cardW - 1, cardH - 1);
+    c2.fillStyle = '#a593f2'; c2.fillRect(cardX, cardY, 2, cardH);
+    c2.save(); c2.beginPath(); c2.rect(cardX, cardY, cardW, cardH); c2.clip();
+    let py = cardY + pad + 22; c2.textAlign = 'left'; c2.textBaseline = 'alphabetic';
+    c2.font = '24px Marcellus, Georgia, serif'; c2.fillStyle = '#ece5d5'; c2.fillText(title, cardX + pad, py); py += 22;
+    for (const [t, f, col, lh] of items) { if (t) { c2.font = f; c2.fillStyle = col; c2.fillText(t, cardX + pad, py); } py += lh; }
+    c2.restore();
   }
   c2.restore();
 }
@@ -3813,6 +3836,7 @@ function drawSystem(c2, w, h, sx, sy) {
     else if (body === 'giant') { const J = V.bodyPos && V.bodyPos.Jupiter; if (!J) continue; const a = r.a + V.t * .3; x = J[0] + Math.cos(a) * 9; y = J[1] + Math.sin(a) * 9; c2.fillStyle = '#e8f4fb'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.8, 0, 6.2832); c2.fill(); }
     else { const M = V.bodyPos && V.bodyPos.Moon; if (!M) continue; x = M[0] + Math.cos(r.a) * M[2] * .5; y = M[1] + Math.sin(r.a) * M[2] * .5; c2.fillStyle = '#7fe3ff'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.6, 0, 6.2832); c2.fill(); }
     c2.strokeStyle = col; c2.lineWidth = 1; c2.beginPath(); c2.arc(x, y, 4.5, 0, 6.2832); c2.stroke(); c2.globalAlpha = 1;
+    if (k > .3) V.orbPicks.push({ x, y, r: 9, kind: 'claim', c: o, i: r.id, d: r });
   }
   c2.restore();
 }
@@ -4274,7 +4298,7 @@ function updateUI() {
   buildCivCards(false); updateCivCards(); updateColonyCards(); updateRibbon(); updateEventLocks(); updatePlanet(); updateFutures();
   { const sc = W.fates.ended ? ENDINGS[W.fates.ended].scene : '', cv = $('#world'); if (cv.style.filter !== sc) { cv.style.transition = 'filter 4s'; cv.style.filter = sc; } }
   // on the curved views only objects in orbit have info; an orbit tip closes when the view leaves orbit
-  if (TIP.cur && (TIP.cur.orb ? !V.b || sysK() >= .3 : V.b)) { TIP.over = false; hideTip(0); }
+  if (TIP.cur && (TIP.cur.orb ? !spaceTipLive(TIP.cur.orb) : V.b)) { TIP.over = false; hideTip(0); }
   if (popFor && popFor.closest('#labInfo') && $('#pop').classList.contains('show')) { const c = infoContent(popFor.dataset.info); if (c) { const ph = `<strong>${esc(c[0])}</strong>${c[1]}`; if ($('#pop').dataset.h !== ph) { $('#pop').innerHTML = ph; $('#pop').dataset.h = ph; } } else hidePop(0, true); }
   if (TIP.cur && TIP.open) { const td = $('#tip .td'); if (td) { const b = tipBody(TIP.cur)[1]; if (td.innerHTML !== b) td.innerHTML = b; } }
 }
@@ -4597,13 +4621,24 @@ const TIP_ZOOM = 1.3;
 const TIP = { cur: null, open: false, over: false, t: 0, sx: 0, sy: 0 };
 // how far each element reaches around its spot (half width, height above the ground), in world units
 const ELHIT = { seedvault: [16, 16], library: [18, 30], forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
-// objects in orbit are only drawn on the curved views (globe and orbit), so they can be right-clicked there at any zoom
+// objects in space (orbit, claims in the solar system, ships and star colonies in the galaxy) are only drawn on the curved views,
+// so they can be clicked there at any zoom; each one records its hitbox while it is drawn
 function orbitTarget(sx, sy) {
-  if (!V.b || sysK() >= .3) return null;
+  if (!V.b) return null;
   let best = null, bd = 1e9;
   for (const q of V.orbPicks || []) { const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
-  return best ? { key: 'o' + best.kind + (best.c ? best.c.id : '') + ':' + best.i, orb: best } : null;
+  return best ? { key: spaceKey(best), orb: best } : null;
 }
+// a space tip stays open while its object still exists and you stay on the view that shows that kind of object (it may drift off screen)
+function spaceTipLive(q) {
+  if (!V.b || V.focus) return false;
+  if (q.kind === 'claim') return (W.spaceRes || []).includes(q.d) && sysK() * (1 - galK()) > .3;
+  if (q.kind === 'voyage') return (W.ships || []).includes(q.d) && galK() > .3;
+  if (q.kind === 'starcol') return (W.stars || []).includes(q.d) && galK() > .3;
+  if (q.kind === 'cylinder' && !(W.megas || [])[q.i]) return false;
+  return sysK() < .3 && (!q.c || q.c.alive);
+}
+const spaceKey = q => 'o' + q.kind + (q.c ? q.c.id : '') + ':' + q.i;
 function tipTarget(sx, sy) {
   if (V.b) return orbitTarget(sx, sy);
   if (V.zoom < TIP_ZOOM) return null;
@@ -4633,10 +4668,16 @@ const ORB_INFO = {
   ring: ['Ring habitat', 'A great turning ring. Its spin gives weight to the towns and fields along its inside, home to millions.'],
   cylinder: ['Space cylinder', 'A turning world miles long, with its own sky, farms and towns on the inside of the hull.'],
   elevator: ['Space elevator station', 'The counterweight station at the top of a cable that rises from the capital. Cargo goes up by climber instead of rocket.'],
-  climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.']
+  climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.'],
+  claim: ['Claim', ''],
+  starcol: ['Star colony', 'A settlement around another star, founded by the crew of a generation ship.'],
+  voyage: ['Generation ship', 'A ship crossing the dark between the stars. The crew who arrive are the great-grandchildren of those who left.']
 };
 function orbitTipBody(q) {
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
+  if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
+  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop))]; }
+  if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1); return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0]) + row('Launched', fmtYear(sh.y0)) + row('Of the way', Math.round(f * 100) + '%') + row('Crew', fmtPop(sh.crew)) + (sh.forgot ? row('Aboard', 'the crew have forgotten they are on a ship') : '')]; }
   let h = `<span>${esc(I[1])}</span>`;
   if (c) h += row('Built by', 'the ' + c.name + ' (' + ERAS[c.era].name + ')');
   if (q.kind === 'sat') { const n = (V.orbPicks || []).filter(p => p.kind === 'sat').length; h += row('Satellites in view', String(n)); if (W.kessler && W.simTime < W.kessler) h += row('Orbit', 'full of wreckage after a chain of collisions'); else if (W.flareUntil > W.simTime) h += row('Status', 'many knocked out by the solar flare'); else if ((W.debris || 0) > .3) h += row('Debris', Math.round(W.debris * 100) + '% of the way to a chain of collisions'); }
@@ -4736,10 +4777,16 @@ function exitFS() {
 }
 function toggleFS() { if (isFS()) exitFS(); else enterFS(); }
 function toggleTools() { const st = $('#stage'); if (!isFS()) return; const on = !st.classList.contains('tools-open'); st.classList.toggle('tools-open', on); $('#fsTools').setAttribute('aria-pressed', on ? 'true' : 'false'); }
+// the chronicle feed in full screen can be folded away; the choice is remembered, and while folded it counts new lines
 function renderFsLog() {
   const ul = $('#fslog'); if (!isFS()) return;
+  const closed = UI.fslogClosed; $('#fschron').classList.toggle('closed', closed); $('#fslogToggle').setAttribute('aria-expanded', String(!closed));
+  if (closed && !UI.fslogSeen) UI.fslogSeen = W.chron[0] || null;
+  if (closed) { const i = UI.fslogSeen ? W.chron.indexOf(UI.fslogSeen) : 0, n = i < 0 ? W.chron.length : i; $('#fslogNew').textContent = n ? (n > 99 ? '99+' : n) + ' new' : ''; ul.innerHTML = ''; return; }
+  $('#fslogNew').textContent = '';
   ul.innerHTML = W.chron.slice(0, 3).map(e => `<li class="k-${e.k}"><time>${esc(fmtYear(e.y))}</time>${e.h}</li>`).join('');
 }
+function toggleFsLog(closed) { UI.fslogClosed = closed == null ? !UI.fslogClosed : !!closed; UI.fslogSeen = UI.fslogClosed ? W.chron[0] || null : null; lsSet('aoh.fslogClosed', UI.fslogClosed ? '1' : '0'); renderFsLog(); }
 function setSpeed(s) { UI.speed = s; UI.paused = false; $$('[data-speed]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.speed === s ? 'true' : 'false')); $$('.js-pause').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.textContent = 'Pause'; }); }
 function togglePause() { UI.paused = !UI.paused; $$('.js-pause').forEach(b => { b.setAttribute('aria-pressed', UI.paused ? 'true' : 'false'); b.textContent = UI.paused ? 'Resume' : 'Pause'; }); }
 
@@ -4761,6 +4808,7 @@ function initDOM() {
   });
   const endPtr = e => { V.pts.delete(e.pointerId); if (V.pts.size < 2) V.pinch = null; };
   cv.addEventListener('pointerup', e => { if (e.button === 2) { endPtr(e); V.drag = null; return; }
+    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && !V.focus && sysK() > .5) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top, ot = orbitTarget(bx, by), bn = bodyAt(bx, by), bp = bn && (bn === 'Sun' ? V.sunXY : bn === 'Earth' ? [V.cx, V.cy] : V.bodyPos[bn]); if (ot && ['claim', 'starcol', 'voyage'].includes(ot.orb.kind) && (!bp || Math.hypot(ot.orb.x - bx, ot.orb.y - by) < Math.hypot(bp[0] - bx, bp[1] - by))) { endPtr(e); V.drag = null; V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); return; } }
     if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && (V.focus || sysK() > .5)) { const r = cv.getBoundingClientRect(), n = V.focus ? null : bodyAt(e.clientX - r.left, e.clientY - r.top); if (V.focus || n) { endPtr(e); V.drag = null; if (V.focus) V.focus = null; else focusBody(n); return; } }
     if (UI.tool && UI.tool.kind === 'el' && ELEMENTS[UI.tool.type] && ELEMENTS[UI.tool.type].space && V.drag && !V.drag.moved && !V.pinch) { endPtr(e); V.drag = null; placeSpace(UI.tool.type); return; } const wasPinch = !!V.pinch; endPtr(e); const d = V.drag; V.drag = null; cv.style.cursor = ''; if (d && !d.moved && !wasPinch) { const [wx, wy] = worldAt(e.clientX, e.clientY); if (!V.b || (wy > -320 && wy < WORLD_H)) worldClick(((wx % WORLD_W) + WORLD_W) % WORLD_W); TIP.over = false; hideTip(0); } else showTip(); });
   // right click opens the info of whatever is under the pointer
@@ -4770,6 +4818,7 @@ function initDOM() {
   $('#futures').addEventListener('click', e => { if (!e.target.closest('#tbPick') || !W.tb) return;
     openModal(`<h3 id="dlgTitle">Choose the hidden strategist</h3><p>One people will be given a secret plan against the Hevari. No one, not even you, will learn what it is until the end.</p><div class="row" style="flex-wrap:wrap;justify-content:flex-start;gap:8px">${alive().map(c => `<button class="btn" type="button" data-tbc="${c.id}" style="border-left:3px solid ${c.color}">${esc(c.name)}</button>`).join('')}</div><div class="row"><button class="btn" type="button" data-close>Let fate decide</button></div>`);
     $('#dialog').querySelectorAll('[data-tbc]').forEach(b => b.onclick = () => { tbChoose(+b.dataset.tbc, 'you'); closeModal(); $('#futBody').dataset.k = ''; updateFutures(); }); });
+  UI.fslogClosed = lsGet('aoh.fslogClosed') === '1'; $('#fslogToggle').addEventListener('click', () => toggleFsLog());
   $('#futToggle').addEventListener('click', () => { const box = $('#futures'), closed = box.classList.toggle('closed'); $('#futToggle').setAttribute('aria-expanded', String(!closed)); $('#futBody').dataset.k = ''; updateFutures(); });
   const tipEl = $('#tip');
   tipEl.addEventListener('pointerenter', () => { TIP.over = true; clearTimeout(TIP.t); });
@@ -4910,7 +4959,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, toggleFsLog, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
