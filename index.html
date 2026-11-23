@@ -1022,7 +1022,8 @@ const aOrAn = w => /^(?!One|Uni|Eu)[AEIOU]/i.test(w) ? 'an' : 'a';
 // the chronicle keeps the latest 260 lines; the whole story (up to HIST_MAX lines, oldest first) is kept in W.hist for "See all"
 const HIST_MAX = 5000;
 function log(h, kind = 'world', sh) {
-  const e = { y: Math.round(W.year), k: kind, h }; if (sh != null) e.sh = sh;
+  // cleaned once here with the same rules as on load, so a line reads exactly the same before and after a save
+  const e = { y: Math.round(W.year), k: kind, h: sanitizeHTML(h) }; if (sh != null) e.sh = sh;
   W.chron.unshift(e); if (W.chron.length > 260) W.chron.length = 260;
   W.hist.push(e); if (W.hist.length > HIST_MAX + 200) { const cut = W.hist.length - HIST_MAX; W.hist.splice(0, cut); W.histLost = (W.histLost || 0) + cut; }
   addLogDOM(e, true);
@@ -4974,7 +4975,7 @@ function pasteBox(title, body, btn, onCode) {
 function serialize() { return W ? JSON.parse(JSON.stringify(W, (k, v) => k === '_' ? undefined : typeof v === 'number' && !Number.isInteger(v) ? +v.toFixed(4) : v)) : null; }
 function sanitizeHTML(h) {
   const tpl = document.createElement('template'); tpl.innerHTML = String(h);
-  const walk = n => { for (const ch of [...n.childNodes]) { if (ch.nodeType === 3) continue; if (ch.nodeType !== 1) { ch.remove(); continue; } const tag = ch.tagName; const st = ch.getAttribute('style') || ''; const okB = tag === 'B' && /^color:#[0-9a-f]{6}$/i.test(st) && ch.attributes.length === 1; const okS = tag === 'SPAN' && ch.getAttribute('class') === 'delta' && ch.attributes.length === 1; if (!okB && !okS) { ch.replaceWith(document.createTextNode(ch.textContent)); continue; } walk(ch); } };
+  const walk = n => { for (const ch of [...n.childNodes]) { if (ch.nodeType === 3) continue; if (ch.nodeType !== 1) { ch.remove(); continue; } const tag = ch.tagName; const st = ch.getAttribute('style') || ''; const okB = tag === 'B' && (ch.attributes.length === 0 || (/^color:#[0-9a-f]{6}$/i.test(st) && ch.attributes.length === 1)); const okS = tag === 'SPAN' && ch.getAttribute('class') === 'delta' && ch.attributes.length === 1; if (!okB && !okS) { ch.replaceWith(document.createTextNode(ch.textContent)); continue; } walk(ch); } };
   walk(tpl.content); return tpl.innerHTML;
 }
 function sanitizeWorld(d) {
@@ -5478,7 +5479,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
