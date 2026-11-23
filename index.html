@@ -509,14 +509,83 @@ function drawGalaxy(c2, w, h, sx, sy) {
     for (let i = 0; i < L.length; i += 2) c2.rect(L[i], L[i + 1], sz, sz);
     c2.fill();
   }
-  // ships on their way and the stars they settled (no labels here: click them to see what they are)
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 14) continue; if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
-  for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c'; if (Math.hypot(x * s, y * s) < 14) continue; const onSun = Math.hypot(x * s * f, y * s * f) < 14;
-    c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.lineWidth = 1; c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
-    if (onSun) continue; c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; if (k > .3) V.orbPicks.push({ x: sx + x * s * f, y: sy + y * s * f, r: 8, kind: 'voyage', c, i: sh.id, d: sh }); }
+  // settled stars keep only a faint tick in their people's colour (no labels, lines or picks): the neighbourhood lens shows them (SV-01)
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 10) continue; c2.strokeStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = .55 * k; c2.lineWidth = 1; c2.beginPath(); c2.moveTo(px, py - 2.5); c2.lineTo(px, py + 2.5); c2.stroke(); c2.globalAlpha = 1; }
   // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
   if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
+}
+/* ---------- neighbourhood lens (SV-01) ---------- */
+// A round inset pinned beside the Sun in the galaxy view. The target stars sit at their true angle from the Sun but on a log scale of
+// distance, so Proxima (nearest) and Kepler-442 (furthest, 26× as far) both fit without overlapping. It shows only while a ship is in
+// flight or a star is settled; ships and settled stars are clicked here, not on the galaxy (where they would sit under the Sun's glow).
+const LENS_D0 = .009, LENS_D1 = .27, LENS_IN = .2, LENS_OUT = .9;
+const lensOn = () => galK() > .3 && ((W.ships || []).length > 0 || (W.stars || []).length > 0);
+const lensR = d => LENS_IN + (LENS_OUT - LENS_IN) * clamp(Math.log(d / LENS_D0) / Math.log(LENS_D1 / LENS_D0), 0, 1);
+// a star's place in the lens, as a fraction of the lens radius (screen y points down, as in starPos)
+const lensXY = i => { const r = lensR(XSTARS[i][1]); return [r * Math.cos(XSTARS[i][2]), r * Math.sin(XSTARS[i][2])]; };
+function lensBox(w, h, sx, sy) {
+  const R = clamp(Math.min(w, h) * .22, 95, 160), m = 12, top = R + 34, bot = h - R - 46;
+  let x = sx + R + 64, y = sy - R * .45;
+  if (x > w - R - m) x = sx - R - 64;                       // no room on the right: pin it on the left of the Sun
+  x = clamp(x, R + m, w - R - m); y = clamp(y, top, Math.max(top, bot));
+  if (Math.hypot(x - sx, y - sy) < R + 18) y = sy > h / 2 ? sy - R - 40 : sy + R + 40, y = clamp(y, top, Math.max(top, bot));
+  return { x, y, r: R };
+}
+// labels for the target stars, placed so none overlap each other or any star: try beside the star (outer side first), then step up and down
+function lensLabels(c2, L, items, dots) {
+  const out = [], lh = 12, hit = (x, y, w) => out.some(o => x < o.x + o.w + 3 && x + w + 3 > o.x && y < o.y + o.h && y + lh > o.y) || dots.some(d => x < d[0] + 4 && x + w > d[0] - 4 && y < d[1] + 4 && y + lh > d[1] - 4);
+  for (const it of items.slice().sort((a, b) => Math.abs(a.y - L.y) - Math.abs(b.y - L.y))) {
+    const tw = c2.measureText(it.name).width, sides = it.x >= L.x - 2 ? [1, -1] : [-1, 1];
+    let best = null;
+    for (let n = 0; n < 30 && !best; n++) { const dy = (n % 2 ? -1 : 1) * Math.ceil(n / 2) * 4; for (const sd of sides) { const bx = sd > 0 ? it.x + 7 : it.x - 7 - tw, by = it.y - lh / 2 + dy; if (!hit(bx, by, tw)) { best = { x: bx, y: by }; break; } } }
+    best = best || { x: it.x + 7, y: it.y - lh / 2 };
+    out.push({ x: best.x, y: best.y, w: tw, h: lh, name: it.name });
+  }
+  return out;
+}
+function drawLens(c2, w, h, sx, sy) {
+  V.lens = null; if (!lensOn()) return;
+  const a = smooth(.3, .6, galK()), L = lensBox(w, h, sx, sy), R = L.r;
+  const ships = W.ships || [], stars = W.stars || [], tgt = new Map();
+  for (const st of stars) if (!tgt.has(st.star)) tgt.set(st.star, civById(st.civ));
+  for (const sh of ships) if (!tgt.has(sh.star)) tgt.set(sh.star, civById(sh.civ));
+  c2.save(); c2.globalAlpha = a;
+  // leader line from the Sun to the rim
+  const ang = Math.atan2(sy - L.y, sx - L.x), ex = L.x + Math.cos(ang) * R, ey = L.y + Math.sin(ang) * R;
+  c2.strokeStyle = 'rgba(201,162,124,.55)'; c2.lineWidth = 1; c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(ex, ey); c2.stroke();
+  c2.beginPath(); c2.arc(sx, sy, 5, 0, 6.2832); c2.stroke();
+  // the disc
+  const bg = c2.createRadialGradient(L.x, L.y, 0, L.x, L.y, R); bg.addColorStop(0, 'rgba(22,18,16,.94)'); bg.addColorStop(1, 'rgba(10,9,12,.94)');
+  c2.fillStyle = bg; c2.beginPath(); c2.arc(L.x, L.y, R, 0, 6.2832); c2.fill();
+  c2.strokeStyle = 'rgba(201,162,124,.8)'; c2.lineWidth = 1.2; c2.stroke();
+  c2.strokeStyle = 'rgba(201,162,124,.12)'; c2.lineWidth = 1; for (const d of [.02, .08]) { c2.beginPath(); c2.arc(L.x, L.y, lensR(d) * R, 0, 6.2832); c2.stroke(); }
+  c2.fillStyle = 'rgba(214,190,150,.9)'; c2.font = '12px Marcellus, serif'; c2.textAlign = 'center'; c2.textBaseline = 'alphabetic'; c2.fillText('The Sun’s neighbourhood', L.x, L.y - R - 8);
+  // the Sun
+  const sg = c2.createRadialGradient(L.x, L.y, 0, L.x, L.y, 10); sg.addColorStop(0, 'rgba(255,246,220,1)'); sg.addColorStop(.4, 'rgba(255,226,160,.6)'); sg.addColorStop(1, 'rgba(255,200,120,0)');
+  c2.fillStyle = sg; c2.fillRect(L.x - 10, L.y - 10, 20, 20);
+  // every star, faint; the targets bright in their people's colour
+  const items = [];
+  XSTARS.forEach((st, i) => { const [u, v] = lensXY(i), px = L.x + u * R, py = L.y + v * R, c = tgt.get(i), on = tgt.has(i);
+    c2.fillStyle = on ? (c ? c.color : '#c9a27c') : 'rgba(220,226,240,.35)'; c2.beginPath(); c2.arc(px, py, on ? 3.2 : 1.6, 0, 6.2832); c2.fill();
+    if (on) items.push({ i, x: px, y: py, name: st[0], col: c ? c.color : '#c9a27c' }); });
+  // settled stars: picks for their card
+  // a second colony at the same star (once every star is taken) sits on a small ring around it, so each one can be clicked
+  const seen = {};
+  for (const st of stars) { const [u, v] = lensXY(st.star), c = civById(st.civ), k = seen[st.star] = (seen[st.star] || 0) + 1, ka = Math.atan2(v, u) + 1.2 * (k - 1), kr = k > 1 ? 9 : 0, px = L.x + u * R + kr * Math.cos(ka), py = L.y + v * R + kr * Math.sin(ka);
+    c2.strokeStyle = c ? c.color : '#c9a27c'; c2.lineWidth = 1; c2.beginPath(); c2.arc(px, py, 5.5, 0, 6.2832); c2.stroke();
+    V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: stars.indexOf(st), d: st }); }
+  // ships in flight: a faint course and a dot at their progress (SV-02 makes them proper ships)
+  for (const sh of ships) { const [u, v] = lensXY(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c';
+    const r0 = 7 / R, ux = u / Math.hypot(u, v), uy = v / Math.hypot(u, v), x0 = L.x + ux * r0 * R, y0 = L.y + uy * r0 * R, x1 = L.x + u * R, y1 = L.y + v * R, px = x0 + (x1 - x0) * f, py = y0 + (y1 - y0) * f;
+    c2.strokeStyle = col; c2.globalAlpha = a * .3; c2.beginPath(); c2.moveTo(x0, y0); c2.lineTo(x1, y1); c2.stroke(); c2.globalAlpha = a;
+    c2.fillStyle = col; c2.fillRect(px - 1.8, py - 1.8, 3.6, 3.6);
+    V.orbPicks.push({ x: px, y: py, r: 7, kind: 'voyage', c, i: sh.id, d: sh }); }
+  c2.font = '10.5px "IBM Plex Sans Condensed", sans-serif'; c2.textBaseline = 'top';
+  const labs = lensLabels(c2, L, items, XSTARS.map((_, i) => { const [u, v] = lensXY(i); return [L.x + u * R, L.y + v * R]; }).concat([[L.x, L.y]]));
+  for (const lb of labs) { c2.textAlign = 'left'; c2.lineWidth = 3; c2.strokeStyle = 'rgba(10,9,12,.9)'; c2.strokeText(lb.name, lb.x, lb.y); c2.fillStyle = 'rgba(232,224,210,.92)'; c2.fillText(lb.name, lb.x, lb.y); }
+  c2.restore();
+  V.lens = { x: L.x, y: L.y, r: R, labels: labs.map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h, name: l.name })), stars: items.map(it => ({ i: it.i, x: it.x, y: it.y })) };
 }
 const sunPh = () => (.5 - V.dayT) * 6.2832;
 function sunDist(rOut, w, h) { return rOut + Math.max(w, h) * .35 + (AU * V.s - rOut - Math.max(w, h) * .35) * sysK(); }
@@ -4145,6 +4214,7 @@ function drawSpaceBackdrop(c2, w, h) {
     if (galK() > .01) drawGalaxy(c2, w, h, sx, sy);
     const gR = (160 - 110 * sysK()) * (1 - .85 * galK()), gr = c2.createRadialGradient(sx, sy, 0, sx, sy, gR); gr.addColorStop(0, `rgba(255,244,214,${.9 * sv})`); gr.addColorStop(.12, `rgba(255,226,160,${.55 * sv})`); gr.addColorStop(1, 'rgba(255,200,120,0)');
     const dimS = 1 - .65 * swarmFrac() * sysK(); c2.globalAlpha = dimS; c2.fillStyle = gr; c2.fillRect(sx - gR, sy - gR, gR * 2, gR * 2); c2.globalAlpha = 1; c2.fillStyle = `rgba(255,250,232,${sv * (1 - .6 * swarmFrac() * sysK())})`; c2.beginPath(); c2.arc(sx, sy, 14 * (1 - .8 * galK()), 0, 6.2832); c2.fill();
+    drawLens(c2, w, h, sx, sy);
   }
   if (b > .85) {
     const mph = V.t * .012 + 2.2, D = rOut * 1.25 + 40, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph), mr = Math.max(4, V.Rb * s * .2);
@@ -4925,7 +4995,9 @@ const ELHIT = { seedvault: [16, 16], library: [18, 30], forest: [36, 40], herd: 
 function orbitTarget(sx, sy) {
   if (!V.b) return null;
   let best = null, bd = 1e9;
-  for (const q of V.orbPicks || []) { const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
+  // inside the neighbourhood lens only its own ships and stars count: the galaxy behind it is covered
+  const inLens = V.lens && Math.hypot(sx - V.lens.x, sy - V.lens.y) <= V.lens.r;
+  for (const q of V.orbPicks || []) { if (inLens && q.kind !== 'voyage' && q.kind !== 'starcol') continue; const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
   return best ? { key: spaceKey(best), orb: best } : null;
 }
 // a space tip stays open while its object still exists and you stay on the view that shows that kind of object (it may drift off screen)
@@ -5304,7 +5376,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

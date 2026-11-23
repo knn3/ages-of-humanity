@@ -39,14 +39,14 @@ docs/CHANGELOG.md     what was built, in order, with the user's requests
 docs/WORKFLOW.md      how work has been done here (tickets, testing, publishing, user preferences)
 tickets/tickets.xlsx  all 71 tickets + epic progress (formulas)
 tickets/tickets.csv   same tickets as CSV
-tests/                Python + Playwright test scripts and JS summaries (endworld.py, end06.py, end07.py, endnat.py for the END epic; agi01.py…agi06.py, aginat.py for AGI)
+tests/                Python + Playwright test scripts and JS summaries (endworld.py, end06.py, end07.py, endnat.py for the END epic; agi01.py…agi06.py, aginat.py for AGI; sv01.py + sum_lens.js for Star voyages)
 ```
 
-## Status (as of 2026-11-22)
+## Status (as of 2026-11-23)
 
-- **Done:** Foundation epic (FND-01…07), Into space (SPC-01…10), Three-Body (TB-01…08), End of the world epic (END-01…07: new cycles, ruins, nuclear winter, runaway warming, engineered plague, supervolcano and asteroid, seed vaults and libraries), AGI takeover epic (AGI-01…06: machine autonomy meter, reactions by character, caretaker ending, war against the machines, the merge, the grey spread), plus many UI requests (see CHANGELOG).
+- **Done:** Foundation epic (FND-01…07), Into space (SPC-01…10), Three-Body (TB-01…08), End of the world epic (END-01…07: new cycles, ruins, nuclear winter, runaway warming, engineered plague, supervolcano and asteroid, seed vaults and libraries), AGI takeover epic (AGI-01…06: machine autonomy meter, reactions by character, caretaker ending, war against the machines, the merge, the grey spread), SV-01 neighbourhood lens, plus many UI requests (see CHANGELOG).
 - **In progress:** FND-08 balance pass (re-run after the remaining epics).
-- **Next:** Star voyages (SV-01…07: follow generation ships to new worlds in a neighbourhood lens; P2, ahead of Wandering Earth), then Wandering Earth, Ascension, Garden, Great Silence, Simulation reveal, Speciation, Long Night, Geoengineering, First contact, Immortality. All are in `tickets/tickets.xlsx` with descriptions, "done when" criteria and dependencies.
+- **Next:** Star voyages (SV-02…07: follow generation ships to new worlds in a neighbourhood lens; P2, ahead of Wandering Earth), then Wandering Earth, Ascension, Garden, Great Silence, Simulation reveal, Speciation, Long Night, Geoengineering, First contact, Immortality. All are in `tickets/tickets.xlsx` with descriptions, "done when" criteria and dependencies.
 - Several later epics already have placeholder behaviour: each future starts, has reactions, a countdown and an ending text (see `FATES` and `ENDINGS`). Their tickets replace placeholders with real content, the way TB-01…08 did for the Three-Sun Signal.
 
 ## Hard rules and user preferences (keep these)

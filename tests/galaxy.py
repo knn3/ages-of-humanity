@@ -36,7 +36,8 @@ async def main():
             texts[z] = json.loads(n)
             await (await pg.query_selector('#world')).screenshot(path=f'galaxy_{z}.png')
         print('  text drawn per zoom:', {z: t[:6] for z, t in texts.items()})
-        check('no name labels when zoomed out to the galaxy', all(len(texts[z]) == 0 for z in [.00004, .00002]), str({z: texts[z][:5] for z in texts}))
+        lensT = set(json.loads(await ev("() => JSON.stringify(window.__aoh.XSTARS.map(s => s[0]))"))) | {'The Sun’s neighbourhood'}  # the SV-01 lens is the one place names show
+        check('no name labels when zoomed out to the galaxy (only the neighbourhood lens)', all(not [t for t in texts[z] if t not in lensT] for z in [.00004, .00002]), str({z: texts[z][:5] for z in texts}))
         # the solar system (planets, swarm, claims, the Moon) is not drawn on top of the galaxy; colonies right on the Sun merge into its marker
         await ev(r'''() => { const A = window.__aoh; for (const o of A.W.civs) { A.foundBase(o, 'mars'); A.foundBase(o, 'moon'); } A.W.dyson = { by: { [A.W.civs[0].id]: 300 }, total: 300, mark: 0 }; for (const r of A.W.spaceRes) r.owner = A.W.civs[0].id; A.W.stars.push({ star: 0, civ: A.W.civs[2].id, name: 'Near', pop: 1e4, t0: 3000 }); }''')
         r = {}
