@@ -1,5 +1,5 @@
 # SV-03 voyage log and ship card: each ship logs its voyage (launch, mutiny, plague, forgetting, arrival or loss) with the year;
-# right-clicking a ship in the lens opens a card with name, people, years under way, a progress bar, crew left and the log.
+# right-clicking the ship in its lens (opened from the chronicle) opens a card with name, people, years under way, a progress bar, crew left and the log.
 import asyncio, json, os, pathlib, re
 from playwright.async_api import async_playwright
 GAME = pathlib.Path(__file__).resolve().parents[1].joinpath('index.html').as_uri()
@@ -30,7 +30,7 @@ async def main():
         check('the crew shrinks with mutiny and plague (60% × 50%)', abs(r['crew'] - 3e4) < 1, str(r['crew']))
         # the card: right click the ship in the lens
         async def card():
-            return json.loads(await ev(r'''() => { const A = window.__aoh, cv = document.querySelector('#world'), rc = cv.getBoundingClientRect(); A.setZoom(.00003); A.render(); const q = A.V.orbPicks.find(q => q.kind === 'voyage'); if (!q) return 'null';
+            return json.loads(await ev(r'''() => { const A = window.__aoh, cv = document.querySelector('#world'), rc = cv.getBoundingClientRect(); A.V.lensShip = { kind: 'ship', id: A.W.ships[0].id }; A.setZoom(.00003); A.render(); const q = A.V.orbPicks.find(q => q.kind === 'voyage'); if (!q) return 'null';
               cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rc.left + q.x, clientY: rc.top + q.y, button: 2 })); const t = document.querySelector('#tip'), bar = t.querySelector('.pb i');
               return JSON.stringify({ shown: t.style.display !== 'none', text: t.innerText, bar: bar ? parseFloat(bar.style.width) : null, logs: [...t.querySelectorAll('.vl')].map(e => e.innerText) }); }'''))
         await ev(r'''() => { const A = window.__aoh, W = A.W, sh = W.ships[0]; sh.t0 = W.simTime - .8 * sh.dur; }''')

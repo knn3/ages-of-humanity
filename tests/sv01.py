@@ -1,5 +1,7 @@
-# SV-01 neighbourhood lens: a round inset beside the Sun in the galaxy view, showing the target stars on a log scale,
-# only while a ship is in flight or a star is settled. The galaxy keeps only faint ticks; nothing is hidden under the Sun.
+# Star voyages: the neighbourhood lens is opened only from the chronicle (SV-01 as revised by the user):
+# clicking a chronicle line about a ship on its way (or lost) zooms out to the galaxy and opens the lens beside the Sun, showing only the
+# Sun, that ship and its destination; a ship that arrived opens a close-up of the world it settled. Esc, a click outside or zooming in
+# closes the lens. The galaxy itself keeps only faint ticks for settled stars.
 import asyncio, json, os, pathlib
 from playwright.async_api import async_playwright
 GAME = pathlib.Path(__file__).resolve().parents[1].joinpath('index.html').as_uri()
@@ -9,20 +11,20 @@ results = []
 def check(name, ok, info=''):
     results.append(ok); print(('PASS ' if ok else 'FAIL ') + name + (f'  [{info}]' if info else ''))
 
-SETUP = r'''([n, ns]) => { const A = window.__aoh; A.newWorld(4242); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1); const cs = A.W.civs; for (const o of cs) o.era = 14;
-  A.W.ships = []; A.W.stars = [];
-  for (let i = 0; i < n; i++) A.W.stars.push({ star: i, civ: cs[i % cs.length].id, name: 'Col ' + i, pop: 1e5, t0: 3000 });
-  for (let i = n; i < n + ns; i++) A.W.ships.push({ id: 9000 + i, civ: cs[i % cs.length].id, star: i, name: 'Ship ' + i, t0: A.W.simTime - 100, dur: 400, crew: 1e5, y0: 3000, told: 0 });
-  window.scrollTo(0, 0); }'''
-STATE = r'''(z) => { const A = window.__aoh, cv = document.querySelector('#world'); A.setZoom(z); A.render(); const L = A.V.lens, sun = A.V.orbPicks.find(q => q.kind === 'sungal'), sx = A.V.sunXY;
-  const picks = A.V.orbPicks.filter(q => q.kind === 'voyage' || q.kind === 'starcol').map(q => ({ kind: q.kind, x: q.x, y: q.y, name: q.d.name }));
-  return JSON.stringify({ on: !!L, L: L && { x: L.x, y: L.y, r: L.r }, labels: L ? L.labels : [], stars: L ? L.stars : [], picks, sun: sx, w: cv.clientWidth, h: cv.clientHeight }); }'''
+# a world with 3 ships in flight (one just launched by the real launch code), 2 colonies and a lost ship
+SETUP = r'''() => { const A = window.__aoh; A.newWorld(4242); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1); const W = A.W, cs = W.civs; W.year = 2400; for (const o of cs) o.era = 12; cs[0].era = 13;
+  W.ships = []; W.stars = []; W.lost = []; const R = Math.random; Math.random = () => 0; A.shipTick(1); Math.random = R;
+  W.ships.push({ id: 9001, civ: cs[1].id, star: 9, name: 'Far Shore', t0: W.simTime - 400, dur: 1000, crew: 1e5, crew0: 1e5, y0: 2300, told: 1, log: [{ y: 2300, k: 'launch' }] });
+  W.ships.push({ id: 9002, civ: cs[2].id, star: 12, name: 'Patience', t0: W.simTime - 700, dur: 1000, crew: 1e5, crew0: 1e5, y0: 2200, told: 2, log: [{ y: 2200, k: 'launch' }] });
+  W.stars.push({ star: 4, civ: cs[1].id, name: 'Seedling', pop: 2e5, t0: 2350, sid: 8001, world: 'Verdance', log: [{ y: 2200, k: 'launch' }, { y: 2350, k: 'arrive' }] });
+  W.stars.push({ star: 6, civ: cs[3].id, name: 'Morning', pop: 1e5, t0: 2380, sid: 8002, world: 'Lumen', log: [] });
+  W.lost.push({ id: 7001, star: 10, civ: cs[2].id, f: .45, t: W.simTime - 2000, name: 'Lantern', log: [{ y: 2250, k: 'launch' }, { y: 2290, k: 'lost' }] });
+  A.render(); scrollTo(0, 0); }'''
+STATE = r'''() => { const A = window.__aoh, L = A.V.lens; A.render(); const cv = document.querySelector('#world');
+  return JSON.stringify({ zoom: A.V.zoom, galK: A.V.zoom <= .00006, lensShip: A.V.lensShip, focus: A.V.focus && { body: A.V.focus.body, world: A.V.focus.st && A.V.focus.st.world }, lens: A.V.lens && { x: A.V.lens.x, y: A.V.lens.y, r: A.V.lens.r, kind: A.V.lens.kind, id: A.V.lens.id, labels: A.V.lens.labels, stars: A.V.lens.stars, ships: A.V.lens.ships },
+    picks: A.V.orbPicks.filter(q => q.kind === 'voyage' || q.kind === 'starcol').map(q => ({ kind: q.kind, x: q.x, y: q.y, id: q.d.id })), sun: A.V.sunXY, w: cv.clientWidth, h: cv.clientHeight }); }'''
 TEXTS = r'''() => { const cv = document.querySelector('#world'), c2 = cv.getContext('2d'), got = []; const f = c2.fillText, sT = c2.strokeText; c2.fillText = function (t, ...a) { got.push(String(t)); return f.call(this, t, ...a); }; c2.strokeText = function (t, ...a) { got.push(String(t)); return sT.call(this, t, ...a); };
-  let lines = 0; const st = c2.stroke; c2.stroke = function (...a) { lines++; return st.apply(this, a); };
-  window.__aoh.render(); c2.fillText = f; c2.strokeText = sT; c2.stroke = st; return JSON.stringify(got); }'''
-
-def overl(a, b):
-    return a['x'] < b['x'] + b['w'] and a['x'] + a['w'] > b['x'] and a['y'] < b['y'] + b['h'] and a['y'] + a['h'] > b['y']
+  window.__aoh.render(); c2.fillText = f; c2.strokeText = sT; return JSON.stringify(got); }'''
 
 async def main():
     async with async_playwright() as p:
@@ -33,50 +35,65 @@ async def main():
             await pg.route('**/*', lambda r: r.abort() if r.request.url.startswith('http') else r.continue_())
             await pg.goto(GAME); await pg.wait_for_timeout(700); await pg.keyboard.press('Space')
             ev = pg.evaluate; tag = f'{vw}x{vh}'
-            # nothing out there: no lens
-            await ev(SETUP, [0, 0])
-            r = json.loads(await ev(STATE, .00002))
-            check(f'{tag}: no ships and no settled stars, no lens', not r['on'], str(r['on']))
-            # one ship: the lens appears in the galaxy view only
-            await ev(SETUP, [0, 1])
-            r0 = json.loads(await ev(STATE, .0004)); r1 = json.loads(await ev(STATE, .00002))
-            check(f'{tag}: a ship in flight shows the lens in the galaxy view, not in the solar system', r1['on'] and not r0['on'], str([r0['on'], r1['on']]))
-            # every target star at once: 10 settled + 4 ships
-            await ev(SETUP, [10, 4])
-            for z in [.00004, .00002]:
-                r = json.loads(await ev(STATE, z)); L = r['L']
-                inside = L and L['x'] - L['r'] >= 0 and L['x'] + L['r'] <= r['w'] and L['y'] - L['r'] - 20 >= 0 and L['y'] + L['r'] <= r['h']
-                check(f'{tag} z={z}: the lens is on screen (title too) and does not cover the Sun', bool(inside) and ((r['sun'][0] - L['x']) ** 2 + (r['sun'][1] - L['y']) ** 2) ** .5 > L['r'] + 5, str([L, r['sun']]))
-                st = r['stars']; md = min(((a['x'] - c['x']) ** 2 + (a['y'] - c['y']) ** 2) ** .5 for i, a in enumerate(st) for c in st[i + 1:])
-                lab = r['labels']; lo = [(a['name'], c['name']) for i, a in enumerate(lab) for c in lab[i + 1:] if overl(a, c)]
-                dots = [{'x': s['x'] - 3, 'y': s['y'] - 3, 'w': 6, 'h': 6} for s in st]; ld = [(a['name']) for a in lab for d in dots if overl(a, d)]
-                check(f'{tag} z={z}: all 14 target stars shown, at least 9 px apart', len(st) == 14 and md >= 9, f'n={len(st)} min={md:.1f}')
-                check(f'{tag} z={z}: every target star labelled, no labels overlap each other or a star', len(lab) == 14 and not lo and not ld, str([lo, ld]))
-                pin = all(((q['x'] - L['x']) ** 2 + (q['y'] - L['y']) ** 2) ** .5 <= L['r'] for q in r['picks'])
-                sund = min(((q['x'] - r['sun'][0]) ** 2 + (q['y'] - r['sun'][1]) ** 2) ** .5 for q in r['picks'])
-                check(f'{tag} z={z}: ships and colonies are picked in the lens only, none under the Sun', len(r['picks']) == 14 and pin and sund > 20, f'n={len(r["picks"])} in={pin} sun={sund:.0f}')
-            # no labels on the galaxy itself: only the lens title and the target names are drawn
-            t = json.loads(await ev(TEXTS)); names = set(json.loads(await ev("() => JSON.stringify(window.__aoh.XSTARS.map(s => s[0]))")))
-            extra = [x for x in t if x not in names and x != 'The Sun’s neighbourhood']
-            check(f'{tag}: the galaxy draws no labels of its own (only the lens title and its star names)', not extra and 'The Sun’s neighbourhood' in t, str(extra[:5]))
-            # right click a ship and a settled star in the lens
-            got = {}
-            for kind in ['voyage', 'starcol']:
-                got[kind] = await ev(r'''(kind) => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); A.render(); const q = A.V.orbPicks.find(q => q.kind === kind); if (!q) return 'none';
-                  cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + q.x, clientY: r.top + q.y, button: 2 }));
-                  const t = document.querySelector('#tip'), txt = t.style.display !== 'none' ? t.innerText.replace(/\n/g, ' | ') : ''; const b = document.querySelector('#tipClose'); if (b) b.click(); return txt.slice(0, 600); }''', kind)
-            check(f'{tag}: right click opens the ship and the settled star from the lens', 'Ship ' in got['voyage'] and '% of the way' in got['voyage'] and 'Founded by' in got['starcol'], str(got))
-            # an empty spot inside the lens opens nothing from the galaxy behind it
-            e = await ev(r'''() => { const A = window.__aoh; A.render(); const L = A.V.lens; const cv = document.querySelector('#world'), r = cv.getBoundingClientRect();
-              cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + L.x + L.r * .1, clientY: r.top + L.y - L.r * .97, button: 2 }));
-              const t = document.querySelector('#tip'), txt = t.style.display !== 'none' ? t.innerText : ''; const b = document.querySelector('#tipClose'); if (b) b.click(); return txt.slice(0, 60); }''')
-            check(f'{tag}: an empty spot in the lens opens nothing behind it', e == '', e)
-            await ev("() => { window.__aoh.setZoom(.00002); window.__aoh.render(); }")
-            # two colonies at one star (every star taken): each keeps its own spot to click
-            d = await ev(r'''() => { const A = window.__aoh; A.W.stars.push({ star: 0, civ: A.W.civs[1].id, name: 'Twin', pop: 1e4, t0: 3100 }); A.setZoom(.00002); A.render();
-              const q = A.V.orbPicks.filter(q => q.kind === 'starcol' && q.d.star === 0); A.W.stars.pop(); return q.length === 2 ? Math.hypot(q[0].x - q[1].x, q[0].y - q[1].y) : -1; }''')
-            check(f'{tag}: two colonies at the same star can each be clicked', d >= 8, str(d))
-            await (await pg.query_selector('#world')).screenshot(path=str(pathlib.Path(__file__).with_name(f'sv01_{tag}.png')))
+            await ev(SETUP)
+            # 1. no lens on its own, even with ships and colonies out there; the galaxy draws no names and no ship picks
+            await ev("() => { window.__aoh.setZoom(.00003); }")
+            r = json.loads(await ev(STATE)); t = json.loads(await ev(TEXTS))
+            check(f'{tag}: zoomed out with ships and colonies, no lens opens by itself; no names or ship picks on the galaxy', not r['lens'] and not t and not r['picks'], str([bool(r['lens']), t[:3], len(r['picks'])]))
+            # 2. the launch line is a link in the chronicle; a real click zooms out (gliding) and opens the lens for that ship only
+            await ev("() => { window.__aoh.setZoom(.4); window.__aoh.render(); scrollTo(0, 0); }")
+            li = await ev(r'''() => { const li = document.querySelector('#log li.shiplink'); return li ? JSON.stringify({ sh: +li.dataset.sh, go: !!li.querySelector('.go'), cur: getComputedStyle(li).cursor, text: li.innerText.slice(0, 80) }) : 'null'; }''')
+            li = json.loads(li); sid = await ev("() => window.__aoh.W.ships[0].id")
+            check(f'{tag}: the launch line in the chronicle is a link (ship id, ⟶ mark, pointer)', li and li['sh'] == sid and li['go'] and li['cur'] == 'pointer', str(li))
+            # sample the zoom every frame while the glide runs
+            await ev("() => { window.__zs = []; const f = () => { window.__zs.push(window.__aoh.V.zoom); if (window.__zs.length < 400) requestAnimationFrame(f); }; requestAnimationFrame(f); }")
+            await pg.locator(f'#log li.shiplink[data-sh="{sid}"]').first.scroll_into_view_if_needed(); await pg.locator(f'#log li.shiplink[data-sh="{sid}"]').first.click()
+            await pg.wait_for_timeout(2400); await ev("() => scrollTo(0, 0)"); r = json.loads(await ev(STATE)); zs = await ev("() => window.__zs")
+            between = len({round(z, 9) for z in zs if .00003 * 1.05 < z < .4 * .95})
+            check(f'{tag}: the click glides out (many frames in between, not a jump) and ends in the galaxy with the lens open on that ship', between >= 5 and abs(r['zoom'] - .00003) < 1e-6 and r['lens'] and r['lens']['kind'] == 'ship' and r['lens']['id'] == sid, f"{between} frames between, end {r['zoom']:.6f} lens {r['lens'] and r['lens']['id']}")
+            L = r['lens']; t = json.loads(await ev(TEXTS)); dest = await ev("() => window.__aoh.XSTARS[window.__aoh.W.ships[0].star][0]"); nm = await ev("() => window.__aoh.W.ships[0].name")
+            check(f'{tag}: the lens shows only that ship and its destination (one ship, one star, one label, title is the ship)', len(L['ships']) == 1 and len(L['stars']) == 1 and [l['name'] for l in L['labels']] == [dest] and f'The {nm}' in t and len([x for x in t if x not in (f'The {nm}', dest, 'Esc or click outside to close')]) == 0, str(t))
+            inside = L['x'] - L['r'] >= 0 and L['x'] + L['r'] <= r['w'] and L['y'] - L['r'] - 22 >= 0 and L['y'] + L['r'] + 20 <= r['h']
+            check(f'{tag}: the lens and its title fit on screen, clear of the Sun', inside and ((r['sun'][0] - L['x']) ** 2 + (r['sun'][1] - L['y']) ** 2) ** .5 > L['r'] + 5, str([L['x'], L['y'], L['r'], r['sun']]))
+            lab = L['labels'][0]; s0 = L['ships'][0]; d0 = L['stars'][0]
+            hit = lambda q, x, y, m: q['x'] - m < x < q['x'] + q['w'] + m and q['y'] - m < y < q['y'] + q['h'] + m
+            check(f'{tag}: the destination label is clear of the Sun and the ship', not hit(lab, L['x'], L['y'], 4) and not hit(lab, s0['x'], s0['y'], 4), str([lab, s0]))
+            check(f'{tag}: only that ship can be picked, inside the lens', [q['id'] for q in r['picks']] == [sid] and all(((q['x'] - L['x']) ** 2 + (q['y'] - L['y']) ** 2) ** .5 <= L['r'] for q in r['picks']), str(r['picks']))
+            # 3. Esc closes it
+            await pg.keyboard.press('Escape'); r = json.loads(await ev(STATE))
+            check(f'{tag}: Esc closes the lens', not r['lens'] and not r['lensShip'], str(r['lensShip']))
+            # 4. a mid-voyage ship (opened from See all) and a click outside closes it; a click on an empty spot inside does not
+            await ev("() => { const A = window.__aoh; A.log('The Far Shore passes the halfway mark.', 'event', 9001); }")
+            await ev("() => window.__aoh.openHistory()"); await pg.wait_for_timeout(200)
+            await pg.locator('#modal li.shiplink[data-sh="9001"]').first.click(); await pg.wait_for_timeout(2300)
+            r = json.loads(await ev(STATE)); modal = await ev("() => document.querySelector('#modal').classList.contains('open')")
+            check(f'{tag}: a ship line in See all opens the lens (and the dialog closes)', r['lens'] and r['lens']['id'] == 9001 and not modal, str([r['lens'] and r['lens']['id'], modal]))
+            L = r['lens']; box = await (await pg.query_selector('#world')).bounding_box(); await ev("() => scrollTo(0, 0)"); box = await (await pg.query_selector('#world')).bounding_box()
+            await pg.mouse.click(box['x'] + L['x'] + L['r'] * .1, box['y'] + L['y'] - L['r'] * .93); r2 = json.loads(await ev(STATE))
+            await pg.mouse.click(box['x'] + 20, box['y'] + box['height'] - 20); r3 = json.loads(await ev(STATE))
+            check(f'{tag}: a click on an empty spot inside the lens keeps it; a click outside closes it', r2['lens'] and not r3['lens'], str([bool(r2['lens']), bool(r3['lens'])]))
+            # 5. zooming back in closes it
+            await ev("() => window.__aoh.shipFocus(9002, true)"); r = json.loads(await ev(STATE)); ok1 = r['lens'] and r['lens']['id'] == 9002
+            await ev("() => { window.__aoh.setZoom(.003); window.__aoh.render(); window.__aoh.setZoom(.00003); window.__aoh.render(); }"); r = json.loads(await ev(STATE))
+            check(f'{tag}: zooming back in to the solar system closes the lens (it does not come back on zooming out)', ok1 and not r['lens'], str(r['lensShip']))
+            # 6. a lost ship: the lens shows its course up to where it went silent and its destination
+            await ev("() => window.__aoh.shipFocus(7001, true)"); r = json.loads(await ev(STATE)); L = r['lens']
+            check(f'{tag}: a lost ship opens the lens with its mark and destination ("The lost …")', L and L['kind'] == 'lost' and L['ships'][0].get('lost') and [l['name'] for l in L['labels']] == ['Kapteyn’s Star'], str(L and L['labels']))
+            await pg.keyboard.press('Escape')
+            # 7. a ship that arrived: its lines open a close-up of the world it settled
+            await ev("() => { window.__aoh.setZoom(.4); window.__aoh.render(); }")
+            await ev("() => window.__aoh.shipFocus(8001, true)"); await pg.wait_for_timeout(900); r = json.loads(await ev(STATE)); t = json.loads(await ev(TEXTS))
+            check(f'{tag}: a settled ship opens a close-up of its world, titled with the world name', r['focus'] and r['focus']['body'] == 'world' and r['focus']['world'] == 'Verdance' and 'Verdance' in t and not r['lens'], str(r['focus']))
+            body = ' '.join(t)
+            check(f'{tag}: the close-up tells the star, the founding ship and people, the year, the population and the voyage', 'Epsilon Eridani' in body and 'Seedling' in body and '2350 CE' in body and '200k' in body and 'Leaves home' in body, body[:200])
+            await pg.keyboard.press('Escape'); r = json.loads(await ev(STATE))
+            check(f'{tag}: Esc closes the close-up', not r['focus'], str(r['focus']))
+            # 8. a line whose ship is long gone shows a note instead
+            await ev("() => { window.__aoh.shipFocus(424242, true); }"); toast = await ev("() => document.querySelector('#toast').textContent")
+            check(f'{tag}: a line about a ship no longer anywhere shows a note', 'Nothing is left' in toast, toast)
+            if vw == 1600:
+                await ev("() => { window.__aoh.shipFocus(9001, true); window.__aoh.render(); }")
+                await (await pg.query_selector('#world')).screenshot(path=str(pathlib.Path(__file__).with_name('sv01_lens.png')))
             print('\n'.join(errs) or 'no errors')
             await pg.close()
         print(f'{sum(results)}/{len(results)} passed')

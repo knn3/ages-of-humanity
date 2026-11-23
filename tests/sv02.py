@@ -1,5 +1,6 @@
-# SV-02 ship on its way: in the neighbourhood lens each ship in flight is an arrow in its people's colour on a gentle curve to its
-# star, with a short fading trail; its target pulses; a lost ship leaves a fading mark where it went silent.
+# SV-02 ship on its way: in the lens (opened from the chronicle for one ship) the ship is an arrow in its people's colour on a gentle
+# curve to its star, with a short fading trail and a faint dotted line for the way still to go; its target pulses; a lost ship shows a
+# cross where it went silent.
 import asyncio, json, os, pathlib, math
 from playwright.async_api import async_playwright
 GAME = pathlib.Path(__file__).resolve().parents[1].joinpath('index.html').as_uri()
@@ -19,7 +20,7 @@ async def main():
         ev = pg.evaluate
         await ev(r'''() => { const A = window.__aoh; A.newWorld(777); A.UI.random = false; for (let i = 0; i < 20; i++) A.step(0.1); for (const o of A.W.civs) o.era = 14; A.W.ships = []; A.W.stars = []; A.W.lost = []; scrollTo(0, 0); }''')
         # 1. one ship: its arrow follows the curve smoothly from the Sun to the star as progress goes 0 → 1
-        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, sh = { id: 501, civ: W.civs[0].id, star: 9, name: 'Test', t0: W.simTime, dur: 1000, crew: 1e5, y0: 3000, told: 3 }; W.ships = [sh];
+        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, sh = { id: 501, civ: W.civs[0].id, star: 9, name: 'Test', t0: W.simTime, dur: 1000, crew: 1e5, y0: 3000, told: 3 }; W.ships = [sh]; A.V.lensShip = { kind: 'ship', id: 501 };
           A.setZoom(.00003); const pts = []; for (let k = 0; k <= 20; k++) { sh.t0 = W.simTime - k * 50; A.render(); const s = A.V.lens.ships[0]; pts.push([s.x, s.y, s.f]); }
           const L = A.V.lens, st = L.stars.find(s => s.i === 9); return JSON.stringify({ pts, L: { x: L.x, y: L.y, r: L.r }, star: st }); }'''))
         pts, L, st = r['pts'], r['L'], r['star']
@@ -40,37 +41,29 @@ async def main():
         check('the arrow points the way the ship is going', dth < .15, f'{dth:.3f} rad')
         # the trail: count strokes drawn in the ship's colour along the path behind it, and that nothing is drawn ahead of it
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, c = W.civs[0], cv = document.querySelector('#world'), c2 = cv.getContext('2d'); W.ships[0].t0 = W.simTime - 500; A.render(); const L = A.V.lens, s = L.ships[0];
-          const segs = []; let cur = null; const mt = c2.moveTo, lt = c2.lineTo, sk = c2.stroke; c2.moveTo = function (x, y) { cur = [x, y]; return mt.call(this, x, y); }; c2.lineTo = function (x, y) { if (cur) segs.push([cur, [x, y], this.strokeStyle, this.globalAlpha]); cur = [x, y]; return lt.call(this, x, y); };
+          const segs = []; let cur = null; const mt = c2.moveTo, lt = c2.lineTo, sk = c2.stroke; c2.moveTo = function (x, y) { cur = [x, y]; return mt.call(this, x, y); }; c2.lineTo = function (x, y) { if (cur && !this.getLineDash().length) segs.push([cur, [x, y], this.strokeStyle, this.globalAlpha]); cur = [x, y]; return lt.call(this, x, y); };
           A.render(); c2.moveTo = mt; c2.lineTo = lt; const col = c.color.toLowerCase(); const mine = segs.filter(q => String(q[2]).toLowerCase() === col && Math.hypot(q[1][0] - L.x, q[1][1] - L.y) < L.r);
           return JSON.stringify({ n: mine.length, alphas: mine.map(q => +q[3].toFixed(2)), far: Math.max(0, ...mine.map(q => Math.hypot(q[1][0] - s.x, q[1][1] - s.y))), lens: L.r }); }'''))
         print('  trail:', r)
-        check('a short trail behind the ship that fades (rising alpha), not a full line to the star', r['n'] >= 6 and r['alphas'] == sorted(r['alphas']) and r['alphas'][0] < r['alphas'][-1] and r['far'] < r['lens'] * .45, str(r))
+        check('a short solid trail behind the ship that fades (rising alpha); the way ahead only dotted', r['n'] >= 6 and r['alphas'] == sorted(r['alphas']) and r['alphas'][0] < r['alphas'][-1] and r['far'] < r['lens'] * .45, str(r))
         # 3. the target star pulses while a ship is heading for it, and stops once it is not
-        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; A.render(); const on = A.V.lens.pulsing.slice(); W.stars = [{ star: 3, civ: W.civs[1].id, name: 'C', pop: 1e5, t0: 3000 }]; const keep = W.ships; W.ships = []; A.render(); const off = A.V.lens.pulsing.slice(); W.ships = keep; return JSON.stringify({ on, off }); }'''))
-        check('the target star pulses while a ship heads for it; a settled star without one does not', r['on'] == [9] and r['off'] == [], str(r))
+        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, c2 = document.querySelector('#world').getContext('2d'), rings = []; const arc = c2.arc; c2.arc = function (x, y, rr, ...q) { rings.push(+rr.toFixed(2)); return arc.call(this, x, y, rr, ...q); };
+          A.V.t = 0.2; A.render(); const a = rings.slice(); rings.length = 0; A.V.t = 0.9; A.render(); const b = rings.slice(); c2.arc = arc; const big = l => l.filter(x => x > 3.5 && x < 12); return JSON.stringify({ a: big(a), b: big(b) }); }'''))
+        check('the destination pulses: a ring that swells over time', r['a'] and r['b'] and r['a'] != r['b'], str(r))
         # 4. a lost ship leaves a mark where it went silent, which fades and goes
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; W.stars = []; const sh = { id: 600, civ: W.civs[0].id, star: 12, name: 'Lost One', t0: W.simTime - 300, dur: 1000, crew: 1e5, y0: 3000, told: 0 }; W.ships = [sh];
-          const R = Math.random; Math.random = () => .52; A.shipTick(.01); Math.random = R; const lost = (W.lost || []).slice(); A.render(); const on = A.lensOn();
-          const save = A.serialize(), back = A.sanitizeWorld(JSON.parse(JSON.stringify(save))); W.simTime += A.LOST_FADE + 1; A.shipTick(.01); A.render(); return JSON.stringify({ lost, on, saved: back.lost, after: (W.lost || []).length, lensAfter: A.lensOn(), chron: W.chron[0].h }); }'''))
+          const R = Math.random; Math.random = () => .52; A.shipTick(.01); Math.random = R; const lost = (W.lost || []).slice(); A.V.lensShip = { kind: 'lost', id: 600 }; A.render(); const on = A.lensOn() && A.V.lens.kind === 'lost';
+          const save = A.serialize(), back = A.sanitizeWorld(JSON.parse(JSON.stringify(save))); W.simTime += 5000; A.shipTick(.01); A.render(); return JSON.stringify({ lost, on, saved: back.lost, after: (W.lost || []).length, chron: W.chron[0].h, sh: W.chron[0].sh }); }'''))
         print('  lost:', r)
         m = r['lost'][0] if r['lost'] else {}
-        check('a ship lost on the way leaves a mark at the point it went silent', len(r['lost']) == 1 and abs(m['f'] - .3) < .02 and m['star'] == 12 and 'falls silent' in r['chron'], str(r['lost']))
-        check('the lens stays on to show the mark, and the mark is saved', r['on'] and r['saved'] and r['saved'][0]['star'] == 12, str(r['saved']))
-        check('the mark fades away after a while (and the lens with it, when nothing else is out there)', r['after'] == 0 and not r['lensAfter'], str(r))
+        check('a ship lost on the way leaves a mark at the point it went silent (and its chronicle line links to it)', len(r['lost']) == 1 and abs(m['f'] - .3) < .02 and m['star'] == 12 and 'falls silent' in r['chron'] and r['sh'] == 600, str(r['lost']))
+        check('its lens shows the mark, and the mark is saved', r['on'] and r['saved'] and r['saved'][0]['star'] == 12, str(r['saved']))
+        check('the mark is kept (for its chronicle line) long after', r['after'] == 1, str(r))
         # old saves without lost marks still load; garbage is cleaned
         r = json.loads(await ev(r'''() => { const A = window.__aoh, d = A.serialize(); delete d.lost; const a = A.sanitizeWorld(JSON.parse(JSON.stringify(d))); d.lost = [{ star: 99 }, null, 'x', { star: 2, f: 7, id: -3, civ: 1, t: 'q' }]; const b = A.sanitizeWorld(d); return JSON.stringify({ a: a.lost, b: b.lost }); }'''))
         check('old saves load with no lost marks; bad entries are dropped or clamped', r['a'] == [] and len(r['b']) == 1 and r['b'][0]['f'] == 1 and r['b'][0]['id'] == 0, str(r))
-        # 5. several ships at once stay readable: 8 ships, incl. two to the same star at the same progress
-        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; W.lost = []; W.ships = []; const cs = W.civs;
-          for (let i = 0; i < 8; i++) W.ships.push({ id: 700 + i, civ: cs[i % cs.length].id, star: [0, 4, 9, 9, 12, 5, 8, 13][i], name: 'S' + i, t0: W.simTime - 400, dur: 1000, crew: 1e5, y0: 3000, told: 3 });
-          A.render(); const s = A.V.lens.ships; let md = 1e9; for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) md = Math.min(md, Math.hypot(s[i].x - s[j].x, s[i].y - s[j].y)); return JSON.stringify({ n: s.length, md, same: Math.hypot(s[2].x - s[3].x, s[2].y - s[3].y) }); }'''))
-        check('8 ships at once: all drawn, at least 8 px apart; two bound for the same star take different curves', r['n'] == 8 and r['md'] >= 8 and r['same'] >= 10, str(r))
-        # ships launched together all start beside the Sun: still apart
-        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; const keep = W.ships, cs = W.civs; W.ships = [];
-          for (let i = 0; i < 6; i++) W.ships.push({ id: 800 + i, civ: cs[i % cs.length].id, star: [0, 11, 4, 9, 1, 13][i], name: 'L' + i, t0: W.simTime - 15, dur: 1000, crew: 1e5, y0: 3000, told: 3 });
-          A.render(); const s = A.V.lens.ships; let md = 1e9; for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) md = Math.min(md, Math.hypot(s[i].x - s[j].x, s[i].y - s[j].y)); W.ships = keep; A.render(); return JSON.stringify({ n: s.length, md }); }'''))
-        check('6 ships launched at once (all beside the Sun) are still at least 8 px apart', r['n'] == 6 and r['md'] >= 8, str(r))
         # right click still opens the ship card at its new place
+        await ev(r'''() => { const A = window.__aoh, W = A.W; W.ships = [{ id: 700, civ: W.civs[0].id, star: 9, name: 'S0', t0: W.simTime - 400, dur: 1000, crew: 1e5, y0: 3000, told: 3 }]; A.V.lensShip = { kind: 'ship', id: 700 }; }''')
         t = await ev(r'''() => { const A = window.__aoh, cv = document.querySelector('#world'), rc = cv.getBoundingClientRect(); A.render(); const q = A.V.orbPicks.find(q => q.kind === 'voyage');
           cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rc.left + q.x, clientY: rc.top + q.y, button: 2 })); const t = document.querySelector('#tip'), x = t.style.display !== 'none' ? t.innerText : ''; const b = document.querySelector('#tipClose'); if (b) b.click(); return x.replace(/\n/g, ' | ').slice(0, 300); }''')
         check('right click on an arrow opens that ship', '40% of the way' in t, t[:120])
