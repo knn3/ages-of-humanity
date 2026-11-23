@@ -54,16 +54,17 @@ async def main():
         r = json.loads(r)
         check('an orbit tip stays open as the game runs, and closes when you zoom back down to the ground', r['open'] and not r['after'], str(r))
 
-        # out in the solar system: claims; out in the galaxy: ships on their way and star colonies
-        CLICK = r'''async ([z, kind, how]) => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); A.V.focus = null; A.UI.day = false; A.V.galT = 0; A.setZoom(z); await new Promise(res => setTimeout(res, 250));
+        # out in the solar system: claims; out in the galaxy: a ship on its way, in its lens (opened from the chronicle); star colonies are
+        # dots on the galaxy: right click tells what they are, left click (or their chronicle lines) opens the world, see sv01.py
+        CLICK = r'''async ([z, kind, how]) => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); A.V.focus = null; A.UI.day = false; A.V.galT = 0; A.V.lensShip = kind === 'voyage' ? { kind: 'ship', id: 7001 } : null; A.setZoom(z); await new Promise(res => setTimeout(res, 250));
           const q = A.V.orbPicks.find(q => q.kind === kind && q.x > 280 && q.x < cv.clientWidth - 30 && q.y > 70 && q.y < cv.clientHeight - 30); if (!q) return JSON.stringify({ none: true, kinds: [...new Set(A.V.orbPicks.map(q => q.kind))] });
           const o = { bubbles: true, cancelable: true, clientX: r.left + q.x, clientY: r.top + q.y, pointerId: 1, pointerType: 'mouse', isPrimary: true };
           if (how === 'left') { cv.dispatchEvent(new PointerEvent('pointerdown', { ...o, button: 0 })); cv.dispatchEvent(new PointerEvent('pointerup', { ...o, button: 0 })); } else cv.dispatchEvent(new MouseEvent('contextmenu', { ...o, button: 2 }));
           const t0 = document.querySelector('#tip').style.display !== 'none' ? document.querySelector('#tip').innerText.split('\n')[0] : '';
           await new Promise(res => setTimeout(res, 1500)); const t1 = document.querySelector('#tip').style.display !== 'none' ? document.querySelector('#tip').innerText : '';
-          const b = document.querySelector('#tipClose'); if (b) b.click(); return JSON.stringify({ t0, stays: !!t1 && t1.startsWith(t0), body: t1.replace(/\n/g, ' | ').slice(0, 160), focus: A.V.focus && A.V.focus.body }); }'''
+          const b = document.querySelector('#tipClose'); if (b) b.click(); return JSON.stringify({ t0, stays: !!t1 && t1.startsWith(t0), body: t1.replace(/\n/g, ' | ').slice(0, 400), focus: A.V.focus && A.V.focus.body }); }'''
         await ev(r'''() => { const A = window.__aoh, c = A.W.civs[0], d = A.W.civs[1]; for (const r of A.W.spaceRes) r.owner = c.id;
-          const far = A.XSTARS ? A.XSTARS.length - 1 : 6; A.W.ships = [{ id: 7001, civ: c.id, star: far, name: 'Far Hope I', t0: A.W.simTime - 750, dur: 900, crew: 1e5, y0: 3000, told: 0 }]; A.W.stars = [{ star: 2, civ: d.id, name: 'Wayfarer II', pop: 8e4, t0: 2900 }]; }''')
+          const far = A.XSTARS ? A.XSTARS.length - 1 : 6; A.W.ships = [{ id: 7001, civ: c.id, star: far, name: 'Far Hope I', t0: A.W.simTime - 750, dur: 900, crew: 1e5, y0: 3000, told: 0 }]; A.W.stars = [{ star: 9, civ: d.id, name: 'Wayfarer II', pop: 8e4, t0: 2900, sid: 7002, world: 'Lumen', log: [] }]; }''')
         res = {}
         for z in [.003, .002, .0012, .0008]:
             q = json.loads(await ev(CLICK, [z, 'claim', 'left']))
@@ -75,8 +76,8 @@ async def main():
         for k, v in res.items(): print(f'  {k}:', v)
         cl, vo, sc = res.get('claim', {}), res.get('voyage', {}), res.get('starcol', {})
         check('a left click on a claim out in the solar system tells what it is (no zoom-in)', cl.get('stays') and any(n in cl.get('t0', '') for n in ['Asteroid Mine', 'Helium-3', 'Ice Moon']) and 'Mined by' in cl.get('body', '') and not cl.get('focus'), str(cl))
-        check('a ship on its way between the stars: name, destination, progress, crew', vo.get('stays') and 'Far Hope I' in vo.get('t0', '') and 'Bound for' in vo.get('body', ''), str(vo))
-        check('a star colony: star, founders, people', sc.get('stays') and 'Founded by' in sc.get('body', '') and 'Wayfarer II' in sc.get('body', ''), str(sc))
+        check('a ship on its way, in its lens: name, destination, progress, crew', vo.get('stays') and 'Far Hope I' in vo.get('t0', '') and 'Bound for' in vo.get('body', ''), str(vo))
+        check('a settled star (a dot on the galaxy), right click: star, founders, people, its world', sc.get('stays') and 'Founded by' in sc.get('body', '') and 'Wayfarer II' in sc.get('body', ''), str(sc))
 
         # empty space shows nothing; the ground still needs close zoom
         r = json.loads(await ev(r'''() => { const A = window.__aoh; A.setZoom(.3); A.render(); const far = A.tipTarget(5, 5); A.setZoom(.9); A.render(); const c = A.W.civs[0]; A.V.cam = c.x - A.V.vw / 2; A.render(); const s = A.W2S(c.x, A.gy(c.x) - 10); const low = A.tipTarget(s[0], s[1]);
