@@ -512,8 +512,9 @@ function drawGalaxy(c2, w, h, sx, sy) {
     for (let i = 0; i < L.length; i += 2) c2.rect(L[i], L[i + 1], sz, sz);
     c2.fill();
   }
-  // settled stars keep only a small dot in their people's colour (no labels, lines or picks); their chronicle lines open the world
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 10) continue; c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = .7 * k; c2.beginPath(); c2.arc(px, py, 1.6, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
+  // settled stars: a small dot in their people's colour, no labels or lines; a left click on it (or its chronicle lines) opens the world
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 14) continue; c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = .7 * k; c2.beginPath(); c2.arc(px, py, 1.6, 0, 6.2832); c2.fill(); c2.globalAlpha = 1;
+    if (k > .3) V.orbPicks.push({ x: px, y: py, r: 7, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); }
   // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
   if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
@@ -639,9 +640,9 @@ function zGlideTick() {
   setZoom(z); G.last = V.zoom; if (u >= 1) { V.zGlide = null; G.done(); }
 }
 // the world a ship settled: a close-up like the planets', from the Sun's place in the galaxy
-function focusWorld(st) {
+function focusWorld(st, from) {
   if (!V.b) return false;
-  const q = V.sunXY || [CW / 2, CH / 2];
+  const q = from || V.sunXY || [CW / 2, CH / 2];
   V.focus = { body: 'world', st, t0: performance.now(), x0: q[0], y0: q[1], r0: 4 };
   return true;
 }
@@ -5090,7 +5091,7 @@ function orbitTarget(sx, sy) {
   let best = null, bd = 1e9;
   // inside the neighbourhood lens only its own ships and stars count: the galaxy behind it is covered
   const inLens = V.lens && Math.hypot(sx - V.lens.x, sy - V.lens.y) <= V.lens.r;
-  for (const q of V.orbPicks || []) { if (inLens && q.kind !== 'voyage' && q.kind !== 'starcol') continue; const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
+  for (const q of V.orbPicks || []) { if (inLens && q.kind !== 'voyage') continue; const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
   return best ? { key: spaceKey(best), orb: best } : null;
 }
 // a space tip stays open while its object still exists and you stay on the view that shows that kind of object (it may drift off screen)
@@ -5143,7 +5144,7 @@ const ORB_INFO = {
 function orbitTipBody(q) {
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
   if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
-  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop))]; }
+  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop)) + (st.world ? row('World', st.world + ' (left click to see it)') : '')]; }
   if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), col = c ? c.color : '#c9a27c', c0 = sh.crew0 || 1e5;
     const lg = (sh.log && sh.log.length ? sh.log : [{ y: sh.y0, k: 'launch' }]).map(e => `<span class="vl"><b>${esc(fmtYear(e.y))}</b> ${esc(vlogText(e.k, sh))}</span>`).join('');
     return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0]) + row('Sent by', c ? 'the ' + c.name : 'a people now gone') + row('Under way', fmtSpan(Math.max(0, Math.round(W.year - sh.y0))))
@@ -5320,8 +5321,8 @@ function initDOM() {
   const endPtr = e => { V.pts.delete(e.pointerId); if (V.pts.size < 2) V.pinch = null; };
   cv.addEventListener('pointerup', e => { if (e.button === 2) { endPtr(e); V.drag = null; return; }
     // a click outside the lens closes it (a click on its ship still opens the ship)
-    if (V.lens && V.drag && !V.drag.moved && !V.pinch) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top; if (Math.hypot(bx - V.lens.x, by - V.lens.y) > V.lens.r) { V.lensShip = null; endPtr(e); V.drag = null; return; } }
-    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && !V.focus && sysK() > .5) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top, ot = orbitTarget(bx, by), bn = bodyAt(bx, by), bp = bn && (bn === 'Sun' ? V.sunXY : bn === 'Earth' ? [V.cx, V.cy] : V.bodyPos[bn]); if (ot && ['claim', 'starcol', 'voyage', 'sungal', 'gcore'].includes(ot.orb.kind) && (!bp || Math.hypot(ot.orb.x - bx, ot.orb.y - by) < Math.hypot(bp[0] - bx, bp[1] - by))) { endPtr(e); V.drag = null; V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); return; } }
+    if (V.lens && V.drag && !V.drag.moved && !V.pinch) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top; if (Math.hypot(bx - V.lens.x, by - V.lens.y) > V.lens.r) { const o0 = orbitTarget(bx, by); V.lensShip = null; if (!o0 || o0.orb.kind !== 'starcol') { endPtr(e); V.drag = null; return; } } }
+    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && !V.focus && sysK() > .5) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top, ot = orbitTarget(bx, by), bn = bodyAt(bx, by), bp = bn && (bn === 'Sun' ? V.sunXY : bn === 'Earth' ? [V.cx, V.cy] : V.bodyPos[bn]); if (ot && ['claim', 'starcol', 'voyage', 'sungal', 'gcore'].includes(ot.orb.kind) && (!bp || Math.hypot(ot.orb.x - bx, ot.orb.y - by) < Math.hypot(bp[0] - bx, bp[1] - by))) { endPtr(e); V.drag = null; if (ot.orb.kind === 'starcol') { hideTip(0); focusWorld(ot.orb.d, [ot.orb.x, ot.orb.y]); return; } V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); return; } }
     if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && (V.focus || sysK() > .5)) { const r = cv.getBoundingClientRect(), n = V.focus ? null : bodyAt(e.clientX - r.left, e.clientY - r.top); if (V.focus || n) { endPtr(e); V.drag = null; if (V.focus) V.focus = null; else focusBody(n); return; } }
     if (UI.tool && UI.tool.kind === 'el' && ELEMENTS[UI.tool.type] && ELEMENTS[UI.tool.type].space && V.drag && !V.drag.moved && !V.pinch) { endPtr(e); V.drag = null; placeSpace(UI.tool.type); return; } const wasPinch = !!V.pinch; endPtr(e); const d = V.drag; V.drag = null; cv.style.cursor = ''; if (d && !d.moved && !wasPinch) { const [wx, wy] = worldAt(e.clientX, e.clientY); if (!V.b || (wy > -320 && wy < WORLD_H)) worldClick(((wx % WORLD_W) + WORLD_W) % WORLD_W); TIP.over = false; hideTip(0); } else showTip(); });
   // right click opens the info of whatever is under the pointer
