@@ -74,6 +74,7 @@ What was built, in order, from the user's requests (newest last). Published arti
 54. "When I zoom back in, from wherever I am in galaxy, it should move back to solar system and then keep zoom in from there": the wheel no longer zooms toward the cursor at galaxy scale; zooming in after roaming glides the view back home (the pan eases to 0 in about a second) while the zoom continues into the solar system. Zooming out still brings the galaxy in centred. `galpan.py` now 10 checks.
 55. "Make it glide slowly": the glide home is now an eased 3-second move (`GLIDE`), not a ~1 s exponential snap.
 56. "The glide should be a part of the scroll": the way home now follows the zoom, not the clock: each notch in brings the view closer to the solar system (smoothstep over the log zoom from where you started to where the galaxy fades), it never moves by itself, and zooming out does not undo it.
+57. "Note this down into tickets and set priority above The Wandering Earth": new **Star voyages** epic (SV-01…07, P2) placed before Wandering Earth. A check found arrivals show only as a small dot and name in the galaxy view, crowded by the Sun, with no planet and no right-click card; the epic adds a neighbourhood lens beside the Sun, ships on their way, voyage logs and cards, the new world, path markers, growing lights and colony-to-colony voyages.
 
 ## Packaging
 26. This folder: game, CLAUDE.md, docs, tests and tickets (xlsx/csv), for other agents to continue.
