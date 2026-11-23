@@ -21,7 +21,7 @@ async def worker(b, seeds, out):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(**LAUNCH)
-        out = []; seeds = [5000 + 71 * i for i in range(N)]
+        out = []; seeds = [int(x) for x in os.environ['SEEDS'].split(',')] if os.environ.get('SEEDS') else [5000 + 71 * i for i in range(N)]  # SEEDS=5000,6207 re-runs chosen worlds
         await asyncio.gather(*[worker(b, seeds[k::6], out) for k in range(min(6, N))])
         await b.close()
     print('\n'.join(out))
