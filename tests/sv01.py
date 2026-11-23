@@ -86,14 +86,14 @@ async def main():
             check(f'{tag}: zooming back in to the solar system closes the lens (it does not come back on zooming out)', ok1 and not r['lens'], str(r['lensShip']))
             # 6. a lost ship: the lens shows its course up to where it went silent and its destination
             await ev("() => window.__aoh.shipFocus(7001, true)"); r = json.loads(await ev(STATE)); L = r['lens']
-            check(f'{tag}: a lost ship opens the lens with its mark and destination ("The lost …")', L and L['kind'] == 'lost' and L['ships'][0].get('lost') and [l['name'] for l in L['labels']] == ['Kapteyn’s Star'], str(L and L['labels']))
+            check(f'{tag}: a lost ship opens the lens with its mark and destination ("The lost …")', L and L['kind'] == 'lost' and L['ships'][0].get('lost') and sorted(l['name'].split(' · ')[0] for l in L['labels']) == ['Kapteyn’s Star', 'Silent'], str(L and L['labels']))
             await pg.keyboard.press('Escape')
             # 7. a ship that arrived: its lines open a close-up of the world it settled
             await ev("() => { window.__aoh.setZoom(.4); window.__aoh.render(); }")
             await ev("() => window.__aoh.shipFocus(8001, true)"); await pg.wait_for_timeout(900); r = json.loads(await ev(STATE)); t = json.loads(await ev(TEXTS))
             check(f'{tag}: a settled ship opens a close-up of its world, titled with the world name', r['focus'] and r['focus']['body'] == 'world' and r['focus']['world'] == 'Verdance' and 'Verdance' in t and not r['lens'], str(r['focus']))
             body = ' '.join(t)
-            check(f'{tag}: the close-up tells the star, the founding ship and people, the year, the population and the voyage', 'Epsilon Eridani' in body and 'Seedling' in body and '2350 CE' in body and '200k' in body and 'Leaves home' in body, body[:200])
+            check(f'{tag}: the close-up tells the star and its distance from Earth, the founding ship and people, the year, the population and the voyage', 'Epsilon Eridani' in body and '10.5 light years from Earth' in body and 'Seedling' in body and '2350 CE' in body and '200k' in body and 'Leaves home' in body, body[:200])
             await pg.keyboard.press('Escape'); r = json.loads(await ev(STATE))
             check(f'{tag}: Esc closes the close-up', not r['focus'], str(r['focus']))
             # 8. a line whose ship is long gone shows a note instead
