@@ -66,6 +66,7 @@ What was built, in order, from the user's requests (newest last). Published arti
 46. "I like the planet in planet detail bigger and on the left hand side, make it look immersive": on wide screens the close-up body now fills most of the height on the left and runs off the edges (radius up to 62% of the height); the text floats on the right without a box, over a dark fade, with larger type (title 38 px, scaled up on big screens) and a violet rule under the title. Narrow screens keep the body above a card.
 47. "Remove this" (the Scroll/drag/Tools hint bar in full screen): full screen leaves the general hint out (stage class `nohint`) and the chronicle feed drops into its place. A tool's own hint ("Placing River: click the land. Esc to stop.") still shows; the page view keeps the hint bar.
 48. "On space scale, or as I zoom out into space (out of earth) hide this" (the strip map): the strip map fades out once the land bends into the globe (`V.b > .15`) and stays hidden in the solar system and galaxy; it comes back on the ground. Its space is kept so the map does not jump.
+49. "Smaller in the corner in fullscreen" (the Futures panel): in full screen it sits in the top-left corner (under the top bar on screens up to 1300 px wide), 240 px wide with smaller type; folded, it is a small tab. Also: `fslog.py` expected 3 feed lines even when a random world had written only 2; it now expects up to 3.
 
 ## Packaging
 26. This folder: game, CLAUDE.md, docs, tests and tickets (xlsx/csv), for other agents to continue.
