@@ -73,7 +73,7 @@ async def main():
         # right click still opens the ship card at its new place
         t = await ev(r'''() => { const A = window.__aoh, cv = document.querySelector('#world'), rc = cv.getBoundingClientRect(); A.render(); const q = A.V.orbPicks.find(q => q.kind === 'voyage');
           cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rc.left + q.x, clientY: rc.top + q.y, button: 2 })); const t = document.querySelector('#tip'), x = t.style.display !== 'none' ? t.innerText : ''; const b = document.querySelector('#tipClose'); if (b) b.click(); return x.replace(/\n/g, ' | ').slice(0, 300); }''')
-        check('right click on an arrow opens that ship', 'Of the way' in t and '40%' in t, t[:120])
+        check('right click on an arrow opens that ship', '40% of the way' in t, t[:120])
         await (await pg.query_selector('#world')).screenshot(path=str(pathlib.Path(__file__).with_name('sv02.png')))
         print('\n'.join(errs) or 'no errors')
         print(f'{sum(results)}/{len(results)} passed')

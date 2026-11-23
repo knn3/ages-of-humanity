@@ -65,7 +65,7 @@ async def main():
                 got[kind] = await ev(r'''(kind) => { const A = window.__aoh, cv = document.querySelector('#world'), r = cv.getBoundingClientRect(); A.render(); const q = A.V.orbPicks.find(q => q.kind === kind); if (!q) return 'none';
                   cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + q.x, clientY: r.top + q.y, button: 2 }));
                   const t = document.querySelector('#tip'), txt = t.style.display !== 'none' ? t.innerText.replace(/\n/g, ' | ') : ''; const b = document.querySelector('#tipClose'); if (b) b.click(); return txt.slice(0, 600); }''', kind)
-            check(f'{tag}: right click opens the ship and the settled star from the lens', 'Ship ' in got['voyage'] and 'Of the way' in got['voyage'] and 'Founded by' in got['starcol'], str(got))
+            check(f'{tag}: right click opens the ship and the settled star from the lens', 'Ship ' in got['voyage'] and '% of the way' in got['voyage'] and 'Founded by' in got['starcol'], str(got))
             # an empty spot inside the lens opens nothing from the galaxy behind it
             e = await ev(r'''() => { const A = window.__aoh; A.render(); const L = A.V.lens; const cv = document.querySelector('#world'), r = cv.getBoundingClientRect();
               cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + L.x + L.r * .1, clientY: r.top + L.y - L.r * .97, button: 2 }));

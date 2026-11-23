@@ -63,6 +63,8 @@ h1,h2,h3{text-wrap:balance}
 .tclose{margin-left:auto;padding:0 4px;background:none;border:0;color:var(--dim);font:400 17px/1 var(--sans, sans-serif);cursor:pointer}
 .tclose:hover{color:var(--parchment)}
 .td p{margin:0 0 6px}
+.td .pb{display:block;height:6px;margin:5px 0 1px;background:#2a2d33;border-radius:3px;overflow:hidden}.td .pb i{display:block;height:100%;border-radius:3px}.td .pbl{font-size:11px;margin-bottom:3px}
+.td .vlh{margin-top:6px;padding-top:4px;border-top:1px solid var(--stone);color:var(--bronze);font-size:11px;letter-spacing:.06em;text-transform:uppercase}.td .vl{font-size:12px}.td .vl b{display:inline-block;min-width:64px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment);font-weight:400}
 .td span,.pop span{display:block;color:var(--dim)}
 .td span b,.pop span b{color:var(--parchment);font-weight:500}
 .ibtn{flex:0 0 auto;display:inline-grid;place-items:center;width:18px;height:18px;padding:0;background:transparent;border:1px solid #5d636d;border-radius:50%;color:var(--dim);font:italic 600 11.5px/1 Georgia,"Times New Roman",serif;cursor:pointer}
@@ -1875,6 +1877,11 @@ const XSTARS = [['Proxima Centauri', .010, .7], ['Barnard’s Star', .013, 2.1],
   ['Teegarden’s Star', .028, 2.8], ['Trappist-1', .09, 5.9], ['Kepler-442', .26, 1.0], ['Kapteyn’s Star', .029, 3.9], ['Luyten’s Star', .028, .9], ['Kepler-186', .14, 4.9], ['HD 40307', .099, 2.5]];
 const SHIPNAME = ['Long Hope', 'Patience', 'Far Shore', 'Seedling', 'Wayfarer', 'Covenant', 'Memory', 'Morning', 'Ark of Ages', 'Second Spring', 'Distant Light', 'Lantern'];
 const starXY = i => [XSTARS[i][1] * Math.cos(XSTARS[i][2]), XSTARS[i][1] * Math.sin(XSTARS[i][2])];
+// SV-03: each ship keeps a log of its voyage, { y: year, k: kind }; it goes with the ship to its colony (or its lost mark)
+const VLOG_K = ['launch', 'mutiny', 'plague', 'forgot', 'arrive', 'lost'], VLOG_MAX = 12;
+const shipLog = (sh, k) => { (sh.log = sh.log || []).push({ y: Math.round(W.year), k }); if (sh.log.length > VLOG_MAX) sh.log.splice(1, 1); };
+const vlogText = (k, sh) => ({ launch: 'Leaves home', mutiny: 'Mutiny: the rebels take the bridge', plague: 'Plague: half the crew die', forgot: 'The crew forget they are on a ship', arrive: 'Reaches ' + XSTARS[sh.star][0], lost: 'Falls silent' })[k] || k;
+const sanVlog = (a, y0) => { const out = (Array.isArray(a) ? a : []).filter(e => e && VLOG_K.includes(e.k)).slice(-VLOG_MAX).map(e => ({ y: Math.round(Number.isFinite(+e.y) ? clamp(+e.y, -60000, 1e6) : y0), k: e.k })); return out.length || y0 == null ? out : [{ y: y0, k: 'launch' }]; };
 function shipTick(dt) {
   if (!W.ships) W.ships = []; if (!W.stars) W.stars = [];
   for (const c of alive()) {
@@ -1883,7 +1890,7 @@ function shipTick(dt) {
       const taken = new Set(W.ships.map(sh => sh.star).concat(W.stars.map(st => st.star)));
       let si = XSTARS.findIndex((st, i) => !taken.has(i)); if (si < 0) si = (Math.random() * XSTARS.length) | 0;
       const usedN = new Set(W.ships.map(x => x.name).concat(W.stars.map(x => x.name))), nm = SHIPNAME.find(x => !usedN.has(x)) || SHIPNAME[(W.nextId * 7) % SHIPNAME.length] + ' ' + ROMAN[(W.ships.length + W.stars.length) % ROMAN.length], dur = 120 + XSTARS[si][1] * 1400 * (c.era >= 14 ? .5 : 1);
-      W.ships.push({ id: W.nextId++, civ: c.id, star: si, name: nm, t0: W.simTime, dur, crew: 1e5, y0: Math.round(W.year), told: 0 });
+      W.ships.push({ id: W.nextId++, civ: c.id, star: si, name: nm, t0: W.simTime, dur, crew: 1e5, crew0: 1e5, y0: Math.round(W.year), told: 0, log: [{ y: Math.round(W.year), k: 'launch' }] });
       c.culture = Math.min(100, c.culture + 4);
       log(fillT(`{Civ} launch the generation ship ${nm} toward ${XSTARS[si][0]}. Its crew will not live to see the voyage end; their grandchildren's grandchildren will.`, names(c)), 'event');
     }
@@ -1894,14 +1901,15 @@ function shipTick(dt) {
     if (f > .25 * (sh.told + 1) && sh.told < 3) {
       sh.told++;
       const roll = Math.random();
-      if (roll < .2) { sh.crew *= .6; log(`Mutiny aboard the ${esc(sh.name)}, sent by ${esc(who)}. The rebels take the bridge and change the ship's laws.`, 'event'); }
-      else if (roll < .35) { sh.crew *= .5; log(`Plague aboard the ${esc(sh.name)}. Half its crew die between the stars.`, 'event'); }
-      else if (roll < .5) { sh.forgot = true; log(`On the ${esc(sh.name)}, the crew have forgotten they are on a ship. Their priests teach that the corridors are the whole world.`, 'event'); }
-      else if (roll < .56) { W.ships.splice(W.ships.indexOf(sh), 1); (W.lost = W.lost || []).push({ id: sh.id, star: sh.star, civ: sh.civ, f: clamp(f, 0, 1), t: W.simTime }); if (W.lost.length > 20) W.lost.shift(); log(`The ${esc(sh.name)} falls silent somewhere between the stars. No one will ever know why.`, 'event'); continue; }
+      if (roll < .2) { sh.crew *= .6; shipLog(sh, 'mutiny'); log(`Mutiny aboard the ${esc(sh.name)}, sent by ${esc(who)}. The rebels take the bridge and change the ship's laws.`, 'event'); }
+      else if (roll < .35) { sh.crew *= .5; shipLog(sh, 'plague'); log(`Plague aboard the ${esc(sh.name)}. Half its crew die between the stars.`, 'event'); }
+      else if (roll < .5) { if (!sh.forgot) shipLog(sh, 'forgot'); sh.forgot = true; log(`On the ${esc(sh.name)}, the crew have forgotten they are on a ship. Their priests teach that the corridors are the whole world.`, 'event'); }
+      else if (roll < .56) { W.ships.splice(W.ships.indexOf(sh), 1); shipLog(sh, 'lost'); (W.lost = W.lost || []).push({ id: sh.id, star: sh.star, civ: sh.civ, f: clamp(f, 0, 1), t: W.simTime, name: sh.name, log: sh.log }); if (W.lost.length > 20) W.lost.shift(); log(`The ${esc(sh.name)} falls silent somewhere between the stars. No one will ever know why.`, 'event'); continue; }
     }
     if (f >= 1) {
       W.ships.splice(W.ships.indexOf(sh), 1);
-      const st = { star: sh.star, civ: sh.civ, name: sh.name, pop: sh.crew, t0: Math.round(W.year) };
+      shipLog(sh, 'arrive');
+      const st = { star: sh.star, civ: sh.civ, name: sh.name, pop: sh.crew, t0: Math.round(W.year), forgot: !!sh.forgot, log: sh.log };
       W.stars.push(st);
       log(`After ${fmtSpan(Math.max(1, Math.round(W.year - sh.y0)))}, the ${esc(sh.name)} reaches ${esc(XSTARS[sh.star][0])}.${sh.forgot ? ' Its crew step out under a strange sun and remember, at last, what they are.' : ''} ${c && c.alive ? esc('The ' + c.name) + ' have a colony among the stars.' : 'Its settlers have no homeland left to answer to.'}`, 'world');
       banner('A new star', `${XSTARS[sh.star][0]} · ${sh.name}`, c ? c.color : '#c9a27c');
@@ -4939,9 +4947,9 @@ function sanitizeWorld(d) {
   w.dyson = { by: {}, total: 0, mark: 0 }; if (d.dyson && typeof d.dyson === 'object') { for (const [k, v] of Object.entries(d.dyson.by || {})) if (/^\d+$/.test(k)) w.dyson.by[k] = n(v, 0, SWARM_FULL); w.dyson.total = n(d.dyson.total, 0, SWARM_FULL); w.dyson.mark = n(d.dyson.mark, 0, 4) | 0; }
   w.megas = (Array.isArray(d.megas) ? d.megas : []).filter(m => m && m.type === 'cylinder').slice(0, 40).map(m => ({ type: 'cylinder', civ: n(m.civ, 0, 1e9) | 0, a: n(m.a, 0, 7) }));
   w.colonies = (Array.isArray(d.colonies) ? d.colonies : []).filter(k => k && BODY[k.body]).slice(0, 8).map(k => ({ id: n(k.id, 0, 1e9) | 0, name: String(k.name || 'Colony').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(k.color) ? k.color : '#b8c4ff', trait: TRAITS[k.trait] ? k.trait : 'Curious', body: k.body, base: String(k.base || '').slice(0, 24), pop: n(k.pop, 0, 1e10), parent: n(k.parent, 0, 1e9) | 0, free: !!k.free, tension: n(k.tension, 0, 1), war: k.war && typeof k.war === 'object' ? { t: n(k.war.t, 0, 1e4), len: n(k.war.len, 1, 1e4, 60) } : null, era: n(k.era, 0, MAXERA) | 0, tech: n(k.tech, 0, 100), born: n(k.born, -60000, 1e6) | 0 }));
-  w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot }));
-  w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-20).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12) }));
-  w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0 }));
+  w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0) }));
+  w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-20).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null) }));
+  w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null) }));
   w.bases = (Array.isArray(d.bases) ? d.bases : []).filter(b => b && BODY[b.body]).slice(0, 64).map(b => ({ id: n(b.id, 0, 1e9) | 0, civ: n(b.civ, 0, 1e9) | 0, body: b.body, name: String(b.name || 'Base').slice(0, 24), pop: n(b.pop, 0, 1e9), t0: n(b.t0, -60000, 1e6) | 0 })); w.debris = n(d.debris, 0, 1); w.kessler = d.kessler == null ? null : n(d.kessler, -1e9, 1e12); w.warCount = n(d.warCount, 0, 1e6) | 0; w.lastWarT = n(d.lastWarT, -1e9, 1e12); w.nukeT = d.nukeT == null ? null : n(d.nukeT, -1e9, 1e12);
   w.sig = d.sig && typeof d.sig === 'object' ? { t: n(d.sig.t, -1e9, 1e12), era: n(d.sig.era, 0, MAXERA) | 0 } : null;
   w.ruins = (Array.isArray(d.ruins) ? d.ruins : []).filter(r => r && RUIN_NAME[r.k]).slice(-48).map(r => ({ x: n(r.x, 0, WORLD_W) | 0, w: n(r.w, 10, 600, 40) | 0, h: n(r.h, 4, 220, 30) | 0, era: n(r.era, 0, MAXERA) | 0, k: r.k, t0: n(r.t0, -1e9, 1e12), by: String(r.by || '').slice(0, 20) }));
@@ -5081,7 +5089,11 @@ function orbitTipBody(q) {
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
   if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
   if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop))]; }
-  if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1); return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0]) + row('Launched', fmtYear(sh.y0)) + row('Of the way', Math.round(f * 100) + '%') + row('Crew', fmtPop(sh.crew)) + (sh.forgot ? row('Aboard', 'the crew have forgotten they are on a ship') : '')]; }
+  if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), col = c ? c.color : '#c9a27c', c0 = sh.crew0 || 1e5;
+    const lg = (sh.log && sh.log.length ? sh.log : [{ y: sh.y0, k: 'launch' }]).map(e => `<span class="vl"><b>${esc(fmtYear(e.y))}</b> ${esc(vlogText(e.k, sh))}</span>`).join('');
+    return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0]) + row('Sent by', c ? 'the ' + c.name : 'a people now gone') + row('Under way', fmtSpan(Math.max(0, Math.round(W.year - sh.y0))))
+      + `<span class="pb"><i style="width:${(f * 100).toFixed(1)}%;background:${col}"></i></span><span class="pbl">${Math.round(f * 100)}% of the way</span>`
+      + row('Crew left', fmtPop(sh.crew) + (sh.crew < c0 * .99 ? ' of ' + fmtPop(c0) : '')) + (sh.forgot ? row('Aboard', 'the crew have forgotten they are on a ship') : '') + `<span class="vlh">Ship’s log</span>` + lg]; }
   let h = `<span>${esc(I[1])}</span>`;
   if (c) h += row('Built by', 'the ' + c.name + ' (' + ERAS[c.era].name + ')');
   if (q.kind === 'sat') { const n = (V.orbPicks || []).filter(p => p.kind === 'sat').length; h += row('Satellites in view', String(n)); if (W.kessler && W.simTime < W.kessler) h += row('Orbit', 'full of wreckage after a chain of collisions'); else if (W.flareUntil > W.simTime) h += row('Status', 'many knocked out by the solar flare'); else if ((W.debris || 0) > .3) h += row('Debris', Math.round(W.debris * 100) + '% of the way to a chain of collisions'); }
@@ -5406,7 +5418,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_FADE, shipTick, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_FADE, shipTick, shipLog, vlogText, sanVlog, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
