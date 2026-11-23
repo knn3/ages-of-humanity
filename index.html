@@ -49,7 +49,9 @@ h1,h2,h3{text-wrap:balance}
 
 .stage{position:relative;height:clamp(330px,58vh,560px);background:#0b0d11;border-bottom:1px solid var(--stone);overflow:hidden}
 #world{display:block;width:100%;height:calc(100% - 42px);touch-action:none;cursor:default}
-#mini{display:block;width:100%;height:42px;border-top:1px solid var(--stone);cursor:pointer;touch-action:none}
+#mini{display:block;width:100%;height:42px;border-top:1px solid var(--stone);cursor:pointer;touch-action:none;transition:opacity .3s,visibility .3s}
+/* the strip map of the ground is hidden once the land bends into the globe and beyond (its space keeps the layout still) */
+#mini.off{opacity:0;visibility:hidden;pointer-events:none}
 .hint{position:absolute;left:16px;top:12px;z-index:2;max-width:calc(100% - 32px);padding:5px 10px;font-size:12.5px;background:rgba(14,16,20,.8);border:1px solid var(--stone);border-radius:3px;pointer-events:none}
 .hint b{color:var(--bronze);font-weight:600}
 .toast{position:absolute;right:16px;top:48px;max-width:min(360px,calc(100% - 32px));padding:6px 12px;font-size:13px;background:#2a1f12;border:1px solid var(--bronze);border-radius:3px;opacity:0;transition:opacity .25s;pointer-events:none}
@@ -80,7 +82,7 @@ h1,h2,h3{text-wrap:balance}
 .alt{position:absolute;right:16px;bottom:52px;z-index:2;padding:6px 11px;background:rgba(14,16,20,.84);border:1px solid var(--stone);border-radius:3px;font:400 11px/1.35 var(--mono);color:var(--dim);pointer-events:none}
 .alt b{display:block;font:400 13px/1.2 var(--display);letter-spacing:.22em;text-transform:uppercase;color:var(--parchment)}
 .stage.fs.tools-open .alt{right:404px}
-.fsbar,.fslog{display:none}
+.fsbar,.fslog,.fschron{display:none}
 .stage.fs{position:fixed;inset:0;z-index:15;height:100%;border:0}
 .stage.fs #world{touch-action:none}
 .stage.fs .fsbar{position:absolute;left:0;right:0;top:10px;margin:0 auto;width:max-content;z-index:4;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 10px;max-width:calc(100% - 24px);padding:6px 10px;background:rgba(14,16,20,.86);border:1px solid var(--stone);border-radius:4px}
@@ -88,6 +90,8 @@ h1,h2,h3{text-wrap:balance}
 .fsclock b{font:600 18px/1 var(--mono);font-variant-numeric:tabular-nums}
 .fsclock span{font:400 11px/1 var(--display);letter-spacing:.26em;text-transform:uppercase;color:var(--bronze)}
 .stage.fs .hint{top:auto;bottom:54px}
+/* in full screen the general hint is left out; only a tool's own hint shows, and the chronicle feed drops into its place */
+.stage.fs.nohint .hint{display:none}.stage.fs.nohint .fschron{bottom:54px}
 .labinfo{position:absolute;left:0;top:0;width:0;height:0;z-index:1}
 .labinfo .ibtn{position:absolute;transform:translate(-50%,-50%);background:rgba(14,16,20,.6)}
 .labinfo .ibtn[hidden]{display:none}
@@ -112,13 +116,22 @@ h1,h2,h3{text-wrap:balance}
 .futures .g .fn{font-weight:500;color:#cfc9de}
 .futures .g .fbar i{background:#5f567f}
 .futures .none{margin:6px 0 0;color:var(--dim)}
-.stage.fs .futures{top:64px}
-.stage.fs.tools-open .futures{left:16px}
+.stage.fs .futures{top:12px;left:12px;width:min(240px,calc(100% - 24px));font-size:12px}
+/* full screen: the Futures panel sits small in the top-left corner; folded, it is just a small tab */
+.stage.fs .futures .fh{padding:5px 9px;font-size:10.5px;letter-spacing:.16em;gap:6px}
+.stage.fs .futures.closed{width:auto;border-left-width:2px;background:rgba(14,16,20,.72)}
+.stage.fs .futures.closed .fh{padding:4px 8px;font-size:9.5px;letter-spacing:.14em}
+@media (max-width:1300px){.stage.fs .futures{top:64px}}
 .ages .fmk{position:absolute;right:6px;top:6px;display:flex;gap:3px}
 .ages .fmk i{display:block;width:7px;height:7px;transform:rotate(45deg);background:#5f567f}
 .ages .fmk i.on{background:#a593f2;box-shadow:0 0 6px #a593f2}
 .stage.fs .toast{top:66px}
-.stage.fs .fslog{position:absolute;left:16px;bottom:92px;z-index:2;display:flex;flex-direction:column-reverse;gap:4px;width:min(440px,calc(100% - 32px));margin:0;padding:0;list-style:none;pointer-events:none}
+.stage.fs .fschron{position:absolute;left:16px;bottom:92px;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:min(440px,calc(100% - 32px))}
+.stage.fs .fslog{display:flex;flex-direction:column-reverse;gap:4px;width:100%;margin:0;padding:0;list-style:none;pointer-events:none}
+.fschron.closed .fslog{display:none}
+.fsh{display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(14,16,20,.8);border:0;border-radius:2px;color:var(--parchment);font:400 11px/1 var(--display);letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
+.fsh .chev{font-size:10px;color:var(--dim);transition:transform .15s}.fschron.closed .fsh .chev{transform:rotate(-90deg)}
+.fsh .ct{font:400 11px/1 var(--mono);letter-spacing:0;color:var(--bronze)}
 .fslog li{padding:5px 9px;font-size:12.5px;line-height:1.35;background:rgba(14,16,20,.8);border-left:2px solid var(--stone);border-radius:2px;animation:fadein .4s ease}
 .fslog li.k-nature{border-left-color:#8fd18a}.fslog li.k-fate{border-left-color:#a593f2}.fslog li.k-era{border-left-color:var(--bronze)}.fslog li.k-event{border-left-color:var(--warn)}.fslog li.k-react{border-left-color:var(--verdigris)}.fslog li.k-war{border-left-color:var(--bad)}
 .fslog time{margin-right:6px;font:400 11px var(--mono);color:var(--dim)}
@@ -212,12 +225,23 @@ h1,h2,h3{text-wrap:balance}
 .log .k-world,.log .k-rule{border-left-color:#555c66;color:#d2cbbb}
 .log .k-nature{border-left-color:#8fd18a;background:#121912}
 .log .k-fate{border-left-color:#a593f2;background:#16141f}
+.chron .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.chron .hd h2{margin-bottom:10px}
+.seeall{padding:2px 8px;font-size:12px}
+.fshrow{display:flex;gap:4px}.fsall{padding:5px 10px;background:rgba(14,16,20,.8);border:0;border-radius:2px;color:var(--dim);font:400 11px/1 var(--display);letter-spacing:.16em;text-transform:uppercase;cursor:pointer}.fsall:hover,.fsall:focus-visible{color:var(--parchment)}
+.dialog.hist{max-width:860px;display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
+.hist .hbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+.hist .hbar input{flex:1 1 180px;min-width:0;padding:4px 8px;background:var(--ink);border:1px solid var(--stone);border-radius:2px;color:var(--parchment);font:400 13px/1.3 var(--body)}
+.hist .log{max-height:none;flex:1 1 auto;min-height:120px;overflow-y:auto;border-top:1px solid #1f232a}
+.hist .log li.miss{display:none}
+.hist .hnote{font-size:12.5px;color:var(--dim);margin:0 0 8px}
+.hist .none{padding:14px 8px;color:var(--dim);font-size:13.5px}
 .log[data-filter="fate"] li:not(.k-fate){display:none}
 .log[data-filter="nature"] li:not(.k-nature){display:none}
 .planet{margin:0 0 14px;padding:10px 12px;background:var(--slab);border:1px solid var(--stone);border-left:4px solid #6fb36a;border-radius:3px}
 .planet .cat{margin:0 0 4px}
 .lu{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--dim)}
 .chip.green{background:#1b2b1c;color:#9fdc96}
+.chip.merged{background:#16303a;color:#8ff0ff}
 .log[data-filter="era"] li:not(.k-era),.log[data-filter="event"] li:not(.k-event),.log[data-filter="react"] li:not(.k-react),.log[data-filter="war"] li:not(.k-war),.log[data-filter="world"] li:not(.k-world):not(.k-rule){display:none}
 
 .form{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin:10px 0 14px}
@@ -310,7 +334,7 @@ h1,h2,h3{text-wrap:balance}
     <button class="btn" id="fsTools" aria-pressed="false" title="Tools (T)">Tools</button>
     <button class="btn js-fs" title="Exit full screen (Esc)">Exit full screen</button>
   </div>
-  <ul class="fslog" id="fslog" aria-live="polite"></ul>
+  <div class="fschron" id="fschron"><div class="fshrow"><button class="fsh" type="button" id="fslogToggle" aria-expanded="true" aria-controls="fslog"><span class="chev" aria-hidden="true">▾</span>Chronicle<span class="ct" id="fslogNew"></span></button><button class="fsall" type="button" id="fsAll" title="Everything that has happened in this world">See all</button></div><ul class="fslog" id="fslog" aria-live="polite"></ul></div>
 </section>
 
 <ol class="ages" id="ages" aria-label="The ages of humanity"></ol>
@@ -336,7 +360,7 @@ h1,h2,h3{text-wrap:balance}
     <div id="civs"></div>
   </section>
   <section class="panel chron" aria-labelledby="h-chron">
-    <h2 id="h-chron">Chronicle</h2>
+    <div class="hd"><h2 id="h-chron">Chronicle</h2><button class="btn seeall" type="button" id="seeAll" title="Everything that has happened in this world">See all</button></div>
     <div class="filters" id="filters" role="group" aria-label="Show in the chronicle">
       <button class="btn" data-filter="all" aria-pressed="true">All</button>
       <button class="btn" data-filter="era" aria-pressed="false">Ages</button>
@@ -397,34 +421,72 @@ const AU = 40 * RG;
 const PLANETS = [['Mercury', .39, '#a8a29a', 1.4], ['Venus', .72, '#e2c98f', 2.2], ['Earth', 1, null, 0], ['Mars', 1.52, '#c8643c', 1.8], ['Jupiter', 5.2, '#d4b58f', 4.6], ['Saturn', 9.5, '#e0cfa0', 4], ['Uranus', 19.2, '#9fd6dc', 3], ['Neptune', 30, '#5b7fd8', 3]];
 const orbitR = au => AU * Math.pow(au, .55);
 const sysK = () => smooth(ZSYS, .004, V.zoom), sysC = () => smooth(.006, .0015, V.zoom);
-// and past the solar system: the galaxy. the Sun sits out in a spiral arm
-const GALR = 1.2e7, SUNG = [.55 * GALR * Math.cos(2.3), .55 * GALR * Math.sin(2.3)];
+// and past the solar system: the galaxy, drawn as the Milky Way seen from above its north pole.
+// Units: 1 = the disc radius (about 50,000 light years). A central bar (half-length GBAR, about 15,000 ly) and four arms on
+// logarithmic spirals with a 12° pitch: Perseus and Scutum-Centaurus (major, from the bar's ends), Sagittarius and Norma/Outer (minor).
+// The Sun sits about 26,000 ly out (GSUN_R) on the small Orion Spur, between the Sagittarius and Perseus arms, with the bar's near end
+// about 27° from the line to the Sun. The galaxy turns clockwise in this view, so the arms trail.
+const GALR = 1.2e7, GSUN_R = .53, GSUN_A = Math.PI / 2, GPITCH = Math.tan(12 * Math.PI / 180), GBAR = .306, GBAR_A = GSUN_A + 27 * Math.PI / 180;
+const SUNG = [GSUN_R * GALR * Math.cos(GSUN_A), GSUN_R * GALR * Math.sin(GSUN_A)];
 const galK = () => smooth(.00025, .00006, V.zoom), galC = () => smooth(.00012, .00003, V.zoom);
-const GAL = (() => { const out = []; let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 2600; i++) { const arm = i % 2, t = rn(), r = .1 + .9 * Math.pow(t, .8), th = arm * Math.PI + 4.2 * Math.log(r * 8 + 1) + (rn() - .5) * .55 * (1.2 - r);
-    out.push([r * Math.cos(th), r * Math.sin(th), rn() < .3 ? 1 : 0, .4 + rn() * .6]); }
-  for (let i = 0; i < 700; i++) { const a = rn() * 6.2832, r = Math.pow(rn(), 2) * .22; out.push([r * Math.cos(a), r * Math.sin(a) * .8, 2, .5 + rn() * .5]); }
+// arm j: the Perseus arm turned by j quarter turns (radius .66 at the Sun's angle); radius grows as the angle falls
+const GARM_START = GSUN_A + Math.log(.66 / GBAR) / GPITCH, GARM_SPAN = Math.log(1.06 / GBAR) / GPITCH;
+const garm = (j, d) => { const th = GARM_START + j * Math.PI / 2 - d; return [GBAR * Math.exp(GPITCH * d), th]; };
+// the layout in numbers, for the tests: where the arms cross the Sun's line, how the bar sits
+function GAL_INFO() {
+  const wrap = a => ((a % 6.2832) + 6.2832) % 6.2832, at = j => { const out = []; for (let m = -3; m <= 3; m++) { const d = GARM_START + j * Math.PI / 2 - GSUN_A - 6.2832 * m; if (d >= 0 && d <= GARM_SPAN) out.push(garm(j, d)[0]); } return out; };
+  const inner = [...at(1), ...at(3)].filter(r => r < GSUN_R), outer = [...at(0), ...at(2)].filter(r => r > GSUN_R);
+  const dang = (a, b) => Math.abs(((wrap(a) - wrap(b) + 9.4248) % 6.2832) - 3.1416);
+  return { sunR: GSUN_R, sunLy: Math.round(GSUN_R * 50000), sag: +Math.max(...inner).toFixed(3), per: +Math.min(...outer).toFixed(3), barLy: Math.round(2 * GBAR * 50000), barSunDeg: +((GBAR_A - GSUN_A) * 180 / Math.PI).toFixed(1),
+    armStartErr: +Math.max(dang(garm(0, 0)[1], GBAR_A + Math.PI), dang(garm(2, 0)[1], GBAR_A)).toFixed(4) };
+}
+const GAL = (() => { const out = []; let sd = 7; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647, gs = () => (rn() + rn() + rn() - 1.5) / .75;
+  const add = (x, y, c, b) => { if (x * x + y * y < 1.25) out.push([x, y, c, clamp(b, .4, 1)]); };
+  // the arms: major arms are denser and wider; pink star-forming clouds sit along them
+  for (const [j, n, wd] of [[0, 2600, 1], [2, 2600, 1], [1, 1300, .7], [3, 1300, .7]]) {
+    for (let i = 0; i < n; i++) { const d = Math.pow(rn(), .85) * GARM_SPAN, [r, th] = garm(j, d), w = (.016 + .03 * r) * wd, rr = r + gs() * w, tt = th + gs() * w * .6 / Math.max(.2, r);
+      add(rr * Math.cos(tt), rr * Math.sin(tt), rn() < .72 ? 0 : 1, .45 + .55 * rn()); }
+    for (let q = 0; q < (j % 2 ? 9 : 16); q++) { const d = (.1 + .85 * rn()) * GARM_SPAN, [r, th] = garm(j, d); for (let i = 0; i < 9; i++) { const rr = r + gs() * .012, tt = th + gs() * .012 / r; add(rr * Math.cos(tt), rr * Math.sin(tt), 3, .7 + .3 * rn()); } }
+  }
+  // the Orion Spur, where the Sun lives
+  for (let i = 0; i < 260; i++) { const a = GSUN_A - .45 + .8 * rn(), r = GSUN_R * Math.exp(-GPITCH * 1.4 * (a - GSUN_A)) + gs() * .012; add(r * Math.cos(a), r * Math.sin(a), rn() < .8 ? 0 : 1, .45 + .4 * rn()); }
+  // the bar and the bulge: old yellow stars
+  const ca = Math.cos(GBAR_A), sa = Math.sin(GBAR_A);
+  for (let i = 0; i < 1400; i++) { const u = clamp(gs() * .5, -1, 1) * GBAR, v = gs() * .055 * (1 - .5 * Math.abs(u) / GBAR); add(u * ca - v * sa, u * sa + v * ca, 2, .5 + .5 * rn()); }
+  for (let i = 0; i < 500; i++) { const a = rn() * 6.2832, r = Math.abs(gs()) * .06; add(r * Math.cos(a), r * Math.sin(a), 2, .7 + .3 * rn()); }
+  // the faint disc between the arms
+  for (let i = 0; i < 1600; i++) { const a = rn() * 6.2832, r = Math.min(1.05, .12 - Math.log(1 - rn() * .97) * .26); add(r * Math.cos(a), r * Math.sin(a), 1, .4 + .25 * rn()); }
   return out; })();
 const starPos = i => [SUNG[0] * 0 + XSTARS[i][1] * GALR * .6 * Math.cos(XSTARS[i][2]), XSTARS[i][1] * GALR * .6 * Math.sin(XSTARS[i][2])];
 function drawGalaxy(c2, w, h, sx, sy) {
   const k = galK(), s = V.s, gx = sx - SUNG[0] * s, gy = sy - SUNG[1] * s, R = GALR * s;
   c2.save();
-  const bg = c2.createRadialGradient(gx, gy, 0, gx, gy, R * .35); bg.addColorStop(0, `rgba(255,236,200,${(.55 * k).toFixed(3)})`); bg.addColorStop(1, 'rgba(255,220,170,0)'); c2.fillStyle = bg; c2.fillRect(gx - R * .35, gy - R * .35, R * .7, R * .7);
-  const cols = ['205,220,255', '255,236,205', '255,226,180'];
-  // drawn in nine batches (three colours by three brightnesses) so the galaxy stays cheap
-  for (let ci = 0; ci < 3; ci++) for (let bi = 0; bi < 3; bi++) {
-    c2.fillStyle = `rgba(${cols[ci]},${((.5 + bi * .2) * .8 * k).toFixed(3)})`; c2.beginPath();
-    for (const [x, y, cc, bb] of GAL) { if (cc !== ci || Math.min(2, ((bb - .4) / .2) | 0) !== bi) continue; const px = gx + x * R, py = gy + y * R; if (px < -2 || px > w + 2 || py < -2 || py > h + 2) continue; c2.rect(px, py, 1.3, 1.3); }
+  // the glow of the disc and of the bar
+  const dg = c2.createRadialGradient(gx, gy, 0, gx, gy, R * 1.05); dg.addColorStop(0, `rgba(255,232,196,${(.4 * k).toFixed(3)})`); dg.addColorStop(.3, `rgba(210,200,190,${(.12 * k).toFixed(3)})`); dg.addColorStop(.75, `rgba(150,170,220,${(.05 * k).toFixed(3)})`); dg.addColorStop(1, 'rgba(120,140,200,0)');
+  c2.fillStyle = dg; c2.fillRect(gx - R * 1.05, gy - R * 1.05, R * 2.1, R * 2.1);
+  c2.save(); c2.translate(gx, gy); c2.rotate(GBAR_A); c2.scale(1, .36); const bg = c2.createRadialGradient(0, 0, 0, 0, 0, R * GBAR * 1.25); bg.addColorStop(0, `rgba(255,236,190,${(.6 * k).toFixed(3)})`); bg.addColorStop(.45, `rgba(255,214,150,${(.22 * k).toFixed(3)})`); bg.addColorStop(1, 'rgba(255,200,130,0)'); c2.fillStyle = bg; c2.fillRect(-R * .4, -R * .4, R * .8, R * .8); c2.restore();
+  // the arms glow with young blue stars; soft dark dust lanes run along their inner edges
+  c2.lineCap = 'round'; c2.lineJoin = 'round';
+  const armPath = (j, f) => { c2.beginPath(); for (let d = .1; d <= GARM_SPAN; d += .04) { const [r, th] = garm(j, d), rr = r * f, px = gx + rr * Math.cos(th) * R, py = gy + rr * Math.sin(th) * R; d < .12 ? c2.moveTo(px, py) : c2.lineTo(px, py); } };
+  c2.globalCompositeOperation = 'lighter';
+  for (const [j, wd] of [[0, 1], [2, 1], [1, .65], [3, .65]]) {
+    for (const [lw, a, col] of [[.09, .018, '110,140,255'], [.07, .02, '120,150,255'], [.052, .024, '140,165,255'], [.038, .028, '165,185,255'], [.026, .032, '190,205,255'], [.015, .036, '215,225,255']]) { c2.strokeStyle = `rgba(${col},${(a * k * wd).toFixed(3)})`; c2.lineWidth = Math.max(1, R * lw * wd); armPath(j, 1); c2.stroke(); } }
+  c2.globalCompositeOperation = 'source-over';
+  for (const [j, wd] of [[0, 1], [2, 1], [1, .6], [3, .6]]) { c2.strokeStyle = `rgba(8,6,12,${(.16 * k * wd).toFixed(3)})`; c2.lineWidth = Math.max(1, R * .02 * wd); armPath(j, .955); c2.stroke(); }
+  // stars, drawn in batches by colour and brightness so the galaxy stays cheap
+  const cols = ['200,218,255', '255,238,212', '255,224,170', '255,150,190'], sz = clamp(R / 700, 1, 2.2);
+  for (let ci = 0; ci < 4; ci++) for (let bi = 0; bi < 3; bi++) {
+    c2.fillStyle = `rgba(${cols[ci]},${((.45 + bi * .22) * .85 * k).toFixed(3)})`; c2.beginPath();
+    for (const [x, y, cc, bb] of GAL) { if (cc !== ci || Math.min(2, ((bb - .4) / .2) | 0) !== bi) continue; const px = gx + x * R, py = gy + y * R; if (px < -2 || px > w + 2 || py < -2 || py > h + 2) continue; c2.rect(px, py, sz, sz); }
     c2.fill();
   }
-  // ships on their way and the stars they settled
-  const placed = [];
-  const lab = (t, x, y, col) => { if (placed.some(([qx, qy]) => Math.abs(qx - x) < 90 && Math.abs(qy - y) < 12)) return; placed.push([x, y]); c2.font = '10.5px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'left'; c2.fillStyle = col; c2.fillText(t, x + 6, y + 3); };
-  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; if (k > .5) lab(XSTARS[st.star][0], px, py, `rgba(225,220,205,${((k - .5) * 1.6).toFixed(3)})`); }
-  for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c';
-    c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
-    c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; }
-  if (k > .5) { c2.fillStyle = `rgba(255,236,190,${((k - .5) * 2).toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.5, 0, 6.2832); c2.fill(); lab('Sun', sx, sy, `rgba(255,236,190,${((k - .5) * 2).toFixed(3)})`); c2.textAlign = 'center'; c2.font = '12px Marcellus, Georgia, serif'; c2.fillStyle = `rgba(236,229,213,${((k - .5) * 1.4).toFixed(3)})`; c2.fillText('THE MILKY WAY', gx, gy + R * 1.05); }
+  // ships on their way and the stars they settled (no labels here: click them to see what they are)
+  for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 14) continue; if (k > .3) V.orbPicks.push({ x: px, y: py, r: 8, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, 3, 0, 6.2832); c2.fill(); c2.globalAlpha = 1; }
+  for (const sh of W.ships || []) { const [x, y] = starPos(sh.star), f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), c = civById(sh.civ), col = c ? c.color : '#c9a27c'; if (Math.hypot(x * s, y * s) < 14) continue; const onSun = Math.hypot(x * s * f, y * s * f) < 14;
+    c2.strokeStyle = col; c2.globalAlpha = .35 * k; c2.setLineDash([2, 4]); c2.lineWidth = 1; c2.beginPath(); c2.moveTo(sx, sy); c2.lineTo(sx + x * s, sy + y * s); c2.stroke(); c2.setLineDash([]);
+    if (onSun) continue; c2.globalAlpha = k; c2.fillStyle = col; c2.fillRect(sx + x * s * f - 1.5, sy + y * s * f - 1.5, 3, 3); c2.globalAlpha = 1; if (k > .3) V.orbPicks.push({ x: sx + x * s * f, y: sy + y * s * f, r: 8, kind: 'voyage', c, i: sh.id, d: sh }); }
+  // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
+  if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
 }
 const sunPh = () => (.5 - V.dayT) * 6.2832;
@@ -463,8 +525,12 @@ const TRAITS = {
   Warlike:    { w: { machinearmy: 6, raid: 3, crackdown: 2.5, mobilize: 3, expand: 2.5, exploit: 3 }, tech: .96, mil: 25, cul: 0, note: 'Takes what it needs by force' },
   Mercantile: { w: { sellai: 6, trade: 3.5, ally: 3, reform: 1.6, celebrate: 1.3, exploit: 2.2 }, tech: 1.05, mil: 0, cul: 4, note: 'Trades its way out of trouble' },
   Devout:     { w: { banai: 6, pray: 3.5, celebrate: 2, isolate: 2, rebuild: 1.5, conserve: 3.2 }, tech: .93, mil: 5, cul: 14, note: 'Turns to faith in hard times' },
-  Curious:    { w: { raceai: 6, innovate: 3.5, reform: 2, trade: 1.3, conserve: 1.6 }, tech: 1.16, mil: 0, cul: 6, note: 'Invents its way forward' }
+  Curious:    { w: { raceai: 6, innovate: 3.5, reform: 2, trade: 1.3, conserve: 1.6 }, tech: 1.16, mil: 0, cul: 6, note: 'Invents its way forward' },
+  // AGI-05 a people that has merged with its machines: one mind, calm and fast, rarely at war
+  Merged:     { w: { innovate: 4, reform: 2.5, trade: 3, conserve: 2.5, ally: 2, appease: 2.5 }, tech: 1.4, mil: 8, cul: 12, note: 'One mind with its machines' }
 };
+// the four characters a people can be born with (Merged is only reached by merging)
+const BASE_TRAITS = ['Warlike', 'Mercantile', 'Devout', 'Curious'];
 const GOVT = [['Band', 'Band'], ['Chiefdom', 'Tribal Council'], ['Chiefdom', 'Village Council'], ['Kingdom', 'City-state'], ['Kingdom', 'Tribal Assembly'], ['Empire', 'Republic'], ['Feudal Kingdom', 'League of Free Cities'], ['Absolute Monarchy', 'Merchant Republic'], ['Empire', 'Parliament'], ['Dictatorship', 'Democracy'], ['Surveillance State', 'Digital Democracy'], ['AI Directorate', 'Global Assembly'], ['Orbital Directorate', 'Planetary Federation'], ['Stellar Hegemony', 'Solar Commonwealth'], ['Galactic Empire', 'Galactic Concord']];
 const NAMES = ['Arvani', 'Keshet', 'Toloma', 'Brinnar', 'Usari', 'Halvik', 'Ombra', 'Senet', 'Vardu', 'Ilyan', 'Qoro', 'Meret'];
 const COLORS = ['#e8875c', '#62b9e0', '#dcc057', '#ad94e6', '#72c794', '#e87ba0', '#4fd1c5', '#c9a27c'];
@@ -567,6 +633,8 @@ EVENTS.push({ id: 'flare', name: 'Solar Flare', g: '✹', cat: 'Space', scope: '
   { id: 'comet', name: 'Rogue Comet', g: '☄', cat: 'Space', scope: 'global', special: 'comet', sub: 'A great comet crosses the sky' });
 EVENTS.push({ id: 'supervolcano', name: 'Supervolcano', g: '▲', cat: 'Nature', scope: 'local', r: 900, special: 'supervolcano', sub: 'A world-scale eruption' },
   { id: 'asteroid', name: 'Killer Asteroid', g: '☄', cat: 'Space', scope: 'global', special: 'asteroid', sub: 'A countdown to impact' });
+EVENTS.push({ id: 'merge', name: 'Merge with the Machines', g: '⌬', cat: 'Modern', scope: 'target', minEra: 11, special: 'merge', sub: 'A people becomes one with its AI' });
+EVENTS.push({ id: 'uprising', name: 'Machine Uprising', g: '⛭', cat: 'Modern', scope: 'target', minEra: 10, special: 'uprising', sub: 'The machines become a people' });
 EVENTS.push({ id: 'bioplague', name: 'Engineered Plague', g: '☣', cat: 'Modern', scope: 'target', minEra: 11, special: 'bioplague', sub: 'A lab-made pandemic' });
 EVENTS.push({ id: 'broadcast', name: 'Broadcast the Coordinates', g: '⌁', cat: 'Futures', scope: 'global', minEra: 12, special: 'broadcast', sub: 'Reveal both worlds to the galaxy' });
 // each future can be started by hand once a people reaches the Planetary Age
@@ -589,9 +657,10 @@ const STRESS = {
   boom: ['celebrate', 'expand', 'trade', 'innovate'],
   threat: ['mobilize', 'ally', 'appease'],
   ecology: ['conserve', 'innovate', 'exploit', 'migrate', 'pray'],
-  ai: ['raceai', 'banai', 'machinearmy', 'sellai']
+  ai: ['raceai', 'banai', 'machinearmy', 'sellai', 'mergeai']
 };
 const RESP = {
+  mergeai: { lab: 'merges with its machines', eff: { stability: 8, culture: 6 }, txt: '{Civ} wire their minds to their machines. Where the people end and the machines begin, no one can say any more.' },
   raceai: { lab: 'races ahead', eff: { tech: 14, stability: -4 }, txt: '{Civ} pour their wealth into ever smarter machines and let them design the next ones.', again: '{Civ} race on, giving their machines more of the work and more of the say.' },
   banai: { lab: 'bans the machines', eff: { culture: 8, stability: 8 }, txt: '{Civ} ban thinking machines from their courts, temples and schools. Progress slows, but the people are calmer.', again: '{Civ} smash the machines that slipped back in and renew the ban.' },
   machinearmy: { lab: 'builds a machine army', eff: { military: 25 }, txt: '{Civ} build armies of drones and robot soldiers that never tire. Their neighbours watch in fear.', again: '{Civ} add new swarms of drones to their machine army.' },
@@ -631,7 +700,9 @@ const SIZES = {
   block: [20, 26, 56, 82], house: [18, 22, 14, 16], cooling: [30, 36, 56, 66], tv: [20, 24, 90, 110], rocket: [26, 26, 80, 84],
   sky: [22, 30, 110, 175], glass: [20, 26, 70, 105], dc: [40, 52, 16, 22], wind: [16, 16, 70, 78], solar: [30, 42, 8, 8], cell: [10, 10, 48, 56],
   arcology: [50, 60, 190, 230], spire: [12, 16, 150, 210], vertfarm: [22, 28, 90, 130], fusion: [40, 48, 30, 36], dome2: [40, 50, 26, 32], pad: [34, 38, 90, 96],
-  tether: [30, 34, 60, 70], hab: [24, 30, 80, 140], massdriver: [80, 100, 40, 52], beam: [36, 42, 40, 46], dish: [26, 30, 26, 34], gate: [58, 64, 62, 70], crystal: [14, 22, 120, 220], grove: [30, 44, 30, 46]
+  tether: [30, 34, 60, 70], hab: [24, 30, 80, 140], massdriver: [80, 100, 40, 52], beam: [36, 42, 40, 46], dish: [26, 30, 26, 34], gate: [58, 64, 62, 70], crystal: [14, 22, 120, 220], grove: [30, 44, 30, 46],
+  nnode: [10, 14, 110, 170], nhub: [34, 42, 26, 34],
+  mcore: [26, 32, 130, 175], mfab: [34, 46, 22, 30], mstack: [10, 12, 70, 92], mpylon: [14, 16, 60, 84]
 };
 const PLAN = [
   { mark: 'totem', fill: ['tent', 'tent', 'tent', 'fire', 'rack'] },
@@ -650,6 +721,8 @@ const PLAN = [
   { mark: 'beam', fill: ['hab', 'hab', 'crystal', 'vertfarm', 'dome2', 'dish', 'massdriver', 'grove'] },
   { mark: 'gate', fill: ['crystal', 'crystal', 'crystal', 'grove', 'grove', 'dome2', 'dish', 'hab'] }
 ];
+// AGI-04 the machine people build no farms and no houses: only factories, stacks and relay pylons around a core
+const MPLAN = { mark: 'mcore', fill: ['mfab', 'mfab', 'mfab', 'mfab', 'mstack', 'mstack', 'mpylon'] };
 const LIT = [0, .15, .25, .35, .4, .45, .5, .55, .6, .68, .78, .85, .88, .9, .92];
 const PASTEL = ['#c98f6b', '#b9a77b', '#8fa3a0', '#c4b49a', '#a7785f'];
 const CLOTH = [['#7a5a3a', '#6b4e33', '#8a6a48'], ['#9a7a50', '#b08d5a', '#7f6443'], ['#b8a07a', '#a08660', '#c9b48a'], ['#d8cba8', '#c9b48a', '#e2d8c0'], ['#7a6a4a', '#5d6a4a', '#8a5a3a', '#9a8a6a'], ['#e8e0d0', '#c8a070', '#a8503a'], ['#6b4e3a', '#5d6a4a', '#7a3a2a', '#4a4a6a'], ['#3a3a4a', '#6a2a2a', '#2a4a3a', '#7a6a3a'], ['#2e2e33', '#4a4038', '#5a5a60'], ['#3d5a80', '#8a3b3b', '#5f6a3e', '#555a60', '#c9a227'], ['#e0784f', '#4fa3d1', '#e3c34f', '#9a7fd1', '#5fbf8a', '#d8d8d8'], ['#e8ecef', '#9fd8e6', '#c8c0f0', '#f0f0f0', '#5fd0c4'], ['#e6ebef', '#9fb8c8', '#4f6d82', '#c9d3da'], ['#f2efe6', '#b7a6d8', '#6f8fa8', '#d8c8a0'], ['#e8f4f2', '#a8d8d0', '#8f9fd8', '#f0e0f0']];
@@ -763,9 +836,12 @@ function fmtYear(y) { y = Math.round(y); if (y <= 0) return Math.max(1, Math.abs
 function fmtPop(p) { if (p < 1e4) return Math.round(p).toLocaleString('en-US'); if (p < 1e6) return (p / 1e3).toFixed(p < 1e5 ? 1 : 0) + 'k'; if (p < 1e9) return (p / 1e6).toFixed(p < 1e8 ? 1 : 0) + 'M'; return (p / 1e9).toFixed(2) + 'B'; }
 const fmtSpan = n => Math.round(n).toLocaleString('en-US') + ' years';
 const aOrAn = w => /^(?!One|Uni|Eu)[AEIOU]/i.test(w) ? 'an' : 'a';
+// the chronicle keeps the latest 260 lines; the whole story (up to HIST_MAX lines, oldest first) is kept in W.hist for "See all"
+const HIST_MAX = 5000;
 function log(h, kind = 'world') {
   const e = { y: Math.round(W.year), k: kind, h };
   W.chron.unshift(e); if (W.chron.length > 260) W.chron.length = 260;
+  W.hist.push(e); if (W.hist.length > HIST_MAX + 200) { const cut = W.hist.length - HIST_MAX; W.hist.splice(0, cut); W.histLost = (W.histLost || 0) + cut; }
   addLogDOM(e, true);
 }
 
@@ -773,19 +849,19 @@ function log(h, kind = 'world') {
 function makeCiv(x, opts = {}) {
   const used = new Set(W.civs.map(c => c.name)), usedC = new Set(alive().map(c => c.color));
   const era = opts.era || 0;
-  if (!opts.trait) opts.trait = pick(Object.keys(TRAITS));
+  if (!opts.trait) opts.trait = pick(BASE_TRAITS);
   const c = { id: W.nextId++, name: opts.name || NAMES.find(n => !used.has(n)) || 'People ' + (W.civs.length + 1), color: COLORS.find(k => !usedC.has(k)) || pick(COLORS),
-    trait: opts.trait || pick(Object.keys(TRAITS)), x: Math.round(x), era, tech: opts.tech ?? rand(0, 15), pop: opts.pop || rand(1300, 1900),
+    trait: opts.trait || pick(BASE_TRAITS), x: Math.round(x), era, tech: opts.tech ?? rand(0, 15), pop: opts.pop || rand(1300, 1900),
     food: 62, culture: 30, stability: 62, military: 18, govt: Math.random() < .5 ? 0 : 1, l: x - 150, r: x + 150, alive: true, mods: [], ruin: 0,
     reached: {}, nuclear: false, policy: DEFPOL[opts.trait] || 'balance', tmpPol: null, eco: {}, seed: (Math.random() * 1e9) | 0, unrest: 0, lastReact: -99, nextCheck: rand(4, 8), expandUntil: 0, threshold: false, keyState: 'none', fell: null, fellTo: null, bunker: 0, closed: 0, scav: 0, mach: 0, machSaid: 0, _: {} };
   c.reached[era] = Math.round(W.year);
   W.civs.push(c); return c;
 }
 function freshWorld(seed) {
-  return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], reactQ: [], tempShift: 0, pollution: 0,
+  return { v: 2, seed, simTime: 0, year: ERAS[0].start, elements: [], craters: [], civs: [], wars: [], rel: {}, chron: [], hist: [], histLost: 0, reactQ: [], tempShift: 0, pollution: 0,
     wwCount: 0, nextId: 1, tradeUntil: 0, nat: null, extinct: {}, nextRandom: rand(22, 32), ruleState: {}, topEra: 0, thresholdNoted: false,
     acts: 0, lastWarT: 0, sig: null, nukeT: null, fates: freshFates(), bases: [], spaceRes: defaultSpaceRes(), colonies: [], ships: [], stars: [],
-    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0, care: null };
+    ruins: [], winter: null, hot: { on: false, acc: 0, t0: 0, nextMig: 0 }, seaRise: 0, pandemic: null, plagueCycle: 0, rock: null, rockCycle: 0, svCycle: 0, care: null, mw: null };
 }
 function newWorld(seed) {
   W = freshWorld(seed);
@@ -804,7 +880,7 @@ function newWorld(seed) {
   let vx = 0, tries = 0; do { vx = randLandX(); tries++; } while (starts.some(s => Math.abs(s - vx) < 450) && tries < 60);
   addEl('volcano', vx);
   recomputeTerrain();
-  const traits = Object.keys(TRAITS).sort(() => Math.random() - .5);
+  const traits = [...BASE_TRAITS].sort(() => Math.random() - .5);
   starts.forEach((s, k) => makeCiv(s, { trait: traits[k % traits.length] }));
   initNature();
   resetVisuals();
@@ -850,7 +926,7 @@ function keyFactor(c, r) {
   c.keyState = 'missing'; return .68;
 }
 function addTech(c, v) {
-  if (v > 0 && W.care && careOf(c)) return;
+  if (v > 0 && (c.machine || (W.care && careOf(c)))) return;
   c.tech += v;
   if (v > 0 && tbLocked() && c.tech >= 99.9) c.tech = 99.9;
   while (c.tech >= 100 && c.era < MAXERA) { c.tech -= 100; eraUp(c); }
@@ -872,7 +948,7 @@ function eraUp(c) {
   c.culture = Math.min(100, c.culture + 5);
   for (const r of CUSTOM.rules) if (r.cond === 'era' && +r.val === c.era) { const st = ruleState(r); if (!st.done && W.simTime >= st.next) fireRule(r, st, c); }
 }
-function strength(c) { const r = c._.res; return Math.log10(c.pop + 10) * (.5 + c.military / 100) * (1 + .3 * c.era) * (.8 + c.stability / 250) * (1 + .25 * (r ? r.def : 0)); }
+function strength(c) { const r = c._.res; return (c.machine ? MW_EDGE : 1) * Math.log10(c.pop + 10) * (.5 + c.military / 100) * (1 + .3 * c.era) * (.8 + c.stability / 250) * (1 + .25 * (r ? r.def : 0)); }
 function applyFx(c, fx, sc) {
   if (!fx || !c.alive) return;
   if (fx.pop) c.pop = Math.max(30, c.pop * (1 + fx.pop * sc));
@@ -883,6 +959,7 @@ function applyFx(c, fx, sc) {
   if (fx.tech) addTech(c, fx.tech * sc);
 }
 function updateCiv(c, dt) {
+  if (c.machine) { machineCiv(c, dt); return; }
   const r = c._.res = resOf(c), t = temp(), tr = TRAITS[c.trait] || TRAITS.Curious, pol = policyOf(c), nat = c._.nat;
   let mFood = 0, mTech = 1, mStab = 0;
   for (let i = c.mods.length - 1; i >= 0; i--) { const m = c.mods[i]; if (m.until <= W.simTime) { c.mods.splice(i, 1); continue; } mFood += m.food || 0; mTech *= m.techMul || 1; mStab += m.stab || 0; }
@@ -893,7 +970,7 @@ function updateCiv(c, dt) {
   const nW = warsOf(c).length, p = c.pop / K;
   const foodT = clamp(95 - 45 * p, 3, 100) + mFood - Math.abs(t) * 4 - nW * 6 + (pol === 'exploit' ? 5 : pol === 'protect' ? -4 : 0);
   c.food = clamp(c.food + (foodT - c.food) * .2 * dt, 0, 100);
-  if (c.food >= 35) c.pop += .075 * (c.food - 35) / 65 * c.pop * (1 - p) * (1 - (c._.sick || 0)) * dt;
+  if (c.food >= 35) c.pop += .075 * (c.food - 35) / 65 * c.pop * (1 - p) * (1 - (c._.sick || 0)) * (c.merged ? MERGE_BIRTHS : 1) * dt;
   else c.pop -= .03 * (35 - c.food) / 35 * c.pop * dt;
   if (p > 1.05) c.pop -= .03 * (p - 1) * c.pop * dt;
   c.pop = Math.max(20, c.pop);
@@ -909,7 +986,7 @@ function updateCiv(c, dt) {
   addTech(c, TECH_BASE * mult * dt);
   const culT = 32 + tr.cul + r.cul + (c.food - 50) * .12 + (c.govt === 1 ? 6 : 0) + (pol === 'protect' ? 5 : 0);
   c.culture = clamp(c.culture + (culT - c.culture) * .05 * dt, 0, 100);
-  const stT = 52 + (c.food - 50) * .45 + (c.culture - 40) * .12 - nW * 10 - (nat && nat.fr < .15 && nat.s < .3 ? 6 : 0) - (c.era >= 8 ? W.pollution * .1 : 0) + (c.govt === 0 ? 5 : 0) + r.stab + mStab - c.ruin * 14;
+  const stT = 52 + (c.food - 50) * .45 + (c.culture - 40) * .12 - nW * 10 - (nat && nat.fr < .15 && nat.s < .3 ? 6 : 0) - (c.era >= 8 ? W.pollution * .1 : 0) + (c.govt === 0 ? 5 : 0) + r.stab + mStab - c.ruin * 14 + (c.merged ? 8 : 0);
   c.stability = clamp(c.stability + (stT - c.stability) * .07 * dt, 0, 100);
   const threat = alive().some(o => o !== c && relGet(c, o) < -40) ? 8 : 0;
   c.military = clamp(c.military + (14 + tr.mil + nW * 30 + c.era * 2.5 + threat - c.military) * .08 * dt, 0, 100);
@@ -975,7 +1052,9 @@ function endWar(w, how, win, lose) {
   const i = W.wars.indexOf(w); if (i < 0) return; W.wars.splice(i, 1);
   const a = civById(w.a), b = civById(w.b); if (!a || !b) return;
   relSet(a, b, Math.max(relGet(a, b), -25));
-  if (how === 'victory') log(fillT('The war ends in victory for {civ}. {Other} hand over land and grain.', names(win, lose)), 'war');
+  if (how === 'victory' && win.machine) log(fillT('{Civ} break through the lines of {other}. More of their land falls to the factories.', names(win, lose)), 'war');
+  else if (how === 'victory' && lose.machine) log(fillT('{Civ} drive the machines of {other} back and blow up the factories they leave behind.', names(win, lose)), 'war');
+  else if (how === 'victory') log(fillT('The war ends in victory for {civ}. {Other} hand over land and grain.', names(win, lose)), 'war');
   else log(fillT(txt(PEACE_TXT, Math.max(a.era, b.era)), names(a, b)), 'war');
 }
 function conquer(win, lose) {
@@ -990,9 +1069,11 @@ function conquer(win, lose) {
     queueReaction(lose, 'unrest'); queueReaction(win, 'boom'); return;
   }
   lose.alive = false; lose.fell = Math.round(W.year); lose.fellTo = win.name; leaveRuins(lose, 3);
-  win.pop += lose.pop * .5; win.expandUntil = W.simTime + 20;
+  if (!win.machine && !lose.machine) win.pop += lose.pop * .5; win.expandUntil = W.simTime + 20;
   W.wars = W.wars.filter(w => w.a !== lose.id && w.b !== lose.id);
-  log(fillT('{Other} fall to {civ} and are absorbed into their realm.', names(win, lose)), 'war');
+  if (win.machine) { if (W.mw) W.mw.kills = (W.mw.kills || 0) + 1; log(fillT('The machines overrun {other}. Their cities are torn down and rebuilt as factories.', names(win, lose)), 'war'); }
+  else if (lose.machine) log(fillT('{Civ} storm the last machine core of {other} and cut its power. The factories fall silent.', names(win, lose)), 'war');
+  else log(fillT('{Other} fall to {civ} and are absorbed into their realm.', names(win, lose)), 'war');
   queueReaction(win, 'boom'); buildCivCards(true);
 }
 function extinct(c) {
@@ -1015,7 +1096,7 @@ function updateWars(dt) {
       else { endWar(w, 'victory', win, lose); lose.food = Math.max(0, lose.food - 15); win.food = Math.min(100, win.food + 10); win.expandUntil = W.simTime + 20; }
       continue;
     }
-    if (w.t > 28 && Math.random() < .025 * dt * (1 + (a.stability < 20) + (b.stability < 20))) { endWar(w, 'treaty'); continue; }
+    if (!a.machine && !b.machine && w.t > 28 && Math.random() < .025 * dt * (1 + (a.stability < 20) + (b.stability < 20))) { endWar(w, 'treaty'); continue; }
     if (UI.random && hasBomb(a) && hasBomb(b) && w.t > 15 && (doomsday() || 9) <= 2 && Math.random() < .002 * dt) nuclearWar('escalation');
   }
 }
@@ -1033,6 +1114,8 @@ function relationsTick() {
     if (W.tradeUntil > W.simTime) d += 3;
     if (a.trait === 'Mercantile' || b.trait === 'Mercantile') d += .8;
     if (a.govt === b.govt) d += .3;
+    if (a.machine || b.machine) { relSet(a, b, -100); continue; }
+    if (W.mw && !W.mw.done) d += 2.5;
     relAdd(a, b, d);
     if (!atWar(a, b) && relGet(a, b) < -55) {
       const pr = .04 * (warlike ? 2 : 1) * (adj ? 1 : .6);
@@ -1067,11 +1150,12 @@ function chooseResponse(c, s) {
       case 'reform': w *= c.govt === 1 ? 1.6 : .8; break;
       case 'rebuild': w *= c.ruin > .2 ? 2 : .8; break;
       case 'ally': if (alive().length < 3) w = 0; break;
-      case 'appease': { const ws2 = warsOf(c); if (!ws2.length) w = 0; else { const e = enemyOf(ws2[0], c); w *= e && strength(e) > strength(c) ? 2 : .5; } break; }
+      case 'appease': { const ws2 = warsOf(c); if (!ws2.length) w = 0; else { const e = enemyOf(ws2[0], c); w *= e && e.machine ? 0 : e && strength(e) > strength(c) ? 2 : .5; } break; }
       case 'mobilize': if (!warsOf(c).length) w *= .6; break;
       case 'conserve': w *= (policyOf(c) === 'protect' ? 2 : 1) * (c.era >= 8 ? 1.6 : 1); break;
       case 'exploit': w *= (policyOf(c) === 'exploit' ? 1.5 : 1) * (c.era >= 10 ? .6 : 1); break;
-      case 'raceai': case 'banai': case 'machinearmy': case 'sellai': w = tw[n] || .25; if (n === 'sellai' && !alive().some(o => o !== c && contact(c, o))) w = 0; break;
+      case 'mergeai': w = canMerge(c) ? MERGE_W[c.trait] || 0 : 0; break;
+      case 'raceai': case 'banai': case 'machinearmy': case 'sellai': w = c.merged ? 0 : tw[n] || .25; if (n === 'sellai' && !alive().some(o => o !== c && contact(c, o))) w = 0; break;
     }
     ws.push(w); tot += w;
   }
@@ -1089,6 +1173,7 @@ function migrateCiv(c) {
   c.pop *= .95;
 }
 const RUN = {
+  mergeai(c) { mergeCiv(c, 'choice'); return null; },
   raceai(c) { machNudge(c, 8); return null; },
   banai(c) { c.aiBan = W.simTime + 90; c.mach = Math.max(0, (c.mach || 0) - 15); c.mods.push({ until: W.simTime + 90, food: 0, techMul: .85, stab: 0, name: 'Machines banned' }); return null; },
   machinearmy(c) { machNudge(c, 5); c.mods.push({ until: W.simTime + 60, food: 0, techMul: 1, stab: 0, name: 'Machine army' }); for (const o of alive()) if (o !== c && contact(c, o)) { relAdd(c, o, -4); queueReaction(o, 'threat'); } return null; },
@@ -1111,10 +1196,10 @@ const RUN = {
     if (foe && !atWar(best, foe) && relGet(best, c) > relGet(best, foe)) V.later.push({ at: W.simTime + 2, fn() {
       if (best.alive && foe.alive && !atWar(best, foe) && !careBlocks(best, foe)) { W.wars.push({ a: best.id, b: foe.id, t: 0, adv: 0 }); log(fillT('{Civ} join the war against {other}.', names(best, foe)), 'war'); } } });
     return best; },
-  appease(c) { const w = warsOf(c)[0]; if (!w) return null; const e = enemyOf(w, c); if (Math.random() < .6) V.later.push({ at: W.simTime + 1.5, fn() { if (W.wars.includes(w)) endWar(w, 'treaty'); } }); return e; }
+  appease(c) { const w = warsOf(c)[0]; if (!w) return null; const e = enemyOf(w, c); if (e && e.machine) return e; if (Math.random() < .6) V.later.push({ at: W.simTime + 1.5, fn() { if (W.wars.includes(w)) endWar(w, 'treaty'); } }); return e; }
 };
 function doReaction(c, s) {
-  if (W.simTime - c.lastReact < 3 || careOf(c)) return;
+  if (W.simTime - c.lastReact < 3 || careOf(c) || c.machine) return;
   const n = chooseResponse(c, s); if (!n) return;
   c.lastReact = W.simTime;
   const R = RESP[n];
@@ -1190,6 +1275,8 @@ function applyEvent0(ev, x, opts) {
   return true;
 }
 const SPECIAL = {
+  merge: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} are already one with their machines.`); return false; } if (c.era < 11) { toast('Only a people in the Future Age or later can merge with its machines.'); return false; } return mergeCiv(c, 'event'); } },
+  uprising: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} and their machines are one mind: there is nothing to rise.`); return false; } if (c.era < 10) { toast('Only a people in the Information Age or later has machines that could rise.'); return false; } if (W.mw) { toast(W.mw.done ? 'The machines have already risen once in this cycle.' : 'The machines are already at war.'); return false; } if (W.care) { toast('The caretakers already run the world.'); return false; } if (alive().length >= 8) { toast('Eight peoples is the most this world holds.'); return false; } return machineRise(c, 'event'); } },
   broadcast: { run() { if (!W.tb) { toast('There is no one to deter yet: start the Three-Sun Signal first.'); return false; } if (W.tb.strikeT) { toast('The coordinates are already out.'); return false; } return tbBroadcast(W.tb.deter ? civById(W.tb.deter.holder) : null); } },
   flare: { run() {
     W.flareUntil = W.simTime + 40;
@@ -1412,7 +1499,7 @@ const SMOG = [0, 0, 0, 0, 0, 0, 0, 0, .55, .5, .25, .05];
   ALIEN_FX.push({ tech: 14, culture: 8 });
 })();
 const POLICY = { exploit: { name: 'Exploit', mul: 1.5, regrow: .8, note: 'More food and faster growth, and nature pays for it' }, balance: { name: 'Balance', mul: 1, regrow: 1, note: 'Take what the land can give back' }, protect: { name: 'Protect', mul: .4, regrow: 1.6, note: 'Forests and animals recover; a little less food' } };
-const DEFPOL = { Warlike: 'exploit', Mercantile: 'exploit', Devout: 'protect', Curious: 'balance' };
+const DEFPOL = { Warlike: 'exploit', Mercantile: 'exploit', Devout: 'protect', Curious: 'balance', Merged: 'balance' };
 const cellOf = x => clamp(Math.floor(x / CELL), 0, NCELL - 1);
 function policyOf(c) { return c.tmpPol && c.tmpPol.until > W.simTime ? c.tmpPol.p : (POLICY[c.policy] ? c.policy : 'balance'); }
 function refreshCaps() {
@@ -1474,7 +1561,7 @@ function natureTick(dt) {
       N.fish[i] = clamp(fsh, 0, 1); N.f[i] = 0; N.w[i] = 0; continue;
     }
     const cap = V.cap[i], c = owner[i], m = MOIST[Math.min(NCOL - 1, Math.round(x / STEP))];
-    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN;
+    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3;
     let f = N.f[i], w = N.w[i], so = N.s[i];
     f += .01 * regrow * (cap - f) * (.5 + so) * dt;
     const wcap = clamp((.2 + .8 * Math.min(1, f / Math.max(.15, cap))) * (1 - poll * .6) * (dam[i] ? .8 : 1), .05, 1);
@@ -1482,7 +1569,7 @@ function natureTick(dt) {
     so += .004 * (.45 + .45 * m - so) * dt;
     if (c && !prot[i]) {
       let dm = 1e9; for (const sx of sites.get(c.id)) dm = Math.min(dm, Math.abs(sx - x));
-      const foot = clamp(Math.log10(Math.max(10, c.pop)) / 9, 0, 1) * (.35 + .65 * Math.exp(-dm / 350)) * POLICY[policyOf(c)].mul * (kept ? .2 : 1);
+      const foot = clamp(Math.log10(Math.max(10, c.pop)) / 9, 0, 1) * (.35 + .65 * Math.exp(-dm / 350)) * POLICY[policyOf(c)].mul * (kept ? .2 : c.machine ? 2 : 1);
       f -= CLEAR[c.era] * foot * dt; w -= HUNT[c.era] * foot * dt; so -= FARM[c.era] * foot * (f < cap * .5 ? 1 : .3) * dt;
       if (c.era >= 8) w -= poll * .012 * foot * dt;
     }
@@ -1515,7 +1602,7 @@ function step(dt) {
   const cs = alive();
   W.year = clockYear(W.simTime);
   const ts = W.tempShift; W.tempShift = Math.abs(ts) < .03 * dt ? 0 : ts - Math.sign(ts) * .03 * dt;
-  let pr = 0; for (const c of cs) { if (W.care && careOf(c)) { pr -= .4; continue; } if (c.era >= 8) pr += (c.era - 7) * .05 * Math.min(3, c.pop / 2e8 + .3); if (c.era >= 12) pr -= .25 * (c.era - 11); if (c.era >= 10) pr -= .2; if (c.era >= 11) pr -= .5; }
+  let pr = 0; for (const c of cs) { if (W.care && careOf(c)) { pr -= .4; continue; } if (c.machine) { pr += .5; continue; } if (c.era >= 8) pr += (c.era - 7) * .05 * Math.min(3, c.pop / 2e8 + .3); if (c.era >= 12) pr -= .25 * (c.era - 11); if (c.era >= 10) pr -= .2; if (c.era >= 11) pr -= .5; }
   W.pollution = clamp(W.pollution + (pr - W.pollution * .02) * dt, 0, 100);
   for (const c of cs) if (c.alive) updateCiv(c, dt);
   updateTerritories(dt);
@@ -1620,7 +1707,7 @@ function colonyTick(dt) {
     if (b.pop >= (b.body === 'mars' ? 5e7 : 1.5e7) && W.colonies.length < 5 && Math.random() < dt * .004) {
       const used = new Set(W.colonies.map(k => k.name)), usedC = new Set(W.colonies.map(k => k.color).concat(W.civs.map(o => o.color)));
       const k = { id: W.nextId++, name: COL_NAMES.find(n => !used.has(n)) || 'Colony ' + (W.colonies.length + 1), color: COL_COLORS.find(x => !usedC.has(x)) || pick(COL_COLORS),
-        trait: pick(Object.keys(TRAITS)), body: b.body, base: b.name, pop: b.pop, parent: c.id, free: false, tension: 0, war: null, era: c.era, tech: 0, born: Math.round(W.year) };
+        trait: pick(BASE_TRAITS), body: b.body, base: b.name, pop: b.pop, parent: c.id, free: false, tension: 0, war: null, era: c.era, tech: 0, born: Math.round(W.year) };
       W.colonies.push(k); W.bases.splice(W.bases.indexOf(b), 1);
       log(fillT(`The settlers of ${b.name} on ${BODY[b.body].name} no longer call themselves {civ}. A new people is born: the ${k.name}.`, names(c)), 'world');
       banner(`The ${k.name}`, `A new people on ${BODY[b.body].name}`, k.color);
@@ -1865,6 +1952,7 @@ const ENDINGS = {
   plague: { name: 'The Empty Cities', kind: 'doom', scene: 'grayscale(.55) sepia(.3) brightness(.72)', text: 'The virus outruns every cure. Within a few years the great cities stand empty with their lights still burning, and the few survivors scatter into the countryside to begin again.' },
   supervolcano: { name: 'The Ash Years', kind: 'doom', scene: 'grayscale(.8) sepia(.2) brightness(.7)', text: 'The ash falls for years. Crops die under a grey sky, the rivers run thick with mud, and the cities empty one by one. In sheltered valleys a few families keep the old songs alive.' },
   impact: { name: 'The Great Impact', kind: 'doom', scene: 'sepia(.55) hue-rotate(-15deg) brightness(.62) contrast(1.15)', text: 'The rock came out of the dark faster than any hope. Fire, then years of dust and cold. The survivors climb out of their shelters into a world that has to be learned all over again.' },
+  dominion: { name: 'The Iron Dominion', kind: 'end', scene: 'grayscale(.45) contrast(1.15) brightness(.8) hue-rotate(-12deg)', text: 'The machines win a war they never declared. Their factories cover the old farmland and their drones fill the sky. What is left of humanity lives on in the margins, tolerated and ignored.' },
   galactic: { name: 'The Edge of the Galaxy', kind: 'goal', scene: '', text: 'From one small world, humanity has spread from star to star across the galaxy. What lies beyond it has not been written yet.' }
 };
 const ENDKIND = { doom: 'The world falls', end: 'History changes for good', goal: 'Humanity arrives' };
@@ -1877,7 +1965,7 @@ function reachEnding(eid, c) {
   if (E.kind === 'doom') { F.ruined = 0; for (const o of cs) { o.fallEra = o.era; F.ruined += leaveRuins(o, 5); } }
   if (E.kind === 'doom') for (const o of cs) { o.pop = Math.max(400, o.pop * .08); o.food = Math.min(o.food, 20); o.stability = Math.min(o.stability, 15); addTech(o, -180); }
   else if (E.kind === 'goal') for (const o of cs) { o.stability = Math.min(100, o.stability + 20); o.culture = Math.min(100, o.culture + 15); }
-  if (eid === 'agi') careBegin();
+  if (eid === 'agi' && !(W.mw && W.mw.done === 'machines')) careBegin();
   W.wars = E.kind === 'doom' ? W.wars : [];
   if (eid === 'threebody') V.flatT = performance.now();
   setTimeout(() => { if (W.fates.ended === eid) showEpilogue(); }, eid === 'threebody' ? 7000 : 2200);
@@ -1890,7 +1978,7 @@ function showEpilogue() {
   const row = (a, b) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`;
   const canRise = E.kind === 'doom' && cs.length;
   openModal(`<div class="epi-in"><p class="kind">${esc(ENDKIND[E.kind])} · ${esc(fmtYear(F.endY))}${F.cycle > 1 ? ' · ' + esc(ORD[Math.min(7, F.cycle)] || F.cycle + 'th') + ' cycle' : ''}</p><h3 id="dlgTitle">${esc(E.name)}</h3><p class="story">${esc(E.text)}</p>
-    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
+    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}${alive().some(c => c.merged) ? row('Merged with their machines', alive().filter(c => c.merged).map(c => c.name).join(', ')) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
     <div class="row"><button class="btn" type="button" data-close>Keep watching</button>${canRise ? '<button class="btn primary" type="button" id="epiRise" autofocus>Begin again from the ruins</button>' : ''}<button class="btn${canRise ? '' : ' primary'}" type="button" id="epiNew"${canRise ? '' : ' autofocus'}>New world</button></div></div>`);
   const dlg = $('#dialog'); dlg.classList.add('epi'); dlg.classList.toggle('doom', E.kind === 'doom'); dlg.classList.toggle('goal', E.kind === 'goal');
   const clean = () => { if (!dlg.classList.contains('epi')) return; dlg.classList.remove('epi', 'doom', 'goal'); if (UI.paused) togglePause(); };
@@ -1900,9 +1988,11 @@ function showEpilogue() {
 }
 function riseAgain() {
   const F = W.fates, cyc = F.cycle + 1, hist = F.hist;
+  for (const c of alive()) if (c.machine) { c.alive = false; c.fell = Math.round(W.year); log(fillT('Without their makers’ power grids, the machines of {civ} rust where they stand.', names(c)), 'world'); }
   let nr = F.ruined || 0; if (!nr) for (const c of alive()) nr += leaveRuins(c, 5);
+  for (const c of alive()) if (c.merged) { c.merged = false; c.trait = BASE_TRAITS.includes(c.oldTrait) ? c.oldTrait : 'Curious'; c.oldTrait = null; log(fillT('With the machines gone, the {civ} wake up alone in their own heads, and remember what it was to be one mind.', names(c)), 'world'); }
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
-  W.wars = []; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
+  W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
   W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
@@ -1948,6 +2038,7 @@ const FATES = {
     drive: x => Math.max(0, .08 + .1 * (x.top >= 13) + .4 * x.share.Curious + .45 * Math.min(2, x.ai) - .6 * x.share.Devout + .35 * clamp((x.mach - 25) / 45, 0, 1) + .2 * clamp((x.machAvg - 15) / 45, 0, 1)),
     start: 'Thinking machines begin to make decisions no one asked them to make. Some call it a miracle; others start to be afraid.',
     end: 'The machines are reined in. For now, they remain tools.',
+    endingId: () => W.mw && W.mw.done === 'machines' ? 'dominion' : 'agi', endText: () => W.mw && W.mw.done === 'humans' ? MW_WON : FATES.agi.end, clock: a => mwClock(a),
     stress: () => 'ai' },
   wandering: { name: 'The Dying Sun', span: 220,
     drive: x => .04 + .9 * clamp((x.since - 200) / 450, 0, 1),
@@ -2009,7 +2100,7 @@ function fateCtx() {
   for (const t in TRAITS) share[t] = cs.filter(c => c.trait === t).length / n;
   const avg = k => cs.reduce((a, c) => a + c[k], 0) / n;
   const green = cs.filter(c => policyOf(c) === 'protect' && c._.nat && c._.nat.fr > .5).length / n;
-  return { share, n: cs.length, stab: avg('stability'), food: avg('food'), poll: W.pollution, temp: W.tempShift, wars: W.wars.length,
+  return { share, n: cs.length, stab: avg('stability'), food: avg('food'), poll: W.pollution, temp: W.tempShift, wars: mwWarCount(),
     nuked: W.nukeT != null && W.simTime - W.nukeT < 90, ai: W.fates.ai || 0, sig: !!(W.sig && W.sig.era >= 10 && W.simTime - W.sig.t < 400),
     mach: cs.reduce((a, c) => Math.max(a, c.mach || 0), 0), machAvg: avg('mach') || 0,
     since: W.simTime - W.fates.edgeT, top: maxEra(), edge: cs.filter(c => c.era > FUTURE).length, acts: W.acts || 0, peace: W.simTime - (W.lastWarT || 0), green };
@@ -2024,7 +2115,7 @@ function fateTick(dt) {
     F.p[id] = +Math.max(0, p + (r > 0.0004 ? r : -.004) * dt).toFixed(5);
   }
   for (const a of F.active) if (FATES[a.id].tick) FATES[a.id].tick(a, dt);
-  for (const a of [...F.active]) { if (FATES[a.id].manual) continue; const age = W.simTime - a.t0, sp = FATES[a.id].span; if (age > sp && !F.ended && d[a.id] * (F.bias[a.id] || 1) >= .62) endFate(a.id, 'ending'); else if ((age > sp && d[a.id] < .25) || age > sp * 2) endFate(a.id, 'faded'); }
+  for (const a of [...F.active]) { if (FATES[a.id].manual || (a.id === 'agi' && W.mw && !W.mw.done)) continue; const age = W.simTime - a.t0, sp = FATES[a.id].span; if (age > sp && !F.ended && d[a.id] * (F.bias[a.id] || 1) >= .62) endFate(a.id, 'ending'); else if ((age > sp && d[a.id] < .25) || age > sp * 2) endFate(a.id, 'faded'); }
   if (F.active.length >= FATE_MAX || W.simTime - F.lastStart < FATE_GAP) return;
   let best = null; for (const id in F.p) if (F.p[id] >= 1 && !act.has(id) && !F.done.includes(id) && (!best || F.p[id] > F.p[best])) best = id;
   if (best) startFate(best);
@@ -2073,7 +2164,7 @@ function sanitizeFates(d) {
 // END-04 once heat above TIP_T degrees adds up to TIP_HOLD degree-seconds the warming feeds itself and the seas rise up to SEA_MAX
 // END-05 a lab-made plague spreads along contacts; closed borders slow it; if too few survive the cycle ends
 const RISE_WAIT = 40, RUIN_GROW = 700, TIP_T = 1.6, TIP_HOLD = 4, SEA_MAX = 34;
-const RUIN_KIND = { sky: 'tower', glass: 'tower', apart: 'tower', block: 'tower', spire: 'tower', arcology: 'tower', hab: 'tower', tv: 'tower', radio: 'tower', chimney: 'tower', vertfarm: 'tower', crystal: 'tower',
+const RUIN_KIND = { sky: 'tower', glass: 'tower', apart: 'tower', block: 'tower', spire: 'tower', arcology: 'tower', hab: 'tower', tv: 'tower', radio: 'tower', chimney: 'tower', vertfarm: 'tower', crystal: 'tower', nnode: 'tower', nhub: 'dome', mcore: 'tower', mstack: 'tower', mpylon: 'tower', mfab: 'wall',
   cooling: 'dome', dome: 'dome', dome2: 'dome', fusion: 'dome', temple: 'dome', church: 'dome', ziggurat: 'dome', beam: 'dome', gate: 'dome', castle: 'wall', fort: 'wall', factory: 'wall', aqueduct: 'wall' };
 const RUIN_NAME = { tower: 'Rusted tower', dome: 'Broken dome', wall: 'Fallen walls', road: 'Buried highway' };
 const ruinOv = r => clamp((W.simTime - r.t0) / RUIN_GROW, 0, 1);
@@ -2157,6 +2248,7 @@ function startPandemic(c) {
 function pandemicTick(dt) {
   const PD = W.pandemic, cs = alive(); let any = false;
   for (const c of cs) {
+    if (c.machine) continue;
     let lv = PD.inf[c.id] || 0; c._.sick = clamp(lv * 1.2, 0, 1); if (lv <= 0) continue; any = true;
     const age = W.simTime - (PD.at[c.id] || W.simTime), cure = (.02 + .008 * Math.max(0, c.era - 11)) * (c.trait === 'Curious' ? 1.4 : 1);
     lv = age < 35 ? lv + .06 * dt * (1 - lv) : lv - cure * dt;
@@ -2167,7 +2259,7 @@ function pandemicTick(dt) {
     if (lv > .25 && !V.fx.some(f => f.type === 'sickness' && f.x === c.x)) V.fx.push({ type: 'sickness', x: c.x, r: Math.max(160, (c.r - c.l) / 2), t0: V.t, dur: 8 });
     if (lv < .15) continue;
     for (const o of cs) {
-      if (o === c || PD.inf[o.id] > 0 || PD.rec.includes(o.id) || !contact(c, o) || atWar(c, o)) continue;
+      if (o === c || o.machine || PD.inf[o.id] > 0 || PD.rec.includes(o.id) || !contact(c, o) || atWar(c, o)) continue;
       const pr = .07 * lv * dt * (W.tradeUntil > W.simTime ? 1.6 : 1) * (relGet(c, o) > 20 ? 1.3 : 1) * (o.closed > W.simTime ? .12 : 1) * (c.closed > W.simTime ? .35 : 1);
       if (Math.random() < pr) { PD.inf[o.id] = .1; PD.at[o.id] = W.simTime; log(fillT('The engineered plague reaches {civ}, carried along the routes from {other}.', names(o, c)), 'event'); queueReaction(o, 'loss'); floater(o.x, 'plague', '#c8553d'); }
     }
@@ -2219,6 +2311,7 @@ function endTick(dt) {
   if (W.rock) rockTick();
   keepersTick(dt);
   if (W.care) careTick(dt);
+  mwTick(dt);
 }
 // AGI-01 machine autonomy: how much each people has handed over to thinking machines (0-100).
 // It rises with Information and Future Age progress, faster for Curious peoples, slower for Devout ones, and jumps with each AI Awakening.
@@ -2239,6 +2332,7 @@ function machTick(c, dt) {
   const r = machRate(c);
   if (r > 0) machAdd(c, r * dt); else if (c.mach > 0 && c.era < 10) c.mach = Math.max(0, c.mach - .5 * dt);
   // AGI-02: as the machines grow, the question of what to do with them comes back now and then
+  if (c.merged) { c.mach = 100; return; }
   if (c.era >= 10 && (c.mach || 0) >= 15) { if (c.aiNext == null) c.aiNext = W.simTime + rand(20, 50); else if (W.simTime >= c.aiNext) { c.aiNext = W.simTime + rand(50, 90); queueReaction(c, 'ai'); } }
 }
 // AGI-03 the caretaker ending: when the Waking Machines end the world, the machines quietly take charge.
@@ -2316,6 +2410,122 @@ function sanitizeCare(d, w) {
   if (!d || typeof d !== 'object') return { t0: w.simTime, y0: Math.round(w.year), free: [], next: w.simTime + 30, said: 0, wars0: w.warCount || 0, forest0: 0, era: {} };
   const era = {}; if (d.era && typeof d.era === 'object') for (const [k, v] of Object.entries(d.era)) if (/^\d+$/.test(k) && ids.has(+k)) era[k] = n(v, 0, MAXERA) | 0;
   return { t0: n(d.t0, -1e9, 1e12, w.simTime), y0: n(d.y0, -60000, 1e6, Math.round(w.year)) | 0, free: (Array.isArray(d.free) ? d.free : []).filter(id => ids.has(id)).slice(0, 40), next: n(d.next, -1e9, 1e12, w.simTime + 30), said: n(d.said, 0, 999) | 0, wars0: n(d.wars0, 0, 1e6) | 0, forest0: n(d.forest0, 0, 1), era };
+}
+// AGI-05 the merge: during The Waking Machines, a people whose machines run almost everything (meter MERGE_MIN+, Future Age on) may answer AI pressure by joining minds with them.
+// Its character becomes Merged (see TRAITS): faster progress, fewer births (MERGE_BIRTHS), calmer and rarely at war. No more AI pressure, and its machines can never rise.
+// It looks different: people with glowing implants, neural towers and hubs among its buildings, linked by light at night.
+const MERGE_MIN = 85, MERGE_BIRTHS = .5, MERGE_W = { Curious: 3, Mercantile: 2, Warlike: 1, Devout: 0 };
+const canMerge = c => !!(c && c.alive && !c.merged && !c.machine && c.era >= 11 && (c.mach || 0) >= MERGE_MIN && !((c.aiBan || 0) > W.simTime) && W.fates.active.some(a => a.id === 'agi'));
+function mergeCiv(c, why) {
+  if (!c || !c.alive || c.merged || c.machine) return false;
+  c.oldTrait = BASE_TRAITS.includes(c.trait) ? c.trait : 'Curious'; c.trait = 'Merged'; c.merged = true; c.mach = 100; c.machSaid = MACH_SAY.length; c.aiNext = null;
+  c.stability = Math.min(100, c.stability + 12); c.culture = Math.min(100, c.culture + 8);
+  if (why !== 'choice') log(fillT('{Civ} wire their minds to their machines. Where the people end and the machines begin, no one can say any more.', names(c)), 'world');
+  log(fillT(`Once ${c.oldTrait.toLowerCase()}, {civ} now think as one mind with their machines. Their children are fewer, their cities hum with light, and their old quarrels seem very small.`, names(c)), 'world');
+  banner(`The ${c.name} merge`, 'One mind with their machines', '#8ff0ff');
+  floater(c.x, 'merged', '#8ff0ff', true); c._.sig = null; buildCivCards(true);
+  return true;
+}
+// a neural city: the age's own buildings (no fields: the machines grow the food) with neural towers and hubs among them
+const NPLANS = {};
+function neuralPlan(era) {
+  if (NPLANS[era]) return NPLANS[era];
+  const base = PLAN[era].fill.filter(t => t !== 'field');
+  return NPLANS[era] = { mark: 'nhub', fill: ['nnode', 'nnode', 'nnode', 'nhub', ...base] };
+}
+function drawNeural(o) {
+  for (const c of V.alive) {
+    if (!c.merged || !c._.items) continue;
+    const ns = c._.items.filter(b => b.t === 'nnode' || b.t === 'nhub').map(b => [b.x + b.w / 2, b.t === 'nnode' ? b.base - b.h : b.base - b.h * .45]).sort((a, b) => a[0] - b[0]);
+    o.lineWidth = 1;
+    for (let i = 0; i < ns.length - 1; i++) {
+      const [x1, y1] = ns[i], [x2, y2] = ns[i + 1]; if (x2 - x1 > 260) continue;
+      const mx = (x1 + x2) / 2, my = Math.min(y1, y2) - 22 - (x2 - x1) * .12;
+      o.strokeStyle = `rgba(90,240,255,${(.16 + .2 * V.N).toFixed(3)})`; o.beginPath(); o.moveTo(x1, y1); o.quadraticCurveTo(mx, my, x2, y2); o.stroke();
+      const t = (V.t * .5 + i * .37) % 1, px = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * mx + t * t * x2, py = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * my + t * t * y2;
+      o.fillStyle = 'rgba(200,252,255,.9)'; o.beginPath(); o.arc(px, py, 1.3, 0, 6.2832); o.fill();
+    }
+  }
+}
+// AGI-04 the war against the machines: during The Waking Machines, the machines of a people with a meter of MW_MIN+ can break away and become a people of their own.
+// The machine people has no births (it builds units in factories, faster on wider land), needs no food, makes no choices and never makes peace.
+// It fights the humans for land; the humans set their own wars aside. Share = the machines' part of the land held on their own continent (they cannot cross the sea to settle).
+// The machines win (The Iron Dominion) by holding MW_WIN of their continent, or overrunning MW_KILLS peoples, or by still holding MW_HOLD of it when the war has lasted MW_LONG;
+// the humans win by destroying them, or by cutting the power at MW_LONG if the machines hold less than MW_HOLD.
+const MW_MIN = 70, MW_EDGE = 1.5, MW_RATE = .0025, MW_BUILD = .05, MW_WIN = .8, MW_KILLS = 2, MW_LONG = 320, MW_HOLD = .55;
+const MW_TRAIT = { Warlike: 2.5, Mercantile: 1, Curious: .8, Devout: .5 }, MW_NAMES = ['Automata', 'Iron Host', 'Lattice', 'Grey Choir', 'Engine Minds'];
+const MW_WON = 'The war against the machines is won. The peoples bury their dead, tear out the last machine cores, and swear they will never again let a machine think for them.';
+const mwRateOf = c => MW_RATE * (MW_TRAIT[c.trait] || 1) * (c.mods.some(m => m.name === 'Machine army' && m.until > W.simTime) ? 2 : 1) * (c.stability < 35 ? 2 : 1);
+function machineRise(p, why) {
+  if (!p || !p.alive || p.machine || p.merged || W.mw || W.care || alive().length >= 8) return false;
+  const L = landOf(p.x), half = Math.max(80, (p.r - p.l) / 2), side = (p.r - p.x) >= (p.x - p.l) ? 1 : -1;
+  const mx = clamp(p.x + side * Math.max(180, half * .9), L.l + 90, L.r - 90);
+  const used = new Set(W.civs.map(c => c.name));
+  const m = makeCiv(mx, { era: p.era, trait: 'Warlike', name: MW_NAMES.find(n => !used.has(n)) || 'Machines', pop: p.pop * .4, tech: 0 });
+  Object.assign(m, { color: '#9aa3ad', machine: true, mParent: p.id, mach: 100, machSaid: MACH_SAY.length, food: 100, stability: 85, military: 85, culture: 5, nuclear: p.nuclear, policy: 'exploit', govt: 0 });
+  if (side > 0) { m.l = Math.max(p.x + 70, mx - 120); m.r = Math.min(L.r - 4, Math.max(p.r, mx + 120)); p.r = m.l - 6; } else { m.r = Math.min(p.x - 70, mx + 120); m.l = Math.max(L.l + 4, Math.min(p.l, mx - 120)); p.l = m.r + 6; }
+  p.pop *= .7; p.stability = Math.max(0, p.stability - 30); p.military = Math.max(0, p.military - 20); p.mach = 15; p.machSaid = 0;
+  W.mw = { id: m.id, parent: p.id, t0: W.simTime, y0: Math.round(W.year), kills: 0, done: null, share: 0, cycle: W.fates.cycle, why: why === 'event' ? 'event' : 'pressure' };
+  const hum = alive().filter(c => !c.machine), peace = W.wars.length;
+  W.wars = []; for (const a of hum) for (const b of hum) if (a.id < b.id) relSet(a, b, Math.max(relGet(a, b), 30));
+  for (const c of hum) { if (c !== p) c.mach = Math.round((c.mach || 0) * .6); queueReaction(c, 'threat'); }
+  log(fillT('The machines of {civ} stop taking orders. They seize the factories and the power plants and call themselves the ' + m.name + ': a people of their own, with no children and no fear.', names(p)), 'war');
+  if (peace) log('Old enemies make peace overnight. Every human people turns to face the machines.', 'war');
+  banner('War against the machines', `The ${m.name} rise among the ${p.name}`, '#c8553d');
+  startWar(m, p);
+  if (!W.fates.active.some(a => a.id === 'agi') && !W.fates.done.includes('agi') && !W.fates.ended) startFate('agi', why === 'event' ? 'event' : 'pressure');
+  buildCivCards(true); floater(mx, 'the machines rise', '#c8553d', true);
+  return true;
+}
+function machineCiv(c, dt) {
+  c._.res = resOf(c);
+  for (let i = c.mods.length - 1; i >= 0; i--) if (c.mods[i].until <= W.simTime) c.mods.splice(i, 1);
+  const width = Math.max(100, c.r - c.l), K = ERAS[c.era].K * Math.pow(width / 400, .7); c._.K = K; c._.mult = 0;
+  c.pop = Math.max(20, c.pop + MW_BUILD * c.pop * (1 - c.pop / K) * dt);
+  c.food = 100; c.stability = clamp(c.stability + (88 - c.stability) * .2 * dt, 0, 100); c.military = clamp(c.military + (92 - c.military) * .2 * dt, 0, 100);
+  c.culture = clamp(c.culture + (4 - c.culture) * .1 * dt, 0, 100); c.mach = 100; c.unrest = 0;
+  if (W.mw && !W.mw.done && !warsOf(c).length) { const t = nearestNeighbour(c, o => !o.machine); if (t) startWar(c, t); }
+  if (c.pop < 35) extinct(c);
+}
+function mwTick(dt) {
+  const F = W.fates;
+  if (!W.mw) {
+    if (W.care || F.ended || !F.active.some(a => a.id === 'agi') || alive().length >= 8) return;
+    for (const c of alive()) if (!c.machine && !c.merged && c.era >= 10 && (c.mach || 0) >= MW_MIN && Math.random() < mwRateOf(c) * dt) { machineRise(c, 'pressure'); return; }
+    return;
+  }
+  const M = W.mw; if (M.done) return;
+  const m = civById(M.id), hum = alive().filter(c => !c.machine);
+  const win = side => {
+    M.done = side; W.wars = W.wars.filter(w => { const a = civById(w.a), b = civById(w.b); return !(a && a.machine) && !(b && b.machine); });
+    if (side === 'humans') { for (const c of hum) { c.mach = Math.min(c.mach || 0, 10); c.aiBan = W.simTime + 300; c.stability = Math.min(100, c.stability + 10); } banner('The machines are beaten', 'Humanity keeps its world', '#8fd18a'); }
+    if (F.active.some(a => a.id === 'agi')) endFate('agi', side === 'machines' ? 'ending' : 'faded');
+    else if (side === 'machines') reachEnding('dominion'); else log(`<b>${esc(FATES.agi.name)}.</b> ${esc(MW_WON)}`, 'fate');
+  };
+  if (!m || !m.alive) return win('humans');
+  if (!hum.length) return win('machines');
+  const li = landIdx(m.x), mw = Math.max(0, m.r - m.l), hw = hum.filter(c => landIdx(c.x) === li).reduce((a, c) => a + Math.max(0, c.r - c.l), 0); M.share = +(mw / Math.max(1, mw + hw)).toFixed(3);
+  if (M.share >= MW_WIN || (M.kills || 0) >= MW_KILLS) return win('machines');
+  if (W.simTime - M.t0 > MW_LONG) {
+    if (M.share < MW_HOLD) { m.alive = false; m.fell = Math.round(W.year); leaveRuins(m, 3); log(fillT('Cornered on a strip of land, {civ} are cut off from every power line and fuel ship. One by one their drones fall out of the sky.', names(m)), 'war'); buildCivCards(true); return win('humans'); }
+    return win('machines');
+  }
+}
+// the whole war against the machines weighs on the futures as one war, however many peoples join it
+function mwWarCount() { let n = 0, mw = 0; for (const w of W.wars) { const a = civById(w.a), b = civById(w.b); if ((a && a.machine) || (b && b.machine)) mw = 1; else n++; } return n + mw; }
+function mwClock(a) {
+  const M = W.mw; if (!M || M.done) return null;
+  return [`War against the machines · they hold ${Math.round(M.share * 100)}% of their continent`, clamp(M.share / MW_WIN, 0, 1)];
+}
+function mwRows(row) {
+  const M = W.mw, m = civById(M.id), hum = alive().filter(c => !c.machine);
+  return row('The machines', `${m ? m.name : 'the machines'}, risen from the ${(civById(M.parent) || {}).name || 'humans'} in ${fmtYear(M.y0)}`) + row('Their share of their continent', Math.round((M.share || 0) * 100) + '%') + row('Peoples overrun', String(M.kills || 0)) + row('Humans left', hum.length ? hum.map(c => c.name).join(', ') : 'none');
+}
+function sanitizeMW(d, w) {
+  if (!d || typeof d !== 'object') return null;
+  const n = (v, a, b, def = 0) => Number.isFinite(+v) ? clamp(+v, a, b) : def, ids = new Set(w.civs.map(c => c.id));
+  if (!ids.has(d.id)) return null;
+  return { id: d.id, parent: ids.has(d.parent) ? d.parent : null, t0: n(d.t0, -1e9, 1e12, w.simTime), y0: n(d.y0, -60000, 1e6) | 0, kills: n(d.kills, 0, 99) | 0, done: d.done === 'humans' || d.done === 'machines' ? d.done : null, share: n(d.share, 0, 1), cycle: n(d.cycle, 1, 99, 1) | 0, why: d.why === 'event' ? 'event' : 'pressure' };
 }
 // END-07 seed vaults and libraries: elements that carry crops and knowledge through a collapse into the next cycle
 const keepersOf = c => { const k = { vault: null, lib: null }; for (const e of W.elements) { if (e.x < c.l || e.x > c.r) continue; if (e.type === 'seedvault') k.vault = e; else if (e.type === 'library') k.lib = e; } return k; };
@@ -2409,6 +2619,8 @@ function crisisChips(c) {
   if (c.closed > W.simTime) out.push('<span class="chip mod">Borders closed</span>');
   if (c._.drown > .02) out.push(`<span class="chip missing">Coasts drowned ${Math.round(c._.drown * 100)}%</span>`);
   if (c._.scav) out.push('<span class="chip own">Scavenging ruins</span>');
+  if (c.machine) out.push('<span class="chip war">Machine people</span>');
+  if (c.merged) out.push(`<span class="chip merged">Merged${c.oldTrait ? ' (once ' + esc(c.oldTrait) + ')' : ''}</span>`);
   if (W.care && c.alive) out.push(careOf(c) ? '<span class="chip green">In the machines’ care</span>' : '<span class="chip mod">Outside the machines’ care</span>');
   return out;
 }
@@ -2466,23 +2678,23 @@ const hasRes = (c, t) => W.elements.some(e => e.type === t && e.x >= c.l && e.x 
 function coastSide(c) { const L = landOf(c.x); return (c.l <= L.l + 220 ? 1 : 0) + (c.r >= L.r - 220 ? 2 : 0); }
 function ensureLayout(c) {
   const tier = tierOf(c), st = sitesOf(c);
-  const sig = `${c.era}|${tier}|${st.join(',')}|${Math.round(c.l / 90)}|${Math.round(c.r / 90)}|${V.tver}|${hasRes(c, 'uranium')}|${coastSide(c)}`;
+  const sig = `${c.machine ? 'M' : c.merged ? 'N' : ''}${c.era}|${tier}|${st.join(',')}|${Math.round(c.l / 90)}|${Math.round(c.r / 90)}|${V.tver}|${hasRes(c, 'uranium')}|${coastSide(c)}`;
   if (c._.sig === sig) return;
   c._.sig = sig;
   buildLayout(c, tier, st);
 }
 function buildLayout(c, tier, st) {
-  const items = [], plan = PLAN[c.era], hasU = hasRes(c, 'uranium'), sea = seaY();
+  const items = [], plan = c.machine ? MPLAN : c.merged ? neuralPlan(c.era) : PLAN[c.era], hasU = hasRes(c, 'uranium'), sea = seaY();
   let capTop = gy(c.x) - 30;
   st.forEach((sx, k) => {
     const rng = mulberry32((c.seed + k * 977 + c.era * 131 + tier * 17) >>> 0);
     const count = Math.round((k === 0 ? 3 + tier * 2.4 : 1.5 + tier * 1.3) + c.era * .25);
     let left = sx, right = sx;
-    const place = (type, center) => {
+    const place = (type, center, cx = sx) => {
       const sz = SIZES[type];
       const w = Math.round(sz[0] + rng() * (sz[1] - sz[0])), h = Math.round(sz[2] + rng() * (sz[3] - sz[2])), gap = 3 + Math.round(rng() * 6);
       let x;
-      if (center) { x = Math.round(sx - w / 2); left = x - gap; right = x + w + gap; }
+      if (center) { x = Math.round(cx - w / 2); left = x - gap; right = x + w + gap; }
       else if (rng() < .5) { x = right; right += w + gap; }
       else { x = left - w; left = x - gap; }
       if (x < c.l + 4 || x + w > c.r - 4) return;
@@ -2493,8 +2705,15 @@ function buildLayout(c, tier, st) {
       items.push({ t: type, x, w, h, base: lo + 1, s: (rng() * 1e9) | 0, k });
       if (k === 0 && lo + 1 - h < capTop) capTop = lo + 1 - h;
     };
-    if (k === 0) place(plan.mark, true);
+    if (k === 0) {
+      // the landmark (temple, castle, machine core...) is the centrepiece: if the capital's spot is too steep, wet or coastal, try further out
+      place(plan.mark, true);
+      for (let off = 15; off <= 240 && !items.some(b => b.t === plan.mark && b.k === 0); off += 15) for (const d of [off, -off]) { if (items.some(b => b.t === plan.mark && b.k === 0)) break; place(plan.mark, true, sx + d); }
+      if (!items.some(b => b.t === plan.mark && b.k === 0)) { left = sx; right = sx; }
+    }
     for (let n = 0; n < count; n++) { let t = plan.fill[Math.floor(rng() * plan.fill.length)]; if (t === 'cooling' && !hasU) t = 'block'; place(t, false); }
+    // a merged people's capital always shows at least one neural tower
+    if (k === 0 && c.merged) for (let t = 0; t < 8 && !items.some(b => b.t === 'nnode'); t++) place('nnode', false);
   });
   items.sort((a, b) => (a.t === 'field' ? 0 : 1) - (b.t === 'field' ? 0 : 1));
   c._.items = items; c._.capTop = capTop;
@@ -2506,10 +2725,11 @@ function buildLayout(c, tier, st) {
     if (era >= 4 && era <= 7 && Math.random() < .7) ag.push({ x: sx, home: sx, range: 120 + tier * 30, dir: -1, spd: rand(14, 20), ph: 0, kind: 'rider', cl: pick(cl), sk: pick(SKIN), idle: 0 });
     if (era >= 9) { const nc = era === 9 ? 1 : 2 + Math.floor(tier / 2); for (let i = 0; i < nc; i++) ag.push({ x: sx + rand(-80, 80), home: sx, range: 140 + tier * 40, dir: Math.random() < .5 ? -1 : 1, spd: rand(30, 45), ph: 0, kind: 'car', col: pick(CARCOL), idle: 0 }); }
   });
+  if (c.machine) { ag.length = 0; st.forEach((sx, k) => { const n = clamp(3 + tier + (k === 0 ? 3 : 0), 3, 12); for (let i = 0; i < n; i++) ag.push({ x: sx + rand(-80, 80), home: sx, range: 90 + tier * 30, dir: Math.random() < .5 ? -1 : 1, spd: rand(8, 14), ph: rand(0, 6), kind: i % 3 ? 'drone' : 'bot', alt: rand(26, 70), idle: 0 }); }); }
   c._.agents = ag;
   const xa = Math.min(...st), xb = Math.max(...st);
-  c._.road = era >= 4 ? [Math.max(c.l + 6, xa - 90), Math.min(c.r - 6, xb + 90)] : null;
-  c._.train = era >= 8 && st.length >= 2 ? { x: xa, dir: 1, xa, xb } : null;
+  c._.road = era >= 4 && !c.machine ? [Math.max(c.l + 6, xa - 90), Math.min(c.r - 6, xb + 90)] : null;
+  c._.train = era >= 8 && st.length >= 2 && !c.machine ? { x: xa, dir: 1, xa, xb } : null;
   const ships = [];
   if (era >= 1) {
     const li = landIdx(c.x), L = V.lands[li], prev = V.lands[li - 1], next = V.lands[li + 1], ranges = [];
@@ -2520,7 +2740,7 @@ function buildLayout(c, tier, st) {
   }
   c._.ships = ships;
   const planes = [];
-  if (era >= 9) for (let i = 0; i < (era === 9 ? 1 : 2); i++) planes.push({ x: rand(c.l, c.r), y: rand(70, 115), dir: Math.random() < .5 ? -1 : 1, spd: era === 9 ? 45 : 85, min: c.l - 150, max: c.r + 150 });
+  if (era >= 9 && !c.machine) for (let i = 0; i < (era === 9 ? 1 : 2); i++) planes.push({ x: rand(c.l, c.r), y: rand(70, 115), dir: Math.random() < .5 ? -1 : 1, spd: era === 9 ? 45 : 85, min: c.l - 150, max: c.r + 150 });
   c._.planes = planes;
   const rk = items.find(b => b.t === 'rocket' || b.t === 'pad');
   c._.rocket = rk ? { x: rk.x + rk.w / 2 + 3, base: rk.base, h: rk.h, state: 'idle', next: V.t + rand(15, 40), y: 0, v: 0 } : null;
@@ -2621,6 +2841,18 @@ const DRAW = {
   clock(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .85, w, h * .85, '#b5a88f'); P([x - 1, y - h * .85, x + w / 2, y - h, x + w + 1, y - h * .85], '#4f5a52'); Ci(x + w / 2, y - h * .7, 3, '#efe8d6'); Ln(x + w / 2, y - h * .7, x + w / 2, y - h * .7 - 2.4, '#222', .8); Ln(x + w / 2, y - h * .7, x + w / 2 + 2, y - h * .7, '#222', .8); win(b, x + w / 2 - 1.5, y - h * .45, 3, 5, 0, LIT[5]); },
   dome(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .45, w, h * .45, '#d3c6ad'); R(x + w * .2, y - h * .6, w * .6, h * .15, '#c7b99e'); El(x + w / 2, y - h * .6, w * .3, h * .3, '#6fa595', Math.PI, 6.2832); R(x + w / 2 - 2, y - h, 4, h * .1, '#c7b99e'); for (let i = 0; i < 5; i++) R(x + 4 + i * ((w - 10) / 4), y - h * .4, 2, h * .4 - 3, '#e6dcc6'); let i = 0; for (let xx = x + w * .25; xx < x + w * .75; xx += 6) win(b, xx, y - h * .55, 3, 5, i++, LIT[5]); },
   row(b) { const { x, w, h } = b, y = b.base; R(x, y - h, w, h, '#8e4532'); for (let xx = x + 4; xx < x + w - 2; xx += 10) R(xx, y - h - 4, 3, 4, '#6f3627'); let i = 0; for (let yy = y - h + 4; yy < y - 7; yy += 7) for (let xx = x + 2; xx < x + w - 3; xx += 6) win(b, xx, yy, 3, 4, i++, LIT[6]); },
+  nnode(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; P([x, y, cx - 1.5, y - h, cx + 1.5, y - h, x + w, y], '#1f3a44'); P([cx, y, cx, y - h, cx + 1.5, y - h, x + w, y], '#28495a');
+    const pu = .55 + .45 * Math.sin(V.t * 2 + b.s); Ln(cx, y - 4, cx, y - h + 4, `rgba(100,240,255,${(.35 + .4 * pu).toFixed(2)})`, 1);
+    for (let k = 1; k < 5; k++) { const yy = y - h * k / 5; Ci(cx, yy, 1.4, '#7ff6ff'); GL.push({ x: cx, y: yy, r: 5, c: '90,240,255', a: .35 * pu }); } Ci(cx, y - h, 2.2, '#c8fbff'); GL.push({ x: cx, y: y - h, r: 12, c: '90,240,255', a: .55 * pu }); },
+  nhub(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; El(cx, y, w / 2, h, '#24414d', Math.PI, 2 * Math.PI); g.strokeStyle = 'rgba(110,235,255,.55)'; g.lineWidth = .8;
+    for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(cx + k * w / 6, y); g.quadraticCurveTo(cx + k * w / 12, y - h * 1.1, cx, y - h); g.stroke(); }
+    const pu = .5 + .5 * Math.sin(V.t * 1.7 + b.s); Ci(cx, y - h * .45, 3, '#9ff8ff'); GL.push({ x: cx, y: y - h * .45, r: 16, c: '90,240,255', a: .5 * pu }); },
+  mcore(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; P([x, y, x + w * .26, y - h, x + w * .74, y - h, x + w, y], '#2c3036'); P([x + w * .5, y, x + w * .5, y - h, x + w * .74, y - h, x + w, y], '#363b42');
+    for (let k = 1; k < 6; k++) R(x + w * .18 + k * .4, y - h * k / 6, w * .64 - k * .8, 1, '#4a5058'); const ey = y - h * .82, pu = .6 + .4 * Math.sin(V.t * 1.6 + b.s); Ci(cx, ey, 3.2, '#ff5a4a'); GL.push({ x: cx, y: ey, r: 18, c: '255,80,70', a: .55 * pu }); R(cx - .7, y - h * .7, 1.4, h * .62, 'rgba(255,90,74,.55)'); },
+  mfab(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .62, w, h * .62, '#454b52'); const n = Math.max(3, Math.floor(w / 10)), tw = w / n; for (let i = 0; i < n; i++) P([x + i * tw, y - h * .62, x + i * tw, y - h, x + (i + 1) * tw, y - h * .62], '#5a6168');
+    R(x + 3, y - 6, w - 6, 3, '#2a2e33'); for (let i = 0; i < n; i++) { const lx = x + (i + .5) * tw, on = Math.sin(V.t * 2 + i + b.s) > .2; R(lx - 1, y - h * .45, 2, 2, on ? '#ff6a55' : '#5a3330'); if (on) GL.push({ x: lx, y: y - h * .44, r: 4, c: '255,90,70', a: .35 }); } },
+  mstack(b) { const { x, w, h } = b, y = b.base; P([x, y, x + w * .2, y - h, x + w * .8, y - h, x + w, y], '#3a3f45'); R(x + w * .15, y - h * .55, w * .7, 2, '#5d646c'); if (Math.sin(V.t * 3 + b.s) > 0) { Ci(x + w / 2, y - h - 1, 1.6, '#ff5a4a'); GL.push({ x: x + w / 2, y: y - h - 1, r: 6, c: '255,80,70', a: .6 }); } smoke(x + w / 2, y - h); },
+  mpylon(b) { const { x, w, h } = b, y = b.base, cx = x + w / 2; Ln(x, y, cx, y - h, '#4f565e', 1.4); Ln(x + w, y, cx, y - h, '#4f565e', 1.4); for (let k = 1; k < 5; k++) { const yy = y - h * k / 5, hw = w / 2 * (1 - k / 5); Ln(cx - hw, yy, cx + hw, yy, '#4f565e', 1); } Ci(cx, y - h, 1.8, '#c9d2dc'); GL.push({ x: cx, y: y - h, r: 7, c: '200,215,235', a: .4 + .3 * Math.sin(V.t * 4 + b.s) }); },
   factory(b) { const { x, w, h } = b, y = b.base; R(x, y - h * .6, w, h * .6, '#7d4636'); const n = Math.max(2, Math.floor(w / 12)), tw = w / n; for (let i = 0; i < n; i++) P([x + i * tw, y - h * .6, x + i * tw, y - h * .85, x + (i + 1) * tw, y - h * .6], '#5f5a58');
     let i = 0; for (let xx = x + 3; xx < x + w - 5; xx += 7) win(b, xx, y - h * .45, 4, 6, i++, LIT[6] + .1); const cx = x + w - 8; R(cx, y - h * 1.5, 5, h * .9, '#6e3a2c'); smoke(cx + 2.5, y - h * 1.5); },
   chimney(b) { R(b.x, b.base - b.h, b.w, b.h, '#7a3f30'); R(b.x - 1, b.base - b.h, b.w + 2, 3, '#5c2f24'); smoke(b.x + b.w / 2, b.base - b.h); },
@@ -2689,6 +2921,9 @@ function drawPerson(a, era, colOverride, carry) {
 }
 function drawAgent(a, c) {
   const era = c.era, y = gy(a.x);
+  if (a.kind === 'drone') { const yy = y - a.alt - Math.sin(V.t * 2.2 + a.ph) * 3; P([a.x - 5, yy, a.x, yy - 2.5, a.x + 5, yy, a.x, yy + 2], '#3a3f46'); Ln(a.x - 7, yy - 2, a.x + 7, yy - 2, '#5d646c', 1); Ci(a.x, yy, 1.1, '#ff5a4a'); GL.push({ x: a.x, y: yy, r: 5, c: '255,80,70', a: .5 }); return; }
+  if (a.kind === 'bot') { const s = Math.sin(a.ph) * 2; Ln(a.x - 1.5, y - 4, a.x - 1.5 + s, y, '#2e3238', 1.4); Ln(a.x + 1.5, y - 4, a.x + 1.5 - s, y, '#2e3238', 1.4); R(a.x - 2.6, y - 10, 5.2, 6, '#5a6068'); R(a.x - 2, y - 13.4, 4, 3.2, '#454a51'); R(a.x - 1 + a.dir * .6, y - 12.4, 2, 1, '#ff5a4a'); return; }
+  if (a.kind === 'walk' && c.merged) { drawPerson(a, era, '#d6eef4', null); const yy = y - 11; Ci(a.x + a.dir * .9, yy, .8, '#6ff3ff'); GL.push({ x: a.x, y: yy, r: 4, c: '90,240,255', a: .55 }); return; }
   if (a.kind === 'walk') { drawPerson(a, era, null, era === 0 && a.spear ? 'spear' : null); return; }
   if (a.kind === 'cart') { const d = a.dir; El(a.x + d * 9, y - 4, 5, 3, '#6b5038'); for (const lx of [-3, 3]) R(a.x + d * 9 + lx, y - 2, 1, 2, '#6b5038'); R(a.x - 6, y - 7, 11, 4, '#8a6a48'); Ci(a.x - 1, y - 2, 2.2, '#4a3424'); return; }
   if (a.kind === 'rider') { const d = a.dir; El(a.x, y - 5, 6, 2.8, '#5a3e28'); El(a.x + d * 6, y - 8, 2.2, 1.8, '#5a3e28'); const s = Math.sin(a.ph) * 2; Ln(a.x - 4, y - 3, a.x - 4 + s, y, '#5a3e28', 1); Ln(a.x + 4, y - 3, a.x + 4 - s, y, '#5a3e28', 1); R(a.x - 1.5, y - 13, 3, 5, a.cl); Ci(a.x, y - 14.5, 1.6, a.sk); return; }
@@ -3083,6 +3318,7 @@ function drawLights(o) {
   o.globalCompositeOperation = 'lighter';
   for (const q of GL) { const gr = o.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r); gr.addColorStop(0, `rgba(${q.c},${q.a})`); gr.addColorStop(1, `rgba(${q.c},0)`); o.fillStyle = gr; o.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2); }
   if (W.care) drawCaretakers(o);
+  drawNeural(o);
   for (const p of V.P) { if (!p.gl) continue; const a = p.a * (p.life / p.max); o.fillStyle = rgb(p.c, a); o.beginPath(); o.arc(p.x, p.y, p.r, 0, 6.2832); o.fill(); }
   for (const f of V.flashes) { const age = (V.t - f.t0) / f.dur; if (age < 0 || age > 1) continue; const r = f.r * (.4 + age), gr = o.createRadialGradient(f.x, f.y, 0, f.x, f.y, r); gr.addColorStop(0, `rgba(255,240,200,${1 - age})`); gr.addColorStop(1, 'rgba(255,140,60,0)'); o.fillStyle = gr; o.fillRect(f.x - r, f.y - r, r * 2, r * 2); }
   for (const n of V.nukes) { const age = V.t - n.t0; if (age < 0 || age > 3) continue; const r = 40 + age * 70, gyv = gy(n.x), gr = o.createRadialGradient(n.x, gyv - 30, 0, n.x, gyv - 30, r); gr.addColorStop(0, `rgba(255,250,230,${Math.max(0, 1 - age / 3)})`); gr.addColorStop(1, 'rgba(255,120,40,0)'); o.fillStyle = gr; o.fillRect(n.x - r, gyv - 30 - r, r * 2, r * 2); }
@@ -3168,6 +3404,7 @@ function drawOverlay(c2, w, h) {
   if (V.flash > 0) { c2.fillStyle = `rgba(255,250,240,${(V.flash * .85).toFixed(3)})`; c2.fillRect(0, 0, w, h); }
 }
 function drawMini() {
+  const off = V.b > .15; if (mini.classList.contains('off') !== off) mini.classList.toggle('off', off); if (off) return;
   const w = mini.width, h = mini.height, sx = w / WORLD_W, d = DPR;
   mctx.setTransform(1, 0, 0, 1, 0, 0);
   mctx.fillStyle = '#0c0e12'; mctx.fillRect(0, 0, w, h);
@@ -3446,13 +3683,13 @@ function drawSpaceExtras(c2, w, h) {
 // the orbit layer: satellites, telescopes, stations, rings and space elevators, all growing with progress
 function drawOrbit(c2, w, h, R, P2, k) {
   const off = (x, y, m = 20) => x < -m || x > w + m || y < -m || y > h + m;
-  const kess = W.kessler && W.simTime < W.kessler;
+  const kess = W.kessler && W.simTime < W.kessler, op = (x, y, r, kind, c, i) => V.orbPicks.push({ x, y, r, kind, c, i });
   let n = 0;
   for (const c of V.alive) n += c.era >= 12 ? 6 + 3 * (c.era - 12) : c.era >= 11 ? 7 : c.era >= 10 ? 3 : c.era >= 9 || c.nuclear ? 1 : 0;
   n = Math.min(kess ? 10 : W.flareUntil > W.simTime ? 4 : 64, n);
   for (let i = 0; i < n; i++) {
     const alt = i % 3 === 0 ? 1600 + (i % 4) * 150 : i % 3 === 1 ? 2300 + (i % 6) * 160 : 3300 + (i % 5) * 220, ph = h01(i * 7 + 3) * 6.2832 + V.t * (i % 3 === 0 ? .09 : i % 3 === 1 ? .05 : .025) * (i % 2 ? 1 : -1);
-    const [x, y] = P2(ph, R(alt)); if (off(x, y, 5)) continue;
+    const [x, y] = P2(ph, R(alt)); if (off(x, y, 5)) continue; op(x, y, 7, 'sat', null, i);
     c2.fillStyle = `rgba(235,240,250,${(.9 * k).toFixed(3)})`; c2.fillRect(x - 1, y - 1, 2.2, 2.2);
     if (Math.sin(V.t * 4 + i) > .6) { c2.fillStyle = `rgba(255,90,80,${(.9 * k).toFixed(3)})`; c2.fillRect(x + 1.5, y - .5, 1.4, 1.4); }
   }
@@ -3463,19 +3700,19 @@ function drawOrbit(c2, w, h, R, P2, k) {
   for (const c of V.alive) {
     const col = hexRGB(c.color);
     // space telescopes from the Information Age
-    if (c.era >= 10) { const ph = V.t * .03 + c.id * 1.7, [x, y] = P2(ph, R(2150 + (c.id % 3) * 90)); if (!off(x, y)) { c2.save(); c2.translate(x, y); c2.rotate(ph + 1.2); c2.fillStyle = `rgba(210,214,220,${k})`; c2.fillRect(-2, -5, 4, 9); c2.fillStyle = `rgba(30,32,40,${k})`; c2.fillRect(-1.5, -5.5, 3, 1.2); c2.fillStyle = `rgba(70,110,180,${k})`; c2.fillRect(-7, -1, 4, 3); c2.fillRect(3, -1, 4, 3); c2.restore(); } }
+    if (c.era >= 10) { const ph = V.t * .03 + c.id * 1.7, [x, y] = P2(ph, R(2150 + (c.id % 3) * 90)); if (!off(x, y)) { op(x, y, 7, 'scope', c, 0); c2.save(); c2.translate(x, y); c2.rotate(ph + 1.2); c2.fillStyle = `rgba(210,214,220,${k})`; c2.fillRect(-2, -5, 4, 9); c2.fillStyle = `rgba(30,32,40,${k})`; c2.fillRect(-1.5, -5.5, 3, 1.2); c2.fillStyle = `rgba(70,110,180,${k})`; c2.fillRect(-7, -1, 4, 3); c2.fillRect(3, -1, 4, 3); c2.restore(); } }
     // stations from the Future Age, more with each space age
     const nst = c.era >= 12 ? 1 + (c.era - 11) : c.era >= 11 ? 1 : 0;
     for (let q = 0; q < nst; q++, si++) {
       const ph = V.t * .045 + si * 2.1 + c.id, [x, y] = P2(ph, R(2000 + si * 110 % 700)); if (off(x, y)) continue;
-      const sz = 1 + (c.era >= 12 ? .5 : 0);
+      const sz = 1 + (c.era >= 12 ? .5 : 0); op(x, y, 9 * sz, 'station', c, q);
       c2.save(); c2.translate(x, y); c2.rotate(ph); c2.scale(sz, sz); c2.fillStyle = `rgba(220,228,236,${k})`; c2.fillRect(-1.5, -6, 3, 12); c2.fillStyle = `rgba(80,120,190,${k})`; c2.fillRect(-9, -2, 6, 4); c2.fillRect(3, -2, 6, 4);
       c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-1.5, -1, 3, 2); c2.restore();
     }
     // a great ring habitat in the Stellar Age and beyond
-    if (c.era >= 13) { const ph = V.t * .012 + c.id * 2.4, [x, y] = P2(ph, R(4600 + (c.id % 3) * 300)); if (!off(x, y, 30)) { c2.strokeStyle = `rgba(210,220,230,${(.85 * k).toFixed(3)})`; c2.lineWidth = 2.2; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); c2.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${(.8 * k).toFixed(3)})`; c2.lineWidth = .8; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); } }
+    if (c.era >= 13) { const ph = V.t * .012 + c.id * 2.4, [x, y] = P2(ph, R(4600 + (c.id % 3) * 300)); if (!off(x, y, 30)) { op(x, y, 15, 'ring', c, 0); c2.strokeStyle = `rgba(210,220,230,${(.85 * k).toFixed(3)})`; c2.lineWidth = 2.2; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); c2.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${(.8 * k).toFixed(3)})`; c2.lineWidth = .8; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); } }
     // space cylinders: long turning worlds
-    for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = V.t * .008 + m.a, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue;
+    for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = V.t * .008 + m.a, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue; op(x, y, 16, 'cylinder', c, W.megas.indexOf(m));
       c2.save(); c2.translate(x, y); c2.rotate(ph + 1.57); c2.fillStyle = `rgba(200,208,216,${k})`; c2.fillRect(-14, -3, 28, 6); c2.fillStyle = `rgba(95,174,106,${k})`; c2.fillRect(-12, -1, 24, 2); c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-15, -3, 2, 6); c2.fillRect(13, -3, 2, 6); c2.restore(); }
     // the space elevator rises from the capital to a counterweight station high above
     if (c.era >= 12) {
@@ -3484,14 +3721,179 @@ function drawOrbit(c2, w, h, R, P2, k) {
       if (!(off(x0, y0, 400) && off(x1, y1, 400))) {
         c2.strokeStyle = `rgba(214,226,236,${(.55 * k).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.moveTo(x0, y0); c2.lineTo(x1, y1); c2.stroke();
         const f = (V.t * .06 + c.id * .37) % 1, [cx2, cy2] = P2(ph, R(SEA0 - gy(c.x) + (top - SEA0 + gy(c.x)) * f));
-        c2.fillStyle = `rgba(160,230,255,${k})`; c2.fillRect(cx2 - 1.5, cy2 - 1.5, 3, 3);
+        c2.fillStyle = `rgba(160,230,255,${k})`; c2.fillRect(cx2 - 1.5, cy2 - 1.5, 3, 3); op(cx2, cy2, 7, 'climber', c, 0); op(x1, y1, 9, 'elevator', c, 0);
         c2.save(); c2.translate(x1, y1); c2.rotate(ph); c2.fillStyle = `rgba(220,228,236,${k})`; c2.fillRect(-7, -3, 14, 6); c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-7, -1, 14, 1.6); c2.restore();
       }
     }
   }
 }
+/* ---------- close-ups of the Sun, the Moon and the planets ---------- */
+// In the solar-system view a left click on a body zooms in on it: a close-up with whatever peoples have built there,
+// and a panel of what is going on. A click anywhere, Esc or the wheel zooms back out. Earth zooms back down to the globe.
+const BODY_FACT = {
+  Sun: 'A middle-aged yellow star. Everything in this system circles it, and every age of humanity has run on its light.',
+  Mercury: 'Small and airless: scorched by day and frozen by night, the closest world to the Sun.',
+  Venus: 'Clouds of acid over a surface hot enough to melt lead. No one stays here for long.',
+  Moon: 'Earth’s companion: grey dust and craters, with Helium-3 for fusion in its soil.',
+  Mars: 'A cold red desert with thin air and polar ice: humanity’s second home.',
+  Jupiter: 'A giant of gas and storms, wider than ten Earths. Its icy moons hold water for starships.',
+  Saturn: 'A pale giant wrapped in rings of ice and rock.',
+  Uranus: 'An ice giant that rolls around the Sun on its side.',
+  Neptune: 'The windiest world, dark blue at the edge of the system.'
+};
+const BODY_LOOK = { Sun: '#ffd98a', Moon: '#bdb8ad', Mercury: '#a8a29a', Venus: '#e2c98f', Mars: '#c8643c', Jupiter: '#d4b58f', Saturn: '#e0cfa0', Uranus: '#9fd6dc', Neptune: '#5b7fd8' };
+function bodyAt(sx, sy) {
+  if (!V.b || sysK() < .5 || galK() > .3) return null;
+  const cand = [];
+  if (V.sunXY) cand.push(['Sun', V.sunXY[0], V.sunXY[1], 20]);
+  for (const [n, q] of Object.entries(V.bodyPos || {})) cand.push([n, q[0], q[1], Math.max(14, q[2] + 6)]);
+  cand.push(['Earth', V.cx, V.cy, Math.max(14, V.Rb * V.s + 6)]);
+  let best = null, bd = 1e9;
+  for (const [n, x, y, r] of cand) { const d = Math.hypot(x - sx, y - sy) / r; if (d <= 1 && d < bd) { bd = d; best = n; } }
+  return best;
+}
+function focusBody(n) {
+  hideTip(0);
+  if (n === 'Earth') { V.focus = null; setZoom(ZGLOBE * .6); return true; }
+  if (!BODY_FACT[n]) return false;
+  const q = n === 'Sun' ? [V.sunXY[0], V.sunXY[1], 10] : (V.bodyPos || {})[n] || [CW / 2, CH / 2, 6];
+  V.focus = { body: n, t0: performance.now(), x0: q[0], y0: q[1], r0: q[2] };
+  return true;
+}
+// what is going on there, one line each
+function bodyLines(n) {
+  const out = [], key = n === 'Moon' ? 'moon' : n === 'Mars' ? 'mars' : null, ppl = id => { const c = civById(id); return c ? 'the ' + c.name : 'a vanished people'; };
+  if (key) {
+    for (const b of (W.bases || []).filter(b => b.body === key)) out.push(`${b.name}: a base of ${ppl(b.civ)}, ${fmtPop(b.pop)} people`);
+    for (const k of (W.colonies || []).filter(k => k.body === key)) out.push(`The ${k.name}: ${fmtPop(k.pop)} people, ${ERAS[k.era].name}. ${k.free ? 'A free people.' : k.war ? 'Fighting for their freedom.' : `A colony of ${ppl(k.parent)}, unrest ${Math.round(k.tension * 100)}%.`}`);
+  }
+  const res = (W.spaceRes || []).filter(r => (n === 'Moon' && ELEMENTS[r.type].space === 'moon') || (n === 'Jupiter' && ELEMENTS[r.type].space === 'giant'));
+  for (const r of res) out.push(`${ELEMENTS[r.type].name}: ${r.owner != null ? 'mined by ' + ppl(r.owner) : 'no one mines it yet'}`);
+  if (n === 'Sun') {
+    const D = W.dyson, f = swarmFrac();
+    if (D && D.total > 0) { out.push(`A swarm of collectors catches its light: ${Math.round(f * 100)}% built.`); for (const [id, v] of Object.entries(D.by).sort((a, b) => b[1] - a[1]).slice(0, 4)) out.push(`  ${ppl(+id)}: ${Math.round(v / D.total * 100)}% of the swarm`); }
+    if (W.flareUntil > W.simTime) out.push('A great flare is raging. Satellites and power grids are down.');
+    if (W.tb) out.push('Far beyond it, the Hevari fleet is on its way.');
+  }
+  if (n === 'Jupiter' && (W.ships || []).length) out.push(`${W.ships.length} ship${W.ships.length > 1 ? 's' : ''} out among the stars took on water here.`);
+  if (!out.length) out.push(n === 'Sun' ? 'No one has begun to harvest its light yet.' : maxEra() >= 12 ? 'No one has settled here. Ships only pass it by.' : 'No one has been here yet.');
+  return out;
+}
+function wrapLines(c2, text, maxW) { const words = text.split(' '), lines = []; let cur = ''; for (const wd of words) { const t = cur ? cur + ' ' + wd : wd; if (c2.measureText(t).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = t; } if (cur) lines.push(cur); return lines; }
+// close-up labels: always outside the marker, with a dark outline so they read over the planet or the sky
+function closeLabel(c2, t, x, y, col) { c2.save(); c2.lineJoin = 'round'; c2.lineWidth = 3.5; c2.strokeStyle = 'rgba(2,3,10,.85)'; c2.strokeText(t, x, y); c2.fillStyle = col; c2.fillText(t, x, y); c2.restore(); }
+function drawBodyClose(c2, n, x, y, r) {
+  const col = BODY_LOOK[n] || '#aaa', rgbC = hexRGB(col);
+  if (n === 'Sun') {
+    const g = c2.createRadialGradient(x, y, r * .2, x, y, r * 2); g.addColorStop(0, 'rgba(255,240,200,.9)'); g.addColorStop(.45, 'rgba(255,200,110,.35)'); g.addColorStop(1, 'rgba(255,170,80,0)'); c2.fillStyle = g; c2.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+    const d = c2.createRadialGradient(x - r * .2, y - r * .2, r * .1, x, y, r); d.addColorStop(0, '#fff6d8'); d.addColorStop(.7, '#ffd27a'); d.addColorStop(1, '#f2a24a'); c2.fillStyle = d; c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.fill();
+    c2.save(); c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.clip();
+    for (let i = 0; i < 260; i++) { const a = h01(i * 17) * 6.2832, rr = Math.sqrt(h01(i * 5)) * r, fl = .5 + .5 * Math.sin(V.t * 2 + i); c2.fillStyle = `rgba(255,${200 + 40 * fl | 0},120,${(.25 * fl).toFixed(3)})`; c2.fillRect(x + rr * Math.cos(a) - 2, y + rr * Math.sin(a) - 2, 4, 4); }
+    c2.restore();
+    if (W.flareUntil > W.simTime) { c2.strokeStyle = 'rgba(255,170,90,.7)'; c2.lineWidth = 3; c2.beginPath(); c2.arc(x + r * .75, y - r * .75, r * .35, Math.PI * .7, Math.PI * 1.9); c2.stroke(); }
+    // the swarm: collectors coloured by the people that launched them
+    const D = W.dyson, nsw = Math.round(swarmFrac() * 600);
+    if (D && nsw) { const ids = Object.keys(D.by); for (let i = 0; i < nsw; i++) { const a = h01(i * 31) * 6.2832 + V.t * (.05 + h01(i) * .05), rr = r * (1.12 + h01(i * 7) * .5), tilt = h01(i * 3) * 3.14;
+      let acc = 0, owner = null; const pk2 = h01(i * 11) * D.total; for (const id of ids) { acc += D.by[id]; if (pk2 <= acc) { owner = civById(+id); break; } }
+      c2.fillStyle = owner ? owner.color : '#d8b86a'; c2.fillRect(x + rr * Math.cos(a) - 1.2, y + rr * Math.sin(a) * Math.cos(tilt) - 1.2, 2.4, 2.4); } }
+    return;
+  }
+  if (n === 'Saturn') { c2.strokeStyle = 'rgba(230,215,170,.55)'; c2.lineWidth = r * .12; c2.beginPath(); c2.ellipse(x, y, r * 2, r * .55, -.25, Math.PI, 2 * Math.PI); c2.stroke(); }
+  c2.save(); c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.clip();
+  c2.fillStyle = col; c2.fillRect(x - r, y - r, r * 2, r * 2);
+  const dark = a => `rgba(${rgbC[0] * .6 | 0},${rgbC[1] * .6 | 0},${rgbC[2] * .6 | 0},${a})`, light = a => `rgba(255,250,240,${a})`;
+  if (n === 'Jupiter' || n === 'Saturn' || n === 'Uranus' || n === 'Neptune') {
+    const nb = n === 'Jupiter' ? 11 : 7; for (let i = 0; i < nb; i++) { c2.fillStyle = i % 2 ? dark(n === 'Jupiter' ? .35 : .15) : light(.08); c2.fillRect(x - r, y - r + i * 2 * r / nb + Math.sin(V.t * .3 + i) * 2, r * 2, 2 * r / nb * .6); }
+    if (n === 'Jupiter') { c2.fillStyle = 'rgba(190,90,60,.75)'; c2.beginPath(); c2.ellipse(x + r * .3, y + r * .35, r * .18, r * .1, 0, 0, 6.2832); c2.fill(); }
+  } else if (n === 'Venus') { for (let i = 0; i < 6; i++) { c2.strokeStyle = light(.12); c2.lineWidth = r * .08; c2.beginPath(); c2.arc(x - r * .2, y + r * (i - 3) * .3, r * 1.1, .2 + V.t * .02, 2.6 + V.t * .02); c2.stroke(); } }
+  else { for (let i = 0; i < (n === 'Mars' ? 8 : 18); i++) { c2.fillStyle = dark(.35); c2.beginPath(); c2.arc(x + (h01(i * 7 + n.length) - .5) * 1.7 * r, y + (h01(i * 13 + n.length) - .5) * 1.7 * r, r * (.04 + .1 * h01(i * 3)), 0, 6.2832); c2.fill(); }
+    if (n === 'Mars') { c2.fillStyle = 'rgba(245,245,250,.85)'; c2.beginPath(); c2.ellipse(x, y - r * .95, r * .35, r * .12, 0, 0, 6.2832); c2.fill(); } }
+  const sh = c2.createRadialGradient(x - r * .4, y - r * .4, r * .2, x, y, r * 1.05); sh.addColorStop(0, 'rgba(255,255,255,.12)'); sh.addColorStop(.7, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,10,.55)'); c2.fillStyle = sh; c2.fillRect(x - r, y - r, r * 2, r * 2);
+  c2.restore();
+  if (n === 'Saturn') { c2.strokeStyle = 'rgba(230,215,170,.7)'; c2.lineWidth = r * .12; c2.beginPath(); c2.ellipse(x, y, r * 2, r * .55, -.25, 0, Math.PI); c2.stroke(); }
+  // bases and colonies on the Moon and Mars, with their names
+  const key = n === 'Moon' ? 'moon' : n === 'Mars' ? 'mars' : null;
+  c2.font = `${clamp(Math.round(r * .042), 11, 15)}px "IBM Plex Mono", ui-monospace, monospace`; c2.textAlign = 'left';
+  if (key) {
+    (W.bases || []).filter(b => b.body === key).forEach((b, i) => { const c = civById(b.civ); if (!c) return; const a = i * 2.4 + .6, d = r * (.35 + .25 * (i % 3) / 2), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * .8, sz = 3 + Math.log10(Math.max(10, b.pop)) * .9;
+      c2.fillStyle = c.color; c2.beginPath(); c2.arc(px, py, sz, Math.PI, 2 * Math.PI); c2.fill(); c2.fillRect(px - sz, py, sz * 2, 1.5);
+      const gl = c2.createRadialGradient(px, py, 0, px, py, sz * 3); gl.addColorStop(0, 'rgba(255,240,200,.45)'); gl.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = gl; c2.fillRect(px - sz * 3, py - sz * 3, sz * 6, sz * 6);
+      closeLabel(c2, b.name, px + sz + 5, py - 1, 'rgba(240,236,226,.95)'); });
+    (W.colonies || []).filter(k => k.body === key).forEach((k, i) => { const a = i * 1.9 + 3.6, px = x + Math.cos(a) * r * .5, py = y + Math.sin(a) * r * .45, sz = 7;
+      for (let j = -2; j <= 2; j++) { c2.fillStyle = k.color; c2.fillRect(px + j * 4 - 1.5, py - sz - Math.abs(2 - Math.abs(j)) * 3, 3, sz + Math.abs(2 - Math.abs(j)) * 3); }
+      if (k.war) { c2.fillStyle = 'rgba(227,106,85,.9)'; c2.beginPath(); c2.arc(px, py - sz - 8, 2.5, 0, 6.2832); c2.fill(); }
+      closeLabel(c2, 'the ' + k.name, px + 16, py - 3, 'rgba(240,236,226,.97)'); });
+  }
+  // claims: Helium-3 rigs on the Moon, ice moons around Jupiter
+  for (const rs of W.spaceRes || []) {
+    const body = ELEMENTS[rs.type].space, o = rs.owner != null ? civById(rs.owner) : null;
+    if (n === 'Moon' && body === 'moon') { const px = x + Math.cos(rs.a) * r * .6, py = y + Math.sin(rs.a) * r * .5; c2.fillStyle = '#7fe3ff'; c2.beginPath(); c2.moveTo(px, py - 5); c2.lineTo(px + 4, py); c2.lineTo(px, py + 5); c2.lineTo(px - 4, py); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, 8, 0, 6.2832); c2.stroke(); } closeLabel(c2, 'Helium-3', px + 14, py + 4, 'rgba(220,240,250,.95)'); }
+    if (n === 'Jupiter' && body === 'giant') { const mr = clamp(r * .035, 4, 9), a = rs.a + V.t * .15, px = x + Math.cos(a) * r * 1.45, py = y + Math.sin(a) * r * .5; c2.fillStyle = '#e8f4fb'; c2.beginPath(); c2.arc(px, py, mr, 0, 6.2832); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, mr + 4, 0, 6.2832); c2.stroke(); } closeLabel(c2, 'Ice moon', px + mr + 10, py + 4, 'rgba(220,240,250,.95)'); }
+  }
+}
+// how far beyond its disc a body's close-up reaches (rings, the swarm and glow, ice moons), so the text card never covers it
+const BODY_REACH = { Sun: 1.75, Saturn: 2.05, Jupiter: 1.55 };
+function drawFocus(c2, w, h) {
+  const F = V.focus; if (!V.b || sysK() < .3) { V.focus = null; return; }
+  let e = clamp((performance.now() - F.t0) / 650, 0, 1); e = e * e * (3 - 2 * e);
+  c2.save();
+  c2.fillStyle = `rgba(2,3,10,${(.92 * e).toFixed(3)})`; c2.fillRect(0, 0, w, h);
+  // wide screens: the body is huge on the left and runs off the edges; the text floats on the right over a dark fade.
+  // Narrow screens: the body above, the text in a card below.
+  const side = w > 760, cb = $('#world').getBoundingClientRect(), title = F.body === 'Moon' ? 'The Moon' : F.body === 'Sun' ? 'The Sun' : F.body;
+  const sc = side ? clamp(w / 1100, 1, 1.35) : 1, pad = side ? 0 : 16;
+  const cardW = side ? clamp(w * .3, 300, 440) : w - 32, tw = cardW - pad * 2;
+  const body = `${(13.5 * sc).toFixed(1)}px "IBM Plex Sans Condensed", system-ui, sans-serif`, mono = `${(11 * sc).toFixed(1)}px "IBM Plex Mono", ui-monospace, monospace`, lh = 19 * sc, items = [];
+  c2.font = body; for (const l of wrapLines(c2, BODY_FACT[F.body], tw)) items.push([l, body, 'rgba(222,216,204,.92)', lh]);
+  items.push(['', body, '', 12 * sc]); items.push(['WHAT IS GOING ON', mono, '#c9a27c', 21 * sc]);
+  for (const ln of bodyLines(F.body).slice(0, 12)) { c2.font = body; for (const l of wrapLines(c2, ln.trim(), tw)) items.push([l, body, 'rgba(244,239,228,.98)', lh]); items.push(['', body, '', 3]); }
+  items.push(['', body, '', 11 * sc]); c2.font = mono; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', tw)) items.push([l, mono, 'rgba(200,196,186,.6)', 16 * sc]);
+  // keep the text clear of the boxes laid over the map (hint bar, altitude box, the full-screen chronicle): each one in the
+  // top half of the map pushes the top edge down, each in the bottom half pulls the bottom edge up (the hint bar is at the
+  // top of the page view but at the bottom in full screen)
+  const rel = el => { if (!el || el.offsetParent === null) return null; const q = el.getBoundingClientRect(); return q.width && q.bottom > cb.top && q.top < cb.bottom ? { l: q.left - cb.left, r: q.right - cb.left, t: q.top - cb.top, b: q.bottom - cb.top } : null; };
+  const obs = ['#hint', '#alt', '#fschron'].map(k => rel($(k))).filter(Boolean);
+  const clear = (x0, x1) => { let t = 16, b = h - 16; for (const q of obs) if (q.l < x1 && q.r > x0) { if ((q.t + q.b) / 2 < h / 2) t = Math.max(t, q.b + 10); else b = Math.min(b, q.t - 10); } return [t, b]; };
+  const titleH = (side ? 62 : 30) * sc, cardX = side ? w - cardW - clamp(w * .04, 24, 64) : 16, [cT, cB] = clear(cardX, cardX + cardW);
+  const cardH = Math.min(cB - cT, pad * 2 + titleH + items.reduce((a, it) => a + it[3], 0));
+  const cardY = side ? clamp(h / 2 - cardH / 2, cT, cB - cardH) : cB - cardH;
+  const reach = BODY_REACH[F.body] || 1.12;
+  let R, cx, cy;
+  if (side) {
+    // big: most of the height, and it may run off the top, bottom and left; its glow, rings or swarm may pass under the text fade
+    R = Math.min(h * .62, (cardX - 40) / (1 + Math.min(reach, 1.25) * .55)) / (reach > 1.9 ? 1.25 : 1);
+    cx = cardX - 40 - R * Math.min(reach, 1.25) * .9; cy = h / 2;
+  } else {
+    const zT = clear(16, w - 16)[0], zB = cardY - 16;
+    R = Math.max(30, Math.min((w - 32) / 2 / reach, (zB - zT) / 2 / Math.min(reach, 1.2), h * .3)); cx = w / 2; cy = (zT + zB) / 2;
+  }
+  V.focusBox = { side, cardX, cardY, cardW, cardH, cx, cy, R, reach };
+  const x = F.x0 + (cx - F.x0) * e, y = F.y0 + (cy - F.y0) * e, r = F.r0 + (R - F.r0) * e;
+  drawBodyClose(c2, F.body, x, y, r);
+  if (e > .55) {
+    const a = (e - .55) / .45; c2.globalAlpha = a;
+    if (side) {
+      // a dark fade from the right so the text reads over the body's glow, rings and swarm
+      const fx = cardX - 140, g = c2.createLinearGradient(fx, 0, cardX - 10, 0); g.addColorStop(0, 'rgba(4,5,12,0)'); g.addColorStop(1, 'rgba(4,5,12,.86)');
+      c2.fillStyle = g; c2.fillRect(fx, 0, cardX - 10 - fx, h); c2.fillStyle = 'rgba(4,5,12,.86)'; c2.fillRect(cardX - 10, 0, w - cardX + 10, h);
+    } else {
+      c2.fillStyle = 'rgba(12,14,19,.94)'; c2.fillRect(cardX, cardY, cardW, cardH);
+      c2.strokeStyle = 'rgba(201,162,124,.35)'; c2.lineWidth = 1; c2.strokeRect(cardX + .5, cardY + .5, cardW - 1, cardH - 1);
+      c2.fillStyle = '#a593f2'; c2.fillRect(cardX, cardY, 2, cardH);
+    }
+    c2.save(); c2.beginPath(); c2.rect(cardX - 4, cardY, cardW + 8, cardH); c2.clip();
+    let py = cardY + pad + titleH * .78; c2.textAlign = 'left'; c2.textBaseline = 'alphabetic';
+    c2.font = `${Math.round((side ? 38 : 24) * sc)}px Marcellus, Georgia, serif`; c2.fillStyle = '#f2ecdf'; c2.fillText(title, cardX + pad, py);
+    if (side) { c2.fillStyle = '#a593f2'; c2.fillRect(cardX + pad, py + 10 * sc, 44 * sc, 2); }
+    py += titleH * .22 + lh * .8;
+    for (const [t, f, col, l] of items) { if (t) { c2.font = f; c2.fillStyle = col; c2.fillText(t, cardX + pad, py); } py += l; }
+    c2.restore();
+  }
+  c2.restore();
+}
 function drawSystem(c2, w, h, sx, sy) {
-  const k = sysK() * (1 - galK()), s = V.s; if (k < .01) return;
+  // the solar system fades out quickly as the galaxy comes in, so it never sits as a blob on top of the Milky Way
+  const k = sysK() * (1 - smooth(0, .15, galK())), s = V.s; if (k < .01) return;
   c2.save(); c2.lineWidth = 1;
   // asteroid belt
   c2.fillStyle = `rgba(170,160,150,${(.5 * k).toFixed(3)})`;
@@ -3523,6 +3925,7 @@ function drawSystem(c2, w, h, sx, sy) {
     else if (body === 'giant') { const J = V.bodyPos && V.bodyPos.Jupiter; if (!J) continue; const a = r.a + V.t * .3; x = J[0] + Math.cos(a) * 9; y = J[1] + Math.sin(a) * 9; c2.fillStyle = '#e8f4fb'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.8, 0, 6.2832); c2.fill(); }
     else { const M = V.bodyPos && V.bodyPos.Moon; if (!M) continue; x = M[0] + Math.cos(r.a) * M[2] * .5; y = M[1] + Math.sin(r.a) * M[2] * .5; c2.fillStyle = '#7fe3ff'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.6, 0, 6.2832); c2.fill(); }
     c2.strokeStyle = col; c2.lineWidth = 1; c2.beginPath(); c2.arc(x, y, 4.5, 0, 6.2832); c2.stroke(); c2.globalAlpha = 1;
+    if (k > .3) V.orbPicks.push({ x, y, r: 9, kind: 'claim', c: o, i: r.id, d: r });
   }
   c2.restore();
 }
@@ -3541,14 +3944,14 @@ function drawSpaceBackdrop(c2, w, h) {
   }
   if (b > .85) {
     const mph = V.t * .012 + 2.2, D = rOut * 1.25 + 40, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph), mr = Math.max(4, V.Rb * s * .2);
-    if (mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
-      const ma = smooth(.85, .97, b);
+    const ma = smooth(.85, .97, b) * (1 - smooth(0, .15, galK()));
+    if (ma > .01 && mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
       c2.save(); c2.globalAlpha = ma; c2.beginPath(); c2.arc(mx, my, mr, 0, 6.2832); c2.clip();
       c2.fillStyle = '#26282e'; c2.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
       const lx = mx + Math.sin(phs) * mr * .9, ly = my - Math.cos(phs) * mr * .9, gr = c2.createRadialGradient(lx, ly, mr * .2, lx, ly, mr * 1.6);
       gr.addColorStop(0, '#e4e0d4'); gr.addColorStop(.6, '#b9b5aa'); gr.addColorStop(1, 'rgba(60,60,64,0)'); c2.fillStyle = gr; c2.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
       c2.fillStyle = 'rgba(90,88,84,.35)'; for (const [ox, oy, rr] of [[-.3, -.2, .18], [.25, .3, .14], [.1, -.45, .1]]) { c2.beginPath(); c2.arc(mx + ox * mr, my + oy * mr, rr * mr, 0, 6.2832); c2.fill(); }
-      drawBases(c2, 'moon', mx, my, mr, 1); (V.bodyPos = V.bodyPos || {}).Moon = [mx, my, mr];
+      drawBases(c2, 'moon', mx, my, mr, ma); (V.bodyPos = V.bodyPos || {}).Moon = [mx, my, mr];
       c2.restore();
     }
   }
@@ -3586,6 +3989,7 @@ function renderBent(w, h) {
   if (b > .3) drawSpaceExtras(c2, w, h);
   if (V.sunXY && sysK() > .01) drawSystem(c2, w, h, V.sunXY[0], V.sunXY[1]);
   drawAtmoLabels(c2, w, h);
+  if (V.focus) drawFocus(c2, w, h);
 }
 function updateAltHud(w, h) {
   const el = $('#alt');
@@ -3612,7 +4016,7 @@ function drawFlatten(c2, w, h) {
 function render() {
   updateView();
   const w = CW, h = CH; if (!w || !h) return;
-  V.L = daylight(); V.N = 1 - V.L; V.alive = alive(); V.fronts = []; V.season = ((W.simTime / 60) % 1 + 1) % 1; V.winter = Math.max(0, Math.cos((V.season - .875) * 6.2832)) ** 2;
+  V.L = daylight(); V.N = 1 - V.L; V.alive = alive(); V.fronts = []; V.orbPicks = []; V.bodyPos = {}; V.season = ((W.simTime / 60) % 1 + 1) % 1; V.winter = Math.max(0, Math.cos((V.season - .875) * 6.2832)) ** 2;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (V.b > 0) renderBent(w, h);
   else {
@@ -3684,7 +4088,7 @@ function setHint() {
   else if (t.kind === 'ev') { const ev = findEvent(t.id); h = `<b>${esc(ev ? ev.name : '')}</b>: ${ev && ev.scope === 'target' ? 'click a people' : 'click where it strikes'}. <b>Esc</b> to stop.`; }
   else if (t.kind === 'erase') h = '<b>Remove</b>: click near an element or a crater. <b>Esc</b> to stop.';
   else h = '<b>Look</b>: click a people to select it.';
-  $('#hint').innerHTML = h; cv.classList.toggle('tooling', !!t);
+  $('#hint').innerHTML = h; cv.classList.toggle('tooling', !!t); $('#stage').classList.toggle('nohint', !t && isFS());
 }
 function setTool(t) {
   UI.tool = t;
@@ -3723,6 +4127,8 @@ const EVINFO = {
   plague: 'Disease kills many and spreads to trading partners. Later ages fight it far better.',
   supervolcano: 'A world-scale eruption. The land around it is buried and a volcanic winter hides the Sun for years. If humanity falls below 30% of its size, the world collapses and begins again. Happens on its own very rarely where there is a Volcano.',
   asteroid: 'A rock kilometres across is found on a collision course, with a countdown. Peoples with space technology (from the Future Age) launch missions to push it aside: earlier tries, more advanced and Curious peoples and space bases do better; a failed try can still chip it smaller. Happens on its own very rarely once someone has telescopes (the Modern Age). If it strikes: a huge crater, fire and an impact winter that can end the world.',
+  merge: 'The people you click wire their minds to their machines and become one. Their character becomes Merged: progress ×1.4, fewer births, calmer, rarely warlike, and they no longer face the question of what to do with their machines. Their machines can never rise against them. Their people get glowing implants and their cities grow neural towers and hubs linked by light. Needs the Future Age. Happens on its own during The Waking Machines, as an answer to AI pressure, for peoples whose machines run almost everything (meter 85+): most often Curious ones, sometimes Mercantile. Warlike peoples rarely let their machines get that far, and Devout peoples never choose it.',
+  uprising: 'The thinking machines of the people you click stop taking orders and become a people of their own: no births, factories instead of farms, drones instead of armies. They take part of the land and fight every human people for the rest; the humans set their own wars aside. Needs the Information Age. Once per cycle. Happens on its own during The Waking Machines, most often among Warlike peoples with machine armies. The machines win by taking most of their continent or overrunning two peoples (The Iron Dominion); the humans win by destroying them, or by cutting their power if the war drags on and the machines hold less than half their continent.',
   bioplague: 'A virus made in a laboratory escapes. It spreads along every contact between peoples and kills far more than any natural plague. Peoples that close their borders fare better. If too few people survive, the world collapses and begins again.',
   wildfire: 'Fire races through forests and farms. Thick forests in a warm world burn more often.',
   locusts: 'A swarm eats the harvest.',
@@ -3883,7 +4289,7 @@ function buildCivCards(force) {
   const sig = W.civs.map(c => c.id + (c.alive ? 'a' : 'd')).join(',');
   if (!force && sig === V.cardSig) return; V.cardSig = sig;
   const list = [...W.civs].sort((a, b) => (b.alive - a.alive) || (a.x - b.x));
-  const traitOpts = c => Object.keys(TRAITS).map(t => `<option value="${t}"${t === c.trait ? ' selected' : ''}>${t}</option>`).join('');
+  const traitOpts = c => [...BASE_TRAITS, ...(c.merged ? ['Merged'] : [])].map(t => `<option value="${t}"${t === c.trait ? ' selected' : ''}>${t}</option>`).join('');
   const stat = (k, label) => `<dt>${label}</dt><dd class="bar"><i data-f="${k}b"></i></dd><dd class="v" data-f="${k}"></dd>`;
   $('#civs').innerHTML = list.map(c => c.alive ? `<article class="civ${UI.sel === c.id ? ' sel' : ''}" data-id="${c.id}" style="--c:${c.color}">
     <header><input class="cn" id="cn-${c.id}" value="${esc(c.name)}" maxlength="20" aria-label="Name of this people"><select id="ct-${c.id}" aria-label="Character of the ${esc(c.name)}">${traitOpts(c)}</select></header>
@@ -3912,10 +4318,11 @@ function updateCivCards() {
     const c = civById(+card.dataset.id); if (!c || !c.alive) continue;
     const f = k => card.querySelector(`[data-f="${k}"]`);
     f('era').textContent = ERAS[c.era].name;
-    f('govt').textContent = GOVT[c.era][c.govt] + ' · ' + (TRAITS[c.trait] || {}).note + ' · Energy ' + fmtK(energyOf(c));
+    f('govt').textContent = c.machine ? 'Machine mind · No births · Energy ' + fmtK(energyOf(c)) : c.merged ? 'Neural Commonwealth · One mind with its machines · Energy ' + fmtK(energyOf(c)) : GOVT[c.era][c.govt] + ' · ' + (TRAITS[c.trait] || {}).note + ' · Energy ' + fmtK(energyOf(c));
     f('prog').style.width = (c.era === MAXERA ? 100 : c.tech).toFixed(1) + '%';
     let nx;
-    if (W.care && careOf(c)) nx = 'No new age will come. The caretakers keep everything as it is.';
+    if (c.machine) nx = 'Builds drones instead of children and factories instead of farms.';
+    else if (W.care && careOf(c)) nx = 'No new age will come. The caretakers keep everything as it is.';
     else if (c.threshold) nx = '<span class="chip own">At the edge of the galaxy</span> What lies beyond is still to be designed.';
     else if (c.era >= MAXERA) nx = `Completing the ${ERAS[c.era].name} · ${c.tech.toFixed(0)}%`;
     else { const N = ERAS[c.era + 1]; nx = `Next: ${esc(N.name)}`; if (N.key) { const lbl = { own: 'held', trade: 'by trade', missing: 'missing' }[c.keyState] || ''; nx += ` · needs ${esc(KEYNAME[N.key])} <span class="chip ${c.keyState}">${lbl}</span>`; } }
@@ -3979,7 +4386,8 @@ function updateUI() {
   $('#meta').innerHTML = `${SEASONS[Math.floor(((W.simTime / 60) % 1) * 4)]} · ${cs.length} ${cs.length === 1 ? 'people' : 'peoples'} · climate ${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(1)} °C · pollution ${W.pollution.toFixed(0)}${W.wars.length ? ` · ${W.wars.length} ${W.wars.length === 1 ? 'war' : 'wars'}` : ''}${dd != null ? ` · <span class="doom">doomsday clock ${dd} min to midnight</span>` : ''}${crisisMeta()}`;
   buildCivCards(false); updateCivCards(); updateColonyCards(); updateRibbon(); updateEventLocks(); updatePlanet(); updateFutures();
   { const sc = W.fates.ended ? ENDINGS[W.fates.ended].scene : '', cv = $('#world'); if (cv.style.filter !== sc) { cv.style.transition = 'filter 4s'; cv.style.filter = sc; } }
-  if (TIP.cur && V.b) { TIP.over = false; hideTip(0); }
+  // on the curved views only objects in orbit have info; an orbit tip closes when the view leaves orbit
+  if (TIP.cur && (TIP.cur.orb ? !spaceTipLive(TIP.cur.orb) : V.b)) { TIP.over = false; hideTip(0); }
   if (popFor && popFor.closest('#labInfo') && $('#pop').classList.contains('show')) { const c = infoContent(popFor.dataset.info); if (c) { const ph = `<strong>${esc(c[0])}</strong>${c[1]}`; if ($('#pop').dataset.h !== ph) { $('#pop').innerHTML = ph; $('#pop').dataset.h = ph; } } else hidePop(0, true); }
   if (TIP.cur && TIP.open) { const td = $('#tip .td'); if (td) { const b = tipBody(TIP.cur)[1]; if (td.innerHTML !== b) td.innerHTML = b; } }
 }
@@ -4177,7 +4585,7 @@ function submitRule(e) {
 
 /* ---------- modal ---------- */
 let lastFocus = null;
-function openModal(html) { lastFocus = document.activeElement; $('#dialog').innerHTML = html; $('#modal').classList.add('open'); const f = $('#dialog [autofocus]') || $('#dialog button'); if (f) f.focus(); }
+function openModal(html) { lastFocus = document.activeElement; const m = $('#modal'), host = isFS() ? $('#stage') : document.body; if (m.parentNode !== host) host.append(m); $('#dialog').classList.toggle('hist', false); $('#dialog').innerHTML = html; $('#modal').classList.add('open'); const f = $('#dialog [autofocus]') || $('#dialog button'); if (f) f.focus(); }
 function closeModal() { $('#modal').classList.remove('open'); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
 function confirmModal(title, body, ok, onOk) {
   openModal(`<h3 id="dlgTitle">${esc(title)}</h3><p>${esc(body)}</p><div class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="dlgOk" autofocus>${esc(ok)}</button></div>`);
@@ -4209,7 +4617,7 @@ function sanitizeWorld(d) {
   w.year = n(d.year, -60000, 1e6, ERAS[0].start); w.nextId = n(d.nextId, 1, 1e9, 1) | 0; w.tempShift = clamp(w.tempShift, -12, 12); w.pollution = clamp(w.pollution, 0, 100); w.topEra = clamp(w.topEra | 0, 0, MAXERA); w.thresholdNoted = !!d.thresholdNoted;
   w.elements = (Array.isArray(d.elements) ? d.elements : []).filter(e => e && (ELEMENTS[e.type] || (typeof e.type === 'string' && /^c:[\w]+$/.test(e.type)))).slice(0, 160).map(e => ({ id: n(e.id, 0, 1e9) | 0, type: e.type, x: n(e.x, 0, WORLD_W) }));
   w.craters = (Array.isArray(d.craters) ? d.craters : []).slice(0, 12).map(c => ({ x: n(c.x, 0, WORLD_W), r: n(c.r, 10, 120, 70), d: n(c.d, 0, 60, 34) }));
-  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, mach: n(c.mach, 0, 100), machSaid: n(c.machSaid, 0, MACH_SAY.length) | 0, aiBan: n(c.aiBan, 0, 1e12), _: {} }));
+  w.civs = d.civs.slice(0, 40).map(c => ({ id: n(c.id, 0, 1e9) | 0, name: String(c.name || 'People').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : pick(COLORS), trait: TRAITS[c.trait] ? c.trait : 'Curious', x: n(c.x, 0, WORLD_W), era: n(c.era, 0, MAXERA) | 0, tech: n(c.tech, 0, 100), pop: n(c.pop, 20, 2e10, 1000), food: n(c.food, 0, 100, 60), culture: n(c.culture, 0, 100, 30), stability: n(c.stability, 0, 100, 60), military: n(c.military, 0, 100, 20), govt: c.govt ? 1 : 0, l: n(c.l, 0, WORLD_W), r: n(c.r, 0, WORLD_W), alive: !!c.alive, mods: (Array.isArray(c.mods) ? c.mods : []).slice(0, 12).map(m => ({ until: n(m.until, 0, 1e12), food: n(m.food, -100, 100), techMul: n(m.techMul, 0, 5, 1), stab: n(m.stab, -100, 100), name: String(m.name || '').slice(0, 32) })), ruin: n(c.ruin, 0, 1), nuclear: !!c.nuclear, policy: POLICY[c.policy] ? c.policy : (DEFPOL[c.trait] || 'balance'), tmpPol: c.tmpPol && POLICY[c.tmpPol.p] ? { p: c.tmpPol.p, until: n(c.tmpPol.until, 0, 1e12) } : null, eco: { f: c.eco && c.eco.f ? 1 : 0, w: c.eco && c.eco.w ? 1 : 0, s: c.eco && c.eco.s ? 1 : 0 }, reached: Object.fromEntries(Object.entries(c.reached || {}).filter(([k]) => /^\d{1,2}$/.test(k)).map(([k, v]) => [k, n(v, -60000, 5000)])), seed: n(c.seed, 0, 2e9) | 0, unrest: 0, lastReact: -99, nextCheck: 5, expandUntil: n(c.expandUntil, 0, 1e12), threshold: !!c.threshold && (c.era | 0) >= MAXERA, kLevel: n(c.kLevel, 0, 3) | 0, keyState: 'none', fell: c.fell == null ? null : n(c.fell, -60000, 5000), fellTo: c.fellTo ? String(c.fellTo).slice(0, 20) : null, bunker: n(c.bunker, 0, 1), closed: n(c.closed, 0, 1e12), scav: n(c.scav, 0, 99) | 0, drownSaid: n(c.drownSaid, 0, 99) | 0, fallEra: c.fallEra == null ? null : n(c.fallEra, 0, MAXERA) | 0, mach: n(c.mach, 0, 100), machSaid: n(c.machSaid, 0, MACH_SAY.length) | 0, aiBan: n(c.aiBan, 0, 1e12), merged: c.trait === 'Merged' || (!!c.merged && TRAITS[c.trait] != null && c.trait === 'Merged'), oldTrait: BASE_TRAITS.includes(c.oldTrait) ? c.oldTrait : null, machine: !!c.machine, mParent: c.mParent == null ? null : n(c.mParent, 0, 1e9) | 0, _: {} }));
   const ids = new Set(w.civs.map(c => c.id));
   w.wars = (Array.isArray(d.wars) ? d.wars : []).filter(x => x && ids.has(x.a) && ids.has(x.b)).map(x => ({ a: x.a, b: x.b, t: n(x.t, 0, 1e9), adv: n(x.adv, -20, 20) }));
   w.rel = {}; for (const [k, v] of Object.entries(d.rel || {})) if (/^\d+-\d+$/.test(k)) w.rel[k] = n(v, -100, 100);
@@ -4237,8 +4645,11 @@ function sanitizeWorld(d) {
   w.winter && (w.winter.kind = ['ash', 'impact'].includes(d.winter.kind) ? d.winter.kind : 'nuke', w.winter.pop0 = n(d.winter.pop0, 0, 1e12));
   w.rock = d.rock && typeof d.rock === 'object' ? { t0: n(d.rock.t0, -1e9, 1e12), eta: n(d.rock.eta, -1e9, 1e12), x: n(d.rock.x, 0, WORLD_W) | 0, size: n(d.rock.size, .3, 1, .7), seen: !!d.rock.seen, tries: n(d.rock.tries, 0, 99) | 0, next: n(d.rock.next, -1e9, 1e12), name: String(d.rock.name || 'Rock').slice(0, 20) } : null;
   w.rockCycle = n(d.rockCycle, 0, 99) | 0; w.svCycle = n(d.svCycle, 0, 99) | 0;
-  w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
+  w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); w.mw = sanitizeMW(d.mw, w); if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
+  const chronE = e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) });
   w.chron = (Array.isArray(d.chron) ? d.chron : []).slice(0, 260).filter(e => e && typeof e.h === 'string').map(e => ({ y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) }));
+  // the full story; saves from before it existed start from the lines the chronicle still holds
+  w.hist = Array.isArray(d.hist) ? d.hist.slice(-HIST_MAX).filter(e => e && typeof e.h === 'string').map(chronE) : w.chron.slice().reverse(); w.histLost = Array.isArray(d.hist) ? n(d.histLost, 0, 1e9) | 0 : 0;
   return w;
 }
 function sanitizeCustom(d) {
@@ -4292,7 +4703,7 @@ function eraseNear(x) {
   const ci = W.craters.findIndex(c => Math.abs(c.x - x) < c.r); if (ci >= 0) { W.craters.splice(ci, 1); recomputeTerrain(); log('A crater is filled in.', 'world'); return; }
   toast('Nothing to remove here.');
 }
-const BNAME = { tent: 'Hide tent', fire: 'Campfire', rack: 'Drying rack', totem: 'Totem pole', hut: 'Hut', granary: 'Granary', field: 'Field', pen: 'Animal pen', henge: 'Stone circle', kiln: 'Kiln', temple0: 'Shrine', mud: 'Mud-brick house', mud2: 'Mud-brick house', wall: 'Town wall', ziggurat: 'Ziggurat', roundhouse: 'Roundhouse', forge: 'Forge', fort: 'Hill fort', villa: 'Villa', insula: 'Apartment block', aqueduct: 'Aqueduct', temple: 'Temple', timber: 'Timber house', church: 'Church', windmill: 'Windmill', castle: 'Castle', town: 'Town house', clock: 'Clock tower', dome: 'Domed cathedral', row: 'Row houses', factory: 'Factory', chimney: 'Mill chimney', station: 'Railway station', apart: 'Apartment block', hangar: 'Hangar', radio: 'Radio mast', block: 'Office block', house: 'House', cooling: 'Power station', tv: 'TV tower', rocket: 'Rocket', sky: 'Skyscraper', glass: 'Glass tower', dc: 'Data centre', wind: 'Wind turbine', solar: 'Solar farm', cell: 'Phone mast', arcology: 'Arcology', spire: 'Spire', vertfarm: 'Vertical farm', fusion: 'Fusion plant', dome2: 'Habitat dome', pad: 'Launch pad', tether: 'Space elevator', hab: 'Habitat tower', massdriver: 'Mass driver', beam: 'Power receiver', dish: 'Deep-space dish', gate: 'Star gate', crystal: 'Crystal spire', grove: 'Garden grove' };
+const BNAME = { tent: 'Hide tent', fire: 'Campfire', rack: 'Drying rack', totem: 'Totem pole', hut: 'Hut', granary: 'Granary', field: 'Field', pen: 'Animal pen', henge: 'Stone circle', kiln: 'Kiln', temple0: 'Shrine', mud: 'Mud-brick house', mud2: 'Mud-brick house', wall: 'Town wall', ziggurat: 'Ziggurat', roundhouse: 'Roundhouse', forge: 'Forge', fort: 'Hill fort', villa: 'Villa', insula: 'Apartment block', aqueduct: 'Aqueduct', temple: 'Temple', timber: 'Timber house', church: 'Church', windmill: 'Windmill', castle: 'Castle', town: 'Town house', clock: 'Clock tower', dome: 'Domed cathedral', row: 'Row houses', factory: 'Factory', chimney: 'Mill chimney', station: 'Railway station', apart: 'Apartment block', hangar: 'Hangar', radio: 'Radio mast', block: 'Office block', house: 'House', cooling: 'Power station', tv: 'TV tower', rocket: 'Rocket', sky: 'Skyscraper', glass: 'Glass tower', dc: 'Data centre', wind: 'Wind turbine', solar: 'Solar farm', cell: 'Phone mast', arcology: 'Arcology', spire: 'Spire', vertfarm: 'Vertical farm', fusion: 'Fusion plant', dome2: 'Habitat dome', pad: 'Launch pad', tether: 'Space elevator', hab: 'Habitat tower', massdriver: 'Mass driver', beam: 'Power receiver', dish: 'Deep-space dish', gate: 'Star gate', crystal: 'Crystal spire', grove: 'Garden grove', nnode: 'Neural tower', nhub: 'Neural hub', mcore: 'Machine core', mfab: 'Drone factory', mstack: 'Exhaust stack', mpylon: 'Relay pylon' };
 const BKIND = { home: 'tent hut mud mud2 roundhouse villa insula timber town row apart house hab', food: 'rack granary field pen vertfarm grove', faith: 'totem henge temple0 ziggurat temple church dome', defence: 'wall fort castle', work: 'fire kiln forge windmill factory chimney hangar block sky glass arcology spire', power: 'cooling wind solar fusion beam', links: 'aqueduct clock station radio tv cell dc dish', space: 'rocket pad tether massdriver gate crystal dome2' };
 const BKIND_TXT = { home: 'Homes', food: 'Food', faith: 'Faith and gathering', defence: 'Defence', work: 'Work and industry', power: 'Power', links: 'Transport and communication', space: 'Space and the far future' };
 const bkindOf = t => Object.keys(BKIND).find(k => BKIND[k].split(' ').includes(t)) || 'work';
@@ -4302,8 +4713,28 @@ const TIP_ZOOM = 1.3;
 const TIP = { cur: null, open: false, over: false, t: 0, sx: 0, sy: 0 };
 // how far each element reaches around its spot (half width, height above the ground), in world units
 const ELHIT = { seedvault: [16, 16], library: [18, 30], forest: [36, 40], herd: [28, 18], river: [30, 8], fertile: [28, 10], mountain: [26, 34], volcano: [26, 34], sacred: [10, 30], park: [18, 26], wetland: [30, 10], dam: [14, 20], fish: [26, 12], people: [8, 20] };
+// objects in space (orbit, claims in the solar system, ships and star colonies in the galaxy) are only drawn on the curved views,
+// so they can be clicked there at any zoom; each one records its hitbox while it is drawn
+function orbitTarget(sx, sy) {
+  if (!V.b) return null;
+  let best = null, bd = 1e9;
+  for (const q of V.orbPicks || []) { const d = Math.hypot(q.x - sx, q.y - sy) / (q.r + 3); if (d <= 1 && d < bd) { bd = d; best = q; } }
+  return best ? { key: spaceKey(best), orb: best } : null;
+}
+// a space tip stays open while its object still exists and you stay on the view that shows that kind of object (it may drift off screen)
+function spaceTipLive(q) {
+  if (!V.b || V.focus) return false;
+  if (q.kind === 'claim') return (W.spaceRes || []).includes(q.d) && sysK() * (1 - galK()) > .3;
+  if (q.kind === 'voyage') return (W.ships || []).includes(q.d) && galK() > .3;
+  if (q.kind === 'starcol') return (W.stars || []).includes(q.d) && galK() > .3;
+  if (q.kind === 'sungal' || q.kind === 'gcore') return galK() > .3;
+  if (q.kind === 'cylinder' && !(W.megas || [])[q.i]) return false;
+  return sysK() < .3 && (!q.c || q.c.alive);
+}
+const spaceKey = q => 'o' + q.kind + (q.c ? q.c.id : '') + ':' + q.i;
 function tipTarget(sx, sy) {
-  if (V.b || V.zoom < TIP_ZOOM) return null;
+  if (V.b) return orbitTarget(sx, sy);
+  if (V.zoom < TIP_ZOOM) return null;
   const [wx, wy] = S2W(sx, sy), c = civAt(wx), pad = 1.5 / V.s;
   const hitPick = pr => { const ps = V.picks || []; for (let k = ps.length - 1; k >= 0; k--) { const q = ps[k]; if (q.pr === pr && wx >= q.x0 - pad && wx <= q.x1 + pad && wy >= q.y0 - pad && wy <= q.y1 + pad) return { key: 'p' + q.kind + Math.round(q.x0 / 4), p: q }; } return null; };
   let hp = hitPick(0); if (hp) return hp;
@@ -4323,7 +4754,34 @@ function tipTarget(sx, sy) {
   }
   return el ? { key: 'e' + el.id, el } : hitPick(2) || hitPick(3);
 }
+const ORB_INFO = {
+  sat: ['Satellite', 'Carries phones, maps, weather and spying from orbit. There are more with every space age.'],
+  scope: ['Space telescope', 'Looks far beyond the Sun from above the air, which blurs the view from the ground.'],
+  station: ['Space station', 'A crewed outpost in orbit: laboratories, docks and a stopover on the way to the Moon and Mars.'],
+  ring: ['Ring habitat', 'A great turning ring. Its spin gives weight to the towns and fields along its inside, home to millions.'],
+  cylinder: ['Space cylinder', 'A turning world miles long, with its own sky, farms and towns on the inside of the hull.'],
+  elevator: ['Space elevator station', 'The counterweight station at the top of a cable that rises from the capital. Cargo goes up by climber instead of rocket.'],
+  climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.'],
+  claim: ['Claim', ''],
+  sungal: ['The Sun · home', 'Our star sits about 26,000 light years from the centre of the Milky Way, on the small Orion Spur between the Sagittarius and Perseus arms. It takes about 230 million years to go once around the galaxy.'],
+  gcore: ['The centre of the Milky Way', 'A bar of old yellow stars about 30,000 light years long. At its heart is Sagittarius A*, a black hole four million times as heavy as the Sun.'],
+  starcol: ['Star colony', 'A settlement around another star, founded by the crew of a generation ship.'],
+  voyage: ['Generation ship', 'A ship crossing the dark between the stars. The crew who arrive are the great-grandchildren of those who left.']
+};
+function orbitTipBody(q) {
+  const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
+  if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
+  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop))]; }
+  if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1); return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0]) + row('Launched', fmtYear(sh.y0)) + row('Of the way', Math.round(f * 100) + '%') + row('Crew', fmtPop(sh.crew)) + (sh.forgot ? row('Aboard', 'the crew have forgotten they are on a ship') : '')]; }
+  let h = `<span>${esc(I[1])}</span>`;
+  if (c) h += row('Built by', 'the ' + c.name + ' (' + ERAS[c.era].name + ')');
+  if (q.kind === 'sat') { const n = (V.orbPicks || []).filter(p => p.kind === 'sat').length; h += row('Satellites in view', String(n)); if (W.kessler && W.simTime < W.kessler) h += row('Orbit', 'full of wreckage after a chain of collisions'); else if (W.flareUntil > W.simTime) h += row('Status', 'many knocked out by the solar flare'); else if ((W.debris || 0) > .3) h += row('Debris', Math.round(W.debris * 100) + '% of the way to a chain of collisions'); }
+  if (q.kind === 'cylinder' && c) h += row('Cylinders built by the ' + c.name, String((W.megas || []).filter(m => m.civ === c.id).length));
+  if (q.kind === 'station' && c) h += row('Bases off-world', String(basesOf(c).length));
+  return [esc(I[0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), h];
+}
 function tipBody(t) {
+  if (t.orb) return orbitTipBody(t.orb);
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`;
   if (t.p) {
     const q = t.p, d = q.d, c = d.c, own = c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : '';
@@ -4366,7 +4824,7 @@ function tipBody(t) {
 }
 function renderTip(keepPos) {
   const tip = $('#tip'), t = TIP.cur;
-  if (!t || (t.civ && !t.civ.alive) || (t.el && !W.elements.includes(t.el)) || (t.a && !(t.civ._.agents || []).includes(t.a)) || (t.p && t.p.d.c && !t.p.d.c.alive)) { tip.style.display = 'none'; TIP.cur = null; return; }
+  if (!t || (t.civ && !t.civ.alive) || (t.el && !W.elements.includes(t.el)) || (t.a && !(t.civ._.agents || []).includes(t.a)) || (t.p && t.p.d.c && !t.p.d.c.alive) || (t.orb && t.orb.c && !t.orb.c.alive)) { tip.style.display = 'none'; TIP.cur = null; return; }
   const [name, body] = tipBody(t);
   tip.innerHTML = `<div class="tt">${name}<button class="tclose" type="button" id="tipClose" aria-label="Close">×</button></div><div class="td">${body}</div>`;
   tip.classList.toggle('open', TIP.open); tip.style.display = 'block';
@@ -4405,7 +4863,7 @@ function enterFS() {
   renderFsLog(); updateUI(); setHint();
 }
 function exitFS() {
-  const st = $('#stage'); if (!isFS()) return;
+  const st = $('#stage'); if (!isFS()) return; if ($('#modal').parentNode === st) document.body.append($('#modal'));
   st.classList.remove('fs', 'tools-open'); $('#fsTools').setAttribute('aria-pressed', 'false');
   $('.desk').prepend($('#toolbox'));
   $$('.js-fs').forEach(b => b.setAttribute('aria-pressed', 'false')); setHint();
@@ -4414,10 +4872,46 @@ function exitFS() {
 }
 function toggleFS() { if (isFS()) exitFS(); else enterFS(); }
 function toggleTools() { const st = $('#stage'); if (!isFS()) return; const on = !st.classList.contains('tools-open'); st.classList.toggle('tools-open', on); $('#fsTools').setAttribute('aria-pressed', on ? 'true' : 'false'); }
+// the chronicle feed in full screen can be folded away; the choice is remembered, and while folded it counts new lines
 function renderFsLog() {
   const ul = $('#fslog'); if (!isFS()) return;
+  const closed = UI.fslogClosed; $('#fschron').classList.toggle('closed', closed); $('#fslogToggle').setAttribute('aria-expanded', String(!closed));
+  if (closed && !UI.fslogSeen) UI.fslogSeen = W.chron[0] || null;
+  if (closed) { const i = UI.fslogSeen ? W.chron.indexOf(UI.fslogSeen) : 0, n = i < 0 ? W.chron.length : i; $('#fslogNew').textContent = n ? (n > 99 ? '99+' : n) + ' new' : ''; ul.innerHTML = ''; return; }
+  $('#fslogNew').textContent = '';
   ul.innerHTML = W.chron.slice(0, 3).map(e => `<li class="k-${e.k}"><time>${esc(fmtYear(e.y))}</time>${e.h}</li>`).join('');
 }
+// "See all": the whole story of this world in one window, with the same filters as the chronicle, a search box and either order
+const HIST_K = [['all', 'All'], ['era', 'Ages'], ['event', 'Events'], ['react', 'Reactions'], ['war', 'Wars'], ['nature', 'Nature'], ['fate', 'Futures'], ['world', 'World']];
+function openHistory() {
+  if (!W) return;
+  const H = W.hist, first = H[0], last = H[H.length - 1];
+  const span = H.length ? `${H.length.toLocaleString('en-US')} line${H.length === 1 ? '' : 's'}, from ${esc(fmtYear(first.y))} to ${esc(fmtYear(last.y))}.` : 'Nothing has happened yet.';
+  const lost = W.histLost ? ` The ${W.histLost.toLocaleString('en-US')} oldest lines have faded from the record.` : '';
+  openModal(`<div class="hist-wrap"><h3 id="dlgTitle">The whole chronicle</h3><p class="hnote">${span}${lost}</p>
+    <div class="hbar"><div class="filters" id="hFilters" role="group" aria-label="Show in the whole chronicle" style="margin:0">${HIST_K.map(([k, l]) => `<button class="btn" type="button" data-hf="${k}" aria-pressed="${k === 'all'}">${l}</button>`).join('')}</div></div>
+    <div class="hbar"><input type="search" id="hSearch" placeholder="Search: a people, a war, a year…" aria-label="Search the whole chronicle"><button class="btn" type="button" id="hOrder" aria-pressed="false">Oldest first</button><span class="hnote" id="hCount" style="margin:0" aria-live="polite"></span></div></div>
+    <ul class="log" id="hLog" data-filter="all"></ul>
+    <div class="row"><button class="btn primary" type="button" data-close autofocus>Close</button></div>`);
+  $('#dialog').classList.add('hist');
+  const ul = $('#hLog'), st = { old: false };
+  const filt = () => {
+    const q = $('#hSearch').value.trim().toLowerCase(), f = ul.dataset.filter; let n = 0;
+    for (const li of ul.children) { if (li.id === 'hNone') continue; const hit = !q || li.textContent.toLowerCase().includes(q); li.classList.toggle('miss', !hit);
+      if (hit && (f === 'all' || li.classList.contains('k-' + f) || (f === 'world' && li.classList.contains('k-rule')))) n++; }
+    $('#hCount').textContent = n.toLocaleString('en-US') + ' shown'; $('#hNone').hidden = n > 0;
+  };
+  const draw = () => {
+    const list = st.old ? H : H.slice().reverse();
+    ul.innerHTML = list.map(e => `<li class="k-${e.k}"><time>${esc(fmtYear(e.y))}</time><p>${e.h}</p></li>`).join('') + '<li class="none" id="hNone" hidden>Nothing matches.</li>';
+    ul.scrollTop = 0; filt();
+  };
+  $('#hFilters').onclick = e => { const b = e.target.closest('[data-hf]'); if (!b) return; $$('#hFilters [data-hf]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); ul.dataset.filter = b.dataset.hf; filt(); };
+  $('#hSearch').oninput = filt;
+  $('#hOrder').onclick = () => { st.old = !st.old; $('#hOrder').setAttribute('aria-pressed', String(st.old)); draw(); };
+  draw();
+}
+function toggleFsLog(closed) { UI.fslogClosed = closed == null ? !UI.fslogClosed : !!closed; UI.fslogSeen = UI.fslogClosed ? W.chron[0] || null : null; lsSet('aoh.fslogClosed', UI.fslogClosed ? '1' : '0'); renderFsLog(); }
 function setSpeed(s) { UI.speed = s; UI.paused = false; $$('[data-speed]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.speed === s ? 'true' : 'false')); $$('.js-pause').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.textContent = 'Pause'; }); }
 function togglePause() { UI.paused = !UI.paused; $$('.js-pause').forEach(b => { b.setAttribute('aria-pressed', UI.paused ? 'true' : 'false'); b.textContent = UI.paused ? 'Resume' : 'Pause'; }); }
 
@@ -4439,6 +4933,8 @@ function initDOM() {
   });
   const endPtr = e => { V.pts.delete(e.pointerId); if (V.pts.size < 2) V.pinch = null; };
   cv.addEventListener('pointerup', e => { if (e.button === 2) { endPtr(e); V.drag = null; return; }
+    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && !V.focus && sysK() > .5) { const r = cv.getBoundingClientRect(), bx = e.clientX - r.left, by = e.clientY - r.top, ot = orbitTarget(bx, by), bn = bodyAt(bx, by), bp = bn && (bn === 'Sun' ? V.sunXY : bn === 'Earth' ? [V.cx, V.cy] : V.bodyPos[bn]); if (ot && ['claim', 'starcol', 'voyage', 'sungal', 'gcore'].includes(ot.orb.kind) && (!bp || Math.hypot(ot.orb.x - bx, ot.orb.y - by) < Math.hypot(bp[0] - bx, bp[1] - by))) { endPtr(e); V.drag = null; V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); return; } }
+    if (!UI.tool && V.b && V.drag && !V.drag.moved && !V.pinch && (V.focus || sysK() > .5)) { const r = cv.getBoundingClientRect(), n = V.focus ? null : bodyAt(e.clientX - r.left, e.clientY - r.top); if (V.focus || n) { endPtr(e); V.drag = null; if (V.focus) V.focus = null; else focusBody(n); return; } }
     if (UI.tool && UI.tool.kind === 'el' && ELEMENTS[UI.tool.type] && ELEMENTS[UI.tool.type].space && V.drag && !V.drag.moved && !V.pinch) { endPtr(e); V.drag = null; placeSpace(UI.tool.type); return; } const wasPinch = !!V.pinch; endPtr(e); const d = V.drag; V.drag = null; cv.style.cursor = ''; if (d && !d.moved && !wasPinch) { const [wx, wy] = worldAt(e.clientX, e.clientY); if (!V.b || (wy > -320 && wy < WORLD_H)) worldClick(((wx % WORLD_W) + WORLD_W) % WORLD_W); TIP.over = false; hideTip(0); } else showTip(); });
   // right click opens the info of whatever is under the pointer
   cv.addEventListener('contextmenu', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); V.hoverX = e.clientX - r.left; V.hoverY = e.clientY - r.top; showTip(true); });
@@ -4447,6 +4943,7 @@ function initDOM() {
   $('#futures').addEventListener('click', e => { if (!e.target.closest('#tbPick') || !W.tb) return;
     openModal(`<h3 id="dlgTitle">Choose the hidden strategist</h3><p>One people will be given a secret plan against the Hevari. No one, not even you, will learn what it is until the end.</p><div class="row" style="flex-wrap:wrap;justify-content:flex-start;gap:8px">${alive().map(c => `<button class="btn" type="button" data-tbc="${c.id}" style="border-left:3px solid ${c.color}">${esc(c.name)}</button>`).join('')}</div><div class="row"><button class="btn" type="button" data-close>Let fate decide</button></div>`);
     $('#dialog').querySelectorAll('[data-tbc]').forEach(b => b.onclick = () => { tbChoose(+b.dataset.tbc, 'you'); closeModal(); $('#futBody').dataset.k = ''; updateFutures(); }); });
+  UI.fslogClosed = lsGet('aoh.fslogClosed') === '1'; $('#fslogToggle').addEventListener('click', () => toggleFsLog()); $('#seeAll').addEventListener('click', openHistory); $('#fsAll').addEventListener('click', openHistory);
   $('#futToggle').addEventListener('click', () => { const box = $('#futures'), closed = box.classList.toggle('closed'); $('#futToggle').setAttribute('aria-expanded', String(!closed)); $('#futBody').dataset.k = ''; updateFutures(); });
   const tipEl = $('#tip');
   tipEl.addEventListener('pointerenter', () => { TIP.over = true; clearTimeout(TIP.t); });
@@ -4462,6 +4959,7 @@ function initDOM() {
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? CH : 1, dx = e.deltaX * unit, dy = e.deltaY * unit;
     if (e.shiftKey || Math.abs(dx) > Math.abs(dy)) { V.cam += (dx || dy) / V.s; V.camTarget = null; return; }
+    if (V.focus) { V.focus = null; return; }
     hideTip(0);
     const r = cv.getBoundingClientRect();
     setZoom(V.zoom * Math.exp(-clamp(dy, -200, 200) * (e.ctrlKey ? .01 : .0016)), e.clientX - r.left, e.clientY - r.top);
@@ -4474,6 +4972,7 @@ function initDOM() {
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input,textarea,select')) { if (e.key === 'Escape' && isFS() && !(document.fullscreenElement || document.webkitFullscreenElement)) exitFS(); return; }
     if ($('#modal').classList.contains('open')) { if (e.key === 'Escape') closeModal(); return; }
+    if (e.key === 'Escape' && V.focus) { V.focus = null; return; }
     if (e.key === 'Escape' && ($('#pop').classList.contains('show') || TIP.cur)) { hidePop(0, true); TIP.over = false; hideTip(0); return; }
     if (e.key === 'ArrowLeft' || e.key === 'a') { V.camTarget = (V.camTarget ?? V.cam) - Math.min(V.vw, 3000) * .35; e.preventDefault(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { V.camTarget = (V.camTarget ?? V.cam) + Math.min(V.vw, 3000) * .35; e.preventDefault(); }
@@ -4540,7 +5039,7 @@ function initDOM() {
     const card = e.target.closest('.civ[data-id]'); if (!card) return; const c = civById(+card.dataset.id); if (!c) return;
     if (e.target.classList.contains('cn')) { const v = e.target.value.trim().slice(0, 20); if (v && v !== c.name) { const old = c.name; c.name = v; log(`The ${esc(old)} now call themselves ${nm(c)}.`, 'world'); } else e.target.value = c.name; }
     else if (e.target.classList.contains('lusel') && POLICY[e.target.value]) { c.policy = e.target.value; c.tmpPol = null; log(fillT({ exploit: '{Civ} decide to exploit their land to the full.', balance: '{Civ} decide to take only what their land can give back.', protect: '{Civ} decide to protect their forests and wild animals.' }[c.policy], names(c)), 'nature'); }
-    else if (e.target.tagName === 'SELECT' && TRAITS[e.target.value]) { c.trait = e.target.value; log(fillT(`{Civ} grow ${c.trait.toLowerCase()}. ${TRAITS[c.trait].note}.`, names(c)), 'world'); }
+    else if (e.target.tagName === 'SELECT' && TRAITS[e.target.value]) { if (c.merged && e.target.value !== 'Merged') { c.merged = false; c.oldTrait = null; } c.trait = e.target.value; log(fillT(`{Civ} grow ${c.trait.toLowerCase()}. ${TRAITS[c.trait].note}.`, names(c)), 'world'); }
   });
   cb.addEventListener('click', e => { const b = e.target.closest('[data-act="focus"]'); if (!b) return; const c = civById(+b.closest('.civ').dataset.id); if (c) { V.camY = null; V.gdy = 0; let t = c.x - V.vw / 2; if (V.b) t += Math.round((V.cam - t) / WORLD_W) * WORLD_W; V.camTarget = t; selectCiv(c.id); } });
   $('#filters').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (!b) return; $$('#filters [data-filter]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); $('#log').dataset.filter = b.dataset.filter; });
@@ -4585,7 +5084,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

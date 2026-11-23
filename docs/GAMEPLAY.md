@@ -33,6 +33,11 @@ Up to 8 peoples on 4 landmasses separated by sea. Each has a **character** (Warl
 - **Workshop**: custom elements and events. **Rules**: "When X, trigger Y" (including futures and energy conditions, and "end a future").
 - **Random history** toggle, day/night, speed, full screen, save/load and world codes.
 - **Right click** any object when zoomed in for its info; **i** on city labels for a people's details.
+- On the globe and orbit views, **right click** an object in orbit (satellite, space telescope, space station, ring habitat, space cylinder, space elevator station or climber) for what it is and who built it.
+- In the solar-system view, **left click** the Sun, the Moon or a planet for a close-up. The Sun shows the swarm in its builders' colours and who owns what share. The Moon and Mars show their named bases with their peoples and populations, colonies (with unrest or a war of independence) and Helium-3 rigs. Jupiter shows its ice moons and who mines them; the other worlds say who, if anyone, has been there. A click anywhere, scrolling or Esc zooms back out, and clicking Earth zooms back down to the globe. With a tool selected, a click still uses the tool. The close-up's text sits in a solid card on the right (below on narrow screens), and the body is sized so its rings, swarm or moons stay clear of it.
+- Further out, **left or right click** a mining claim in the solar-system view (Helium-3 on the Moon, an asteroid mine in the belt, an ice moon at Jupiter) to see what it is, where it is and who mines it. In the galaxy view, click a generation ship (where it is bound, how far it has come, its crew) or a star colony (who founded it, when, how many live there). A tip stays open while its object exists and you stay on that view.
+- **The galaxy** is the Milky Way seen from above its north pole: a golden central bar (~30,000 light years long), two major arms (Perseus, Scutum–Centaurus) starting at the bar's ends, two minor arms (Sagittarius, Norma/Outer) on 12° log spirals, blue-white arm stars with pink star-forming clouds, dust lanes and a faint disc. The Sun sits where it really is: about 26,000 ly from the centre, on the small Orion Spur between the Sagittarius and Perseus arms, with the bar's near end about 27° from the line to the Sun. Zoomed all the way out the view centres on the galaxy, with the Sun below the centre. No name labels are drawn there; click the Sun, the centre, a ship or a star colony to see what it is. The solar system (planets, swarm, claims, the Moon) fades out as the galaxy comes in, and colonies or ships so close to the Sun that they would sit on its marker are left out, so nothing piles up on the Sun.
+- In full screen the chronicle feed has a **Chronicle** toggle to fold it away. The choice is remembered, and while folded it shows how many new lines have come in.
 
 ## Futures (fates)
 
@@ -42,7 +47,7 @@ After the first people completes the Future Age, 13 futures build pressure from 
 |---|---|---|
 | The Three-Sun Signal | answering the alien signal, Curious peoples, Stellar Age | **Full** (TB-01…08) |
 | The Unravelling | pollution, climate, war, nuclear war, unrest | ending + new cycles and ruins (END-01/02); crises below feed it |
-| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03); rest of the AGI epic to come |
+| The Waking Machines | machine autonomy (top people and world average), AI events, Curious peoples | machine autonomy meter (AGI-01), reactions by character (AGI-02), caretaker ending (AGI-03), war against the machines and The Iron Dominion (AGI-04), the merge (AGI-05); grey spread (AGI-06) to come |
 | The Dying Sun | time after reaching space | placeholder (WE epic) |
 | The Great Upload | calm, prosperity, Curious/Mercantile | placeholder (ASC) |
 | The Garden | peoples protecting healthy land, low pollution | placeholder (GDN) |
@@ -119,3 +124,38 @@ When The Waking Machines ends the world ("The Quiet Takeover", kind *end*), the 
 - **Epilogue:** its own rows (who is in the machines' care, who is outside, the year of the last human decision) and a closing line that depends on whether anyone is still outside. The people card shows "In the machines' care" (with "No new age will come") or "Outside the machines' care". Violet caretaker drones hover over the cities in care.
 
 Real data (24 natural worlds, 3,000 s, then 400 s under the caretakers): 4 worlds ended in the takeover, each with one Devout holdout (meter 5–14). Devout peoples top out at 45, so they never give in on their own. There were 0 wars involving peoples in care and 0 progress for them. Stability rose from 41–58 to 85–89, and the forest share in their lands from 0.35–0.63 to 0.94–0.98.
+
+## War against the machines (AGI-04)
+
+During The Waking Machines, each people with a meter of 70+ may see its machines rise. The chance is 0.25% per second, ×2.5 for Warlike, ×0.8 Curious, ×0.5 Devout, ×2 with a machine army and ×2 when stability is under 35. There is at most one uprising per cycle and room is needed (fewer than 8 peoples). The player can also click **Machine Uprising** (Modern events, Information Age on); it starts The Waking Machines if needed.
+
+- **The machine people** (`c.machine`, grey `#9aa3ad`, named Automata, Iron Host…) takes the far side of its makers' land. It starts with 40% of their population. The makers keep 70% of theirs, lose 30 stability and their meter drops to 15.
+- **How it lives:** no births (it builds units in factories, faster on wider land), food fixed at 100, stability ~88, military ~92, no progress, no reactions, never makes peace (no treaties, humans cannot appease it). It is 1.5× stronger than a people of the same size and age, doesn't catch plagues, and clears and pollutes its land.
+- **Its looks:** a red-eyed machine core, drone factories with sawtooth roofs and blinking lights, exhaust stacks and relay pylons. No farms, houses, roads, trains or planes; hovering drones and walking robots instead of people.
+- **The humans** end every war among themselves at once ("Old enemies make peace overnight"), relations among them rise, other humans join the war, and their meters drop by 40%. The whole machine war counts as one war for the futures (Collapse and the others).
+- **Outcome**, judged on the machines' share of their own continent (they cannot settle across the sea):
+  - The machines win (**The Iron Dominion**, kind *end*) if they hold 80%, overrun 2 peoples, or still hold 55% after 320 s.
+  - The humans win if the machines are destroyed, or by cutting their power at 320 s if the machines hold less than 55%. Thinking machines are then banned for 300 s and every meter drops to 10 or less.
+  - The Waking Machines cannot end by its countdown while the war goes on. If the world falls in a doom ending meanwhile, the machines rust and the new cycle has none.
+- **UI:** the futures panel reads "War against the machines · they hold N% of their continent". The card shows "Machine mind · No births" and a "Machine people" chip. The Iron Dominion epilogue lists the machines, their share, peoples overrun and the humans left.
+
+Real data (36 natural worlds, 3,000 s):
+- 16 uprisings in 16 worlds (Curious 9, Warlike 7).
+- The machines won 3 and the humans won 9. 1 world fell during the war, and 3 runs ended before the war did.
+- Largest machine share: 0.33–1.0.
+- Endings: Iron Dominion 3, caretakers 4.
+
+The first versions never let the machines win. Share was counted across all four continents, so it never passed 0.18. Warlike peoples could never rise: their meter is capped at 78, below the first threshold of 80. Each human that joined the war counted as a separate war, which pushed Collapse to end the world in 6 of 12 wars.
+
+## The merge (AGI-05)
+
+During The Waking Machines, a people in the Future Age or later whose meter is 85+ (and with no ban in force) can answer AI pressure by merging with its machines (`mergeai`). The weights are Curious 3, Mercantile 2, Warlike 1 and Devout 0; Warlike peoples cap at 78, so they only get there after an AI Awakening. The player can also click **Merge with the Machines** (Modern events, Future Age on).
+
+- **Character:** it becomes **Merged**, a fifth character that no people is born with (`BASE_TRAITS` holds the four birth characters). Its old one is kept (`c.oldTrait`). Merged means progress ×1.4, half the births, stability +8, culture +12 and military +8. It answers stress calmly: innovate, trade, reform, conserve, ally, appease. It faces no more AI pressure, and its machines can never rise (no uprising, and the event refuses). It keeps its land policy.
+- **Looks:** people in pale suits with glowing cyan implants. Neural towers (glowing spines and nodes) and neural hubs (lattice domes) appear among the age's own buildings. The hub is the centrepiece and there are no fields. At night the towers are linked by arcs of light with pulses running along them.
+- **UI:** a "Merged (once Curious)" chip, "Neural Commonwealth · One mind with its machines" on the card, and "Merged" in the character menu (switching to another character unmerges). The epilogue lists the merged peoples.
+- **A new cycle:** merged peoples wake up alone and get their old character back.
+
+Real data (36 natural worlds, 3,000 s, final tuning): 21 merges in 18 worlds (19 Curious, 2 Mercantile), all during The Waking Machines, in the Future to Galactic Ages. Uprisings: 11 (the machines won 1, the humans 7). Other futures and wars stayed within the noise.
+
+The first version allowed merging at any time and set the 'protect' land policy. That gave 45 merges in 31 of 36 worlds, and Garden futures tripled (8 to 24, with 9 Garden endings). Merging was then limited to The Waking Machines, peoples keep their policy, and the Curious weight went from 5 to 3. Taking Curious peoples out of the uprisings lowers how often the machines win (3 of 12 before AGI-05, 0–1 after); this is a point for the FND-08 balance pass.
