@@ -4310,14 +4310,18 @@ function drawSystem(c2, w, h, sx, sy) {
   c2.save(); c2.lineWidth = 1;
   // asteroid belt
   c2.fillStyle = `rgba(170,160,150,${(.5 * k).toFixed(3)})`;
-  for (let i = 0; i < 220; i++) { const au = 2.3 + h01(i * 13) * 1.1, a = h01(i * 7) * 6.2832 + orbAng(au), r = orbitR(au) * s; const x = sx + r * Math.cos(a), y = sy + r * Math.sin(a); if (x > -2 && x < w + 2 && y > -2 && y < h + 2) c2.fillRect(x, y, 1.1, 1.1); }
+  // the view turns with the Earth (Earth sits still, the Sun crosses the sky), so the whole solar system turns with it:
+  // rotate the Sun-centred orbits so the Earth's own orbital angle points from the Sun at the Earth. Every body then goes
+  // the same way round (the Earth's orbit too, once a year), as seen from the south like the Earth's spin and the Moon.
+  const rot = Math.atan2(V.cy - sy, V.cx - sx) - (h01(1000) * 6.2832 + orbAng(1)); V.sysRot = rot;
+  for (let i = 0; i < 220; i++) { const au = 2.3 + h01(i * 13) * 1.1, a = h01(i * 7) * 6.2832 + orbAng(au) + rot, r = orbitR(au) * s; const x = sx + r * Math.cos(a), y = sy + r * Math.sin(a); if (x > -2 && x < w + 2 && y > -2 && y < h + 2) c2.fillRect(x, y, 1.1, 1.1); }
   c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'center';
   for (const [name, au, col, rad] of PLANETS) {
     const r = orbitR(au) * s;
     c2.strokeStyle = `rgba(236,229,213,${((name === 'Earth' ? .3 : .14) * k).toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, r, 0, 6.2832); c2.stroke();
     let px, py;
     if (name === 'Earth') { px = V.cx; py = V.cy; }
-    else { const a = h01(au * 1000) * 6.2832 + orbAng(au); px = sx + r * Math.cos(a); py = sy + r * Math.sin(a); (V.bodyPos = V.bodyPos || {})[name] = [px, py, rad];
+    else { const a = h01(au * 1000) * 6.2832 + orbAng(au) + rot; px = sx + r * Math.cos(a); py = sy + r * Math.sin(a); (V.bodyPos = V.bodyPos || {})[name] = [px, py, rad];
       c2.fillStyle = col; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, rad, 0, 6.2832); c2.fill(); c2.globalAlpha = 1;
       if (name === 'Mars') drawBases(c2, 'mars', px, py, rad * 2.4, k);
       if (name === 'Saturn') { c2.strokeStyle = `rgba(230,215,170,${(.8 * k).toFixed(3)})`; c2.beginPath(); c2.ellipse(px, py, rad * 2.1, rad * .7, -.4, 0, 6.2832); c2.stroke(); }
@@ -4334,7 +4338,7 @@ function drawSystem(c2, w, h, sx, sy) {
   for (const r of W.spaceRes || []) {
     const o = r.owner != null ? civById(r.owner) : null, col = o ? o.color : '#9a958a', body = ELEMENTS[r.type].space;
     let x, y;
-    if (body === 'belt') { const a = r.a + orbAng(2.8), rr = orbitR(2.8) * s; x = sx + rr * Math.cos(a); y = sy + rr * Math.sin(a); c2.fillStyle = '#e0a040'; c2.globalAlpha = k; c2.fillRect(x - 2.5, y - 2.5, 5, 5); }
+    if (body === 'belt') { const a = r.a + orbAng(2.8) + rot, rr = orbitR(2.8) * s; x = sx + rr * Math.cos(a); y = sy + rr * Math.sin(a); c2.fillStyle = '#e0a040'; c2.globalAlpha = k; c2.fillRect(x - 2.5, y - 2.5, 5, 5); }
     else if (body === 'giant') { const J = V.bodyPos && V.bodyPos.Jupiter; if (!J) continue; const a = r.a + V.t * .3; x = J[0] + Math.cos(a) * 9; y = J[1] + Math.sin(a) * 9; c2.fillStyle = '#e8f4fb'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.8, 0, 6.2832); c2.fill(); }
     else { const M = V.bodyPos && V.bodyPos.Moon; if (!M) continue; x = M[0] + Math.cos(r.a) * M[2] * .5; y = M[1] + Math.sin(r.a) * M[2] * .5; c2.fillStyle = '#7fe3ff'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.6, 0, 6.2832); c2.fill(); }
     c2.strokeStyle = col; c2.lineWidth = 1; c2.beginPath(); c2.arc(x, y, 4.5, 0, 6.2832); c2.stroke(); c2.globalAlpha = 1;
