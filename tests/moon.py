@@ -1,6 +1,7 @@
 # The Moon follows real orbital rules (squeezed in distance like the rest of the solar system): it crosses the sky the
 # same way as the Sun, laps it once per synodic month (new moon beside the Sun, full moon opposite), swings nearer and
 # further with its eccentricity, keeps one face to Earth, and sits right beside Earth on its orbit at solar-system scale.
+# The planets keep the game year (Kepler periods) and every orbit and spin turns the same way.
 import asyncio, json, math, os, pathlib
 from playwright.async_api import async_playwright
 GAME = pathlib.Path(os.environ.get('GAME') or pathlib.Path(__file__).resolve().parents[1].joinpath('index.html')).resolve().as_uri()
@@ -51,7 +52,7 @@ async def main():
         check('the month advances with the game day (1 day = 48 s)', 0 < m1 - m0 < .1, str(round(m1 - m0, 4)))
         # the planets keep the game's year (one season cycle) and Kepler's third law; they stand still while paused
         PL = r"""(t) => { const A = window.__aoh; A.UI.paused = true; A.W.simTime = t; A.setZoom(.0004); A.render(); const s = A.V.sunXY, o = {};
-          for (const [n, q] of Object.entries(A.V.bodyPos)) if (n !== 'Moon') o[n] = Math.atan2(q[1] - s[1], q[0] - s[0]); return o; }"""
+          for (const [n, q] of Object.entries(A.V.bodyPos)) if (n !== 'Moon') o[n] = Math.atan2(q[1] - s[1], q[0] - s[0]) - (A.V.sysRot || 0); return o; }"""
         Y = M and await pg.evaluate("() => window.__aoh.YEAR_SEC")
         t0 = 5000; p0 = await pg.evaluate(PL, t0); p1 = await pg.evaluate(PL, t0 + Y * .05)
         AU = {'Mercury': .39, 'Venus': .72, 'Mars': 1.52, 'Jupiter': 5.2, 'Saturn': 9.5}
@@ -62,6 +63,10 @@ async def main():
         q0 = await pg.evaluate("() => { const A = window.__aoh; A.UI.paused = true; A.render(); return A.V.bodyPos.Jupiter[0]; }"); await pg.wait_for_timeout(800)
         q1 = await pg.evaluate("() => { const A = window.__aoh; A.render(); return A.V.bodyPos.Jupiter[0]; }")
         check('paused: the planets stand still', abs(q1 - q0) < 1e-6, str([q0, q1]))
+        # every orbit and spin goes the same way: undo the sky's turn (V.sysRot) to get Sun-centred angles over one game second
+        DIRS = open(pathlib.Path(__file__).with_name('moon_dirs.js')).read()
+        dr = await pg.evaluate(DIRS)
+        check('all planets, the Earth (once a game year), its spin and the Moon go round the same way', len(set(v for k, v in dr.items() if k != 'earthLaps')) == 1 and abs(dr['earthLaps'] - 1) < .01, str(dr))
         print('\n'.join(errs[:5]) or 'no errors')
         await b.close()
     print(f'{sum(results)}/{len(results)} passed')

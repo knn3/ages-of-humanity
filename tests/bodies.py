@@ -80,10 +80,14 @@ async def main():
 
         # with a tool selected, a click still uses the tool (no zoom)
         r = json.loads(await ev(r'''() => { const A = window.__aoh; A.setZoom(.0025); A.render(); A.setTool({ kind: 'el', type: 'helium3' }); return JSON.stringify(A.UI.tool); }'''))
-        q = json.loads(await ev(POS, 'Mars')); n0 = await ev("() => window.__aoh.W.spaceRes.length")
+        # click a planet that is on screen (they move with the game year and the turning sky)
+        for nm in ['Mars', 'Venus', 'Mercury', 'Jupiter']:
+            q = json.loads(await ev(POS, nm))
+            if q and q['inView'] and q['hit'] == nm: break
+        n0 = await ev("() => window.__aoh.W.spaceRes.length")
         await pg.mouse.click(q['x'], q['y']); await pg.wait_for_timeout(200)
         r = json.loads(await ev("(n0) => JSON.stringify({ f: window.__aoh.V.focus, placed: window.__aoh.W.spaceRes.length - n0 })", n0))
-        check('with a space tool selected, a click places it instead of zooming in', r['f'] is None and r['placed'] == 1, str(r))
+        check('with a space tool selected, a click places it instead of zooming in', r['f'] is None and r['placed'] == 1, str({**r, 'on': nm, 'q': q}))
         await ev("() => window.__aoh.setTool(null)")
         # the text never covers the body: on wide screens the disc stays left of the text (its glow, rings and swarm may pass
         # under the dark fade behind the text, on purpose); on narrow screens the card stays below the body, rings and moons
