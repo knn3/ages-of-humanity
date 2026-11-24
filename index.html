@@ -661,6 +661,25 @@ function focusWorld(st, from) {
 const WORLDN = ['Halcyon', 'Verdance', 'Ember Reach', 'Stillwater', 'Aubade', 'New Meridian', 'Thessaly Deep', 'Lumen', 'Harrowgate', 'Calyx', 'Farrow', 'Elsinor', 'Tidewell', 'Morrowmere', 'Solace', 'Kestrel', 'Brightfall', 'Oriel', 'Gloaming', 'Wending'];
 const worldName = st => { const used = new Set((W.stars || []).map(x => x.world).filter(Boolean)); return WORLDN.find(x => !used.has(x)) || WORLDN[(st.star * 7 + (st.sid || 0)) % WORLDN.length] + ' ' + ROMAN[(W.stars || []).length % ROMAN.length]; };
 const worldLook = st => { const h = k => h01(st.star * 31 + (st.sid || 0) * 7 + k); return { sea: `hsl(${(195 + 40 * h(1)) | 0},${(35 + 25 * h(2)) | 0}%,${(26 + 10 * h(3)) | 0}%)`, land: `hsl(${(30 + 90 * h(4)) | 0},${(22 + 20 * h(5)) | 0}%,${(30 + 14 * h(6)) | 0}%)`, star: ['255,214,170', '255,190,140', '255,236,200', '255,170,130'][(h(7) * 4) | 0], seed: st.star * 13 + (st.sid || 0) }; };
+// SV-06: where a settled world's night lights can be, in planet units (1 = its radius): spots along its coasts (near the edge of
+// each land shape) on the night side, in a fixed order per world, so lights only ever switch on as the colony grows, never move.
+// Land shapes and the day/night shading are the same as drawWorldClose's.
+const WL_MAX = 320, WL_LO = 4.4, WL_HI = 8.7, WL_CACHE = new Map();
+// the land shapes of a settled world, in planet units: [cx, cy, rx, ry, rotation]
+const worldLand = st => { const L = worldLook(st), out = []; for (let i = 0; i < 26; i++) { const a = h01(L.seed + i * 3) * 6.2832, d = Math.sqrt(h01(L.seed + i * 5)) * .9, rx = .05 + .16 * h01(L.seed + i * 7); out.push([d * Math.cos(a), d * Math.sin(a), rx, rx * (.5 + .4 * h01(L.seed + i * 11)), a]); } return out; };
+const worldNight = (px, py) => Math.hypot(px + .25, py + .18) / 1.55 > .6;
+function worldLights(st) {
+  const L = worldLook(st), key = L.seed; if (WL_CACHE.has(key)) return WL_CACHE.get(key);
+  const land = worldLand(st);
+  const out = [];
+  for (let t = 0; t < 4000 && out.length < WL_MAX; t++) { const [cx, cy, rx, ry, a] = land[(h01(L.seed * 3 + t * 13) * 26) | 0], th = h01(L.seed + t * 17) * 6.2832, rho = .62 + .34 * h01(L.seed + t * 19);
+    const ex = rx * rho * Math.cos(th), ey = ry * rho * Math.sin(th), px = cx + ex * Math.cos(a) - ey * Math.sin(a), py = cy + ex * Math.sin(a) + ey * Math.cos(a);
+    if (Math.hypot(px, py) < .96 && Math.abs(py) < .86 && worldNight(px, py)) out.push({ x: px, y: py }); }
+  WL_CACHE.set(key, out); return out;
+}
+// 0 for a new colony of a few tens of thousands, 1 at the 500 million a world can hold (on a log scale)
+const worldLightK = st => clamp((Math.log10(Math.max(1, st.pop)) - WL_LO) / (WL_HI - WL_LO), 0, 1);
+const worldLightCount = st => Math.min(worldLights(st).length, Math.round(3 + Math.pow(worldLightK(st), 1.15) * (worldLights(st).length - 3)));
 function drawWorldClose(c2, st, x, y, r) {
   const L = worldLook(st), lx = x - r * 2.2, ly = y - r * 1.4;
   // the host star's light from the upper left
@@ -668,10 +687,16 @@ function drawWorldClose(c2, st, x, y, r) {
   c2.fillStyle = sg; c2.fillRect(lx - r * 2.4, ly - r * 2.4, r * 4.8, r * 4.8);
   c2.save(); c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.clip();
   c2.fillStyle = L.sea; c2.fillRect(x - r, y - r, r * 2, r * 2);
-  c2.fillStyle = L.land; for (let i = 0; i < 26; i++) { const a = h01(L.seed + i * 3) * 6.2832, d = Math.sqrt(h01(L.seed + i * 5)) * r * .9, rr = r * (.05 + .16 * h01(L.seed + i * 7)); c2.beginPath(); c2.ellipse(x + d * Math.cos(a), y + d * Math.sin(a), rr, rr * (.5 + .4 * h01(L.seed + i * 11)), a, 0, 6.2832); c2.fill(); }
+  c2.fillStyle = L.land; for (const [cx, cy, rx, ry, a] of worldLand(st)) { c2.beginPath(); c2.ellipse(x + cx * r, y + cy * r, rx * r, ry * r, a, 0, 6.2832); c2.fill(); }
   c2.fillStyle = 'rgba(235,240,245,.5)'; c2.beginPath(); c2.ellipse(x, y - r * .97, r * .5, r * .12, 0, 0, 6.2832); c2.fill(); c2.beginPath(); c2.ellipse(x, y + r * .97, r * .45, r * .1, 0, 0, 6.2832); c2.fill();
-  const lit = c2.createRadialGradient(x - r * .5, y - r * .38, r * .05, x - r * .25, y - r * .18, r * 1.55); lit.addColorStop(0, 'rgba(255,250,235,.2)'); lit.addColorStop(.42, 'rgba(0,0,0,0)'); lit.addColorStop(.72, 'rgba(2,3,10,.62)'); lit.addColorStop(1, 'rgba(2,3,10,.95)');
+  const lit = c2.createRadialGradient(x - r * .5, y - r * .38, r * .05, x - r * .25, y - r * .18, r * 1.55); lit.addColorStop(0, 'rgba(255,250,235,.2)'); lit.addColorStop(.4, 'rgba(0,0,0,0)'); lit.addColorStop(.6, 'rgba(2,3,10,.74)'); lit.addColorStop(.8, 'rgba(2,3,10,.9)'); lit.addColorStop(1, 'rgba(2,3,10,.96)');
   c2.fillStyle = lit; c2.fillRect(x - r, y - r, r * 2, r * 2);
+  // SV-06: night lights on the dark side, more and brighter as the colony grows
+  const n = worldLightCount(st), lights = worldLights(st), u = worldLightK(st);
+  if (n) { c2.globalCompositeOperation = 'lighter'; const sz = Math.max(.7, r * .0042), al = .4 + .5 * u;
+    c2.fillStyle = `rgba(255,170,90,${(al * .09).toFixed(3)})`; c2.beginPath(); for (let i = 0; i < n; i++) { const q = lights[i]; c2.moveTo(x + q.x * r + sz * 2.2, y + q.y * r); c2.arc(x + q.x * r, y + q.y * r, sz * 2.2, 0, 6.2832); } c2.fill();
+    c2.fillStyle = `rgba(255,226,160,${al.toFixed(3)})`; c2.beginPath(); for (let i = 0; i < n; i++) { const q = lights[i]; c2.moveTo(x + q.x * r + sz, y + q.y * r); c2.arc(x + q.x * r, y + q.y * r, sz, 0, 6.2832); } c2.fill();
+    c2.globalCompositeOperation = 'source-over'; }
   c2.restore();
   c2.strokeStyle = 'rgba(150,190,255,.35)'; c2.lineWidth = Math.max(1, r * .025); c2.beginPath(); c2.arc(x, y, r * 1.01, Math.PI * .75, Math.PI * 1.75); c2.stroke();
 }
@@ -5508,7 +5533,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R }, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
