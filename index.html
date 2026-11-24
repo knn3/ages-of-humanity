@@ -422,6 +422,8 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 // zoomed out past the globe: the solar system. distances are squeezed so every planet fits on screen
 const AU = 40 * RG;
 // the Moon: synodic and anomalistic months in days, eccentricity, radius as a share of Earth's
+// planets keep the game's own year (one season cycle = 60 s of sim time) and Kepler's third law: period = au^1.5 years
+const YEAR_SEC = 60, orbYears = () => (W.simTime || 0) / YEAR_SEC, orbAng = au => 6.2832 * orbYears() / Math.pow(au, 1.5);
 const MOON_SYN = 29.53, MOON_ANO = 27.55, MOON_E = .055, MOON_R = .273;
 const PLANETS = [['Mercury', .39, '#a8a29a', 1.4], ['Venus', .72, '#e2c98f', 2.2], ['Earth', 1, null, 0], ['Mars', 1.52, '#c8643c', 1.8], ['Jupiter', 5.2, '#d4b58f', 4.6], ['Saturn', 9.5, '#e0cfa0', 4], ['Uranus', 19.2, '#9fd6dc', 3], ['Neptune', 30, '#5b7fd8', 3]];
 const orbitR = au => AU * Math.pow(au, .55);
@@ -4308,14 +4310,14 @@ function drawSystem(c2, w, h, sx, sy) {
   c2.save(); c2.lineWidth = 1;
   // asteroid belt
   c2.fillStyle = `rgba(170,160,150,${(.5 * k).toFixed(3)})`;
-  for (let i = 0; i < 220; i++) { const a = h01(i * 7) * 6.2832 + V.t * .004, r = orbitR(2.3 + h01(i * 13) * 1.1) * s; const x = sx + r * Math.cos(a), y = sy + r * Math.sin(a); if (x > -2 && x < w + 2 && y > -2 && y < h + 2) c2.fillRect(x, y, 1.1, 1.1); }
+  for (let i = 0; i < 220; i++) { const au = 2.3 + h01(i * 13) * 1.1, a = h01(i * 7) * 6.2832 + orbAng(au), r = orbitR(au) * s; const x = sx + r * Math.cos(a), y = sy + r * Math.sin(a); if (x > -2 && x < w + 2 && y > -2 && y < h + 2) c2.fillRect(x, y, 1.1, 1.1); }
   c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'center';
   for (const [name, au, col, rad] of PLANETS) {
     const r = orbitR(au) * s;
     c2.strokeStyle = `rgba(236,229,213,${((name === 'Earth' ? .3 : .14) * k).toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, r, 0, 6.2832); c2.stroke();
     let px, py;
     if (name === 'Earth') { px = V.cx; py = V.cy; }
-    else { const a = h01(au * 1000) * 6.2832 + V.t * .02 / Math.pow(au, 1.5); px = sx + r * Math.cos(a); py = sy + r * Math.sin(a); (V.bodyPos = V.bodyPos || {})[name] = [px, py, rad];
+    else { const a = h01(au * 1000) * 6.2832 + orbAng(au); px = sx + r * Math.cos(a); py = sy + r * Math.sin(a); (V.bodyPos = V.bodyPos || {})[name] = [px, py, rad];
       c2.fillStyle = col; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, rad, 0, 6.2832); c2.fill(); c2.globalAlpha = 1;
       if (name === 'Mars') drawBases(c2, 'mars', px, py, rad * 2.4, k);
       if (name === 'Saturn') { c2.strokeStyle = `rgba(230,215,170,${(.8 * k).toFixed(3)})`; c2.beginPath(); c2.ellipse(px, py, rad * 2.1, rad * .7, -.4, 0, 6.2832); c2.stroke(); }
@@ -4332,7 +4334,7 @@ function drawSystem(c2, w, h, sx, sy) {
   for (const r of W.spaceRes || []) {
     const o = r.owner != null ? civById(r.owner) : null, col = o ? o.color : '#9a958a', body = ELEMENTS[r.type].space;
     let x, y;
-    if (body === 'belt') { const a = r.a + V.t * .004, rr = orbitR(2.8) * s; x = sx + rr * Math.cos(a); y = sy + rr * Math.sin(a); c2.fillStyle = '#e0a040'; c2.globalAlpha = k; c2.fillRect(x - 2.5, y - 2.5, 5, 5); }
+    if (body === 'belt') { const a = r.a + orbAng(2.8), rr = orbitR(2.8) * s; x = sx + rr * Math.cos(a); y = sy + rr * Math.sin(a); c2.fillStyle = '#e0a040'; c2.globalAlpha = k; c2.fillRect(x - 2.5, y - 2.5, 5, 5); }
     else if (body === 'giant') { const J = V.bodyPos && V.bodyPos.Jupiter; if (!J) continue; const a = r.a + V.t * .3; x = J[0] + Math.cos(a) * 9; y = J[1] + Math.sin(a) * 9; c2.fillStyle = '#e8f4fb'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.8, 0, 6.2832); c2.fill(); }
     else { const M = V.bodyPos && V.bodyPos.Moon; if (!M) continue; x = M[0] + Math.cos(r.a) * M[2] * .5; y = M[1] + Math.sin(r.a) * M[2] * .5; c2.fillStyle = '#7fe3ff'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.6, 0, 6.2832); c2.fill(); }
     c2.strokeStyle = col; c2.lineWidth = 1; c2.beginPath(); c2.arc(x, y, 4.5, 0, 6.2832); c2.stroke(); c2.globalAlpha = 1;
@@ -5533,7 +5535,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
