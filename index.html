@@ -421,6 +421,8 @@ const ATMO = [
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 // zoomed out past the globe: the solar system. distances are squeezed so every planet fits on screen
 const AU = 40 * RG;
+// the Moon: synodic and anomalistic months in days, eccentricity, radius as a share of Earth's
+const MOON_SYN = 29.53, MOON_ANO = 27.55, MOON_E = .055, MOON_R = .273;
 const PLANETS = [['Mercury', .39, '#a8a29a', 1.4], ['Venus', .72, '#e2c98f', 2.2], ['Earth', 1, null, 0], ['Mars', 1.52, '#c8643c', 1.8], ['Jupiter', 5.2, '#d4b58f', 4.6], ['Saturn', 9.5, '#e0cfa0', 4], ['Uranus', 19.2, '#9fd6dc', 3], ['Neptune', 30, '#5b7fd8', 3]];
 const orbitR = au => AU * Math.pow(au, .55);
 const sysK = () => smooth(ZSYS, .004, V.zoom), sysC = () => smooth(.006, .0015, V.zoom);
@@ -953,7 +955,7 @@ const CARCOL = ['#2b2b2b', '#7a1f1f', '#e8e4da', '#2f4f7a', '#c9a227', '#3f6f4f'
 let W = null;           // the world: plain data, saved and loaded
 let CUSTOM = { events: [], elements: [], rules: [] };
 const T = new Float32Array(NCOL), BASE = new Float32Array(NCOL), MOIST = new Float32Array(NCOL);
-const V = { t: 0, vdt: 0, cam: 0, camY: null, gdy: 0, b: 0, Rb: 1e9, vs: 1, cx: 0, cy: 0, xc: 0, xa: 0, xb: 0, hx: 0, camTarget: null, zoom: .75, s: 1, pts: new Map(), pinch: null, offY: 0, vw: 1000, L: 1, N: 0, dayT: .36, landL: 0, landR: WORLD_W, lands: [{ l: 0, r: WORLD_W }], tver: 0,
+const V = { t: 0, vdt: 0, cam: 0, camY: null, gdy: 0, b: 0, Rb: 1e9, vs: 1, cx: 0, cy: 0, xc: 0, xa: 0, xb: 0, hx: 0, camTarget: null, zoom: .75, s: 1, pts: new Map(), pinch: null, offY: 0, vw: 1000, L: 1, N: 0, dayT: .36, moonD: 8, landL: 0, landR: WORLD_W, lands: [{ l: 0, r: WORLD_W }], tver: 0,
   P: [], fx: [], flashes: [], nukes: [], meteors: [], erupt: [], floaters: [], banners: [], bannerBusy: false, later: [], shake: 0, flash: 0,
   hoverX: null, hoverY: null, drag: null, cardSig: '', fronts: [], alive: [] };
 const UI = { speed: 1, paused: false, day: true, random: true, tool: null, sel: null };
@@ -4353,14 +4355,20 @@ function drawSpaceBackdrop(c2, w, h) {
     drawLens(c2, w, h, sx, sy);
   }
   if (b > .85) {
-    const mph = V.t * .012 + 2.2, D = rOut * 1.25 + 40, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph), mr = Math.max(4, V.Rb * s * .2);
+    // close to the globe the Moon hangs well out in the sky; zoomed out to the solar system it closes in on Earth, so it rides along Earth's orbit
+    // the view turns with the Earth (the Sun crosses the sky once a day), so the Moon crosses too, lagging the Sun by one lap
+    // per synodic month (new moon beside the Sun, full moon opposite); its slightly eccentric orbit swings it nearer and further
+    // (and a little ahead and behind) over the anomalistic month. Distances are squeezed like the rest of the solar system.
+    const md = V.moonD, el = 6.2832 * (md / MOON_SYN % 1), M = 6.2832 * (md / MOON_ANO % 1), ecc = 1 - MOON_E * Math.cos(M);
+    const mr = Math.max(3, V.Rb * s * MOON_R) * (1 - .25 * sysK()), mk = sysK(), mph = phs + el + 2 * MOON_E * Math.sin(M), D = ((rOut * 1.25 + 40) * (1 - mk) + (rOut + mr + 5) * mk) * ecc, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph);
+    if (mk > .3) { c2.strokeStyle = `rgba(236,229,213,${(.12 * smooth(.3, .8, mk) * (1 - smooth(0, .15, galK()))).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(cx, cy, D, 0, 6.2832); c2.stroke(); }
     const ma = smooth(.85, .97, b) * (1 - smooth(0, .15, galK()));
     if (ma > .01 && mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
       c2.save(); c2.globalAlpha = ma; c2.beginPath(); c2.arc(mx, my, mr, 0, 6.2832); c2.clip();
       c2.fillStyle = '#26282e'; c2.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
       const lx = mx + Math.sin(phs) * mr * .9, ly = my - Math.cos(phs) * mr * .9, gr = c2.createRadialGradient(lx, ly, mr * .2, lx, ly, mr * 1.6);
       gr.addColorStop(0, '#e4e0d4'); gr.addColorStop(.6, '#b9b5aa'); gr.addColorStop(1, 'rgba(60,60,64,0)'); c2.fillStyle = gr; c2.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
-      c2.fillStyle = 'rgba(90,88,84,.35)'; for (const [ox, oy, rr] of [[-.3, -.2, .18], [.25, .3, .14], [.1, -.45, .1]]) { c2.beginPath(); c2.arc(mx + ox * mr, my + oy * mr, rr * mr, 0, 6.2832); c2.fill(); }
+      c2.fillStyle = 'rgba(90,88,84,.35)'; const cr = Math.cos(mph), sr = Math.sin(mph); for (const [ox, oy, rr] of [[-.3, -.2, .18], [.25, .3, .14], [.1, -.45, .1]]) { c2.beginPath(); c2.arc(mx + (ox * cr - oy * sr) * mr, my + (ox * sr + oy * cr) * mr, rr * mr, 0, 6.2832); c2.fill(); }
       drawBases(c2, 'moon', mx, my, mr, ma); (V.bodyPos = V.bodyPos || {}).Moon = [mx, my, mr];
       c2.restore();
     }
@@ -4458,7 +4466,7 @@ function updateVisuals(vdt, rdt) {
   V.t += vdt; V.vdt = vdt; if (!UI.paused) V.galT = (V.galT || 0) + rdt;
   zGlideTick();
   if (!V.pan) V.panHome = false;
-  if (UI.day) { if (!UI.paused) V.dayT = (V.dayT + rdt / 48) % 1; } else V.dayT = .42;
+  if (UI.day) { if (!UI.paused) { V.dayT = (V.dayT + rdt / 48) % 1; V.moonD = (V.moonD + rdt / 48) % (MOON_SYN * MOON_ANO * 100); } } else V.dayT = .42;
   if (V.camTarget != null) { V.cam += (V.camTarget - V.cam) * Math.min(1, rdt * 5); if (Math.abs(V.camTarget - V.cam) < 1) V.camTarget = null; }
   V.shake = Math.max(0, V.shake - rdt * 12); V.flash = Math.max(0, V.flash - rdt * 1.1);
   for (let i = V.P.length - 1; i >= 0; i--) { const p = V.P[i]; p.life -= vdt; if (p.life <= 0) { V.P.splice(i, 1); continue; } p.x += p.vx * vdt; p.y += p.vy * vdt; p.vy += p.g * vdt; p.r += p.grow * vdt; }
@@ -5525,7 +5533,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
