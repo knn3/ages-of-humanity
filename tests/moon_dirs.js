@@ -4,7 +4,9 @@
   const inert = (s, p) => ang(p, s.sun) - s.rot, a = snap(.3, 5000), b = snap(.3 + 1 / 48, 5001), out = {};
   for (const n of ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']) out[n] = sg(wrap(inert(b, b.b[n]) - inert(a, a.b[n])));
   out.Earth = sg(wrap(inert(b, b.e) - inert(a, a.e)));
-  out.spin = sg(-wrap(ang(b.sun, b.e) - ang(a.sun, a.e)));
+  // the spin: on the flat map (the view from the ground) the Sun crosses the sky one way, so the Earth spins the other way
+  const sp = day => { A.V.dayT = day; A.setZoom(1); A.render(); return A.skyPh(); };
+  const s0 = sp(.3), s1 = sp(.3 + 1 / 48); out.spin = sg(-wrap(s1 - s0));
   A.V.moonD = 5; A.setZoom(.03); A.V.dayT = .3; A.render(); const p = [...A.V.bodyPos.Moon]; A.V.moonD = 5.5; A.render(); const q = [...A.V.bodyPos.Moon];
   out.Moon = sg(wrap(ang(q, [A.V.cx, A.V.cy]) - ang(p, [A.V.cx, A.V.cy])));
   const y0 = snap(.3, 5000), y1 = snap(.3, 5006); out.earthLaps = +(wrap(inert(y1, y1.e) - inert(y0, y0.e)) / (2 * Math.PI) * 10).toFixed(3);

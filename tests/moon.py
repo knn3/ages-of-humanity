@@ -31,13 +31,15 @@ async def main():
         for k in range(8):
             q = await at(.3, syn * k / 8)
             el.append(wrap(q['m'] - q['s']))
-        exp = [wrap(2 * math.pi * k / 8 + 2 * e * math.sin(2 * math.pi * (syn * k / 8) / ano)) for k in range(8)]
+        # seen from the north the Sun crosses the sky clockwise and the Moon (prograde) falls behind it: elongation grows the other way
+        exp = [wrap(-(2 * math.pi * k / 8 + 2 * e * math.sin(2 * math.pi * (syn * k / 8) / ano))) for k in range(8)]
         err = max(abs(wrap(a - b_)) for a, b_ in zip(el, exp))
         check('new moon beside the Sun, full moon opposite, one lap per synodic month', err < .02 and abs(el[0]) < .12 and abs(abs(el[4]) - math.pi) < .12, str([round(x, 2) for x in el]))
-        # direction: over an hour of game day both the Sun and the Moon move the same way across the sky, the Moon a little slower
-        a0, a1 = await at(.30, 5), await at(.31, 5 + .01)
+        # direction: the globe view does not turn (the Earth spins under the sky), so over a quarter of a game day the Sun stays
+        # put (the year does not move on here) while the Moon goes anticlockwise (decreasing clockwise angle) by 1/29.5 of a lap a day
+        a0, a1 = await at(.30, 5), await at(.55, 5 + .25)
         ds, dm = wrap(a1['s'] - a0['s']), wrap(a1['m'] - a0['m'])
-        check('the Moon crosses the sky the same way as the Sun, lagging it by 1/29.5 of a lap a day', ds * dm > 0 and abs(dm / ds - (1 - 1 / syn)) < .08, str({'sun': round(ds, 4), 'moon': round(dm, 4), 'ratio': round(dm / ds, 3)}))
+        check('on the globe the Sun stays put over the day and the Moon goes anticlockwise, 1/29.5 of a lap a day', abs(ds) < 1e-9 and dm < 0 and abs(dm / (-2 * math.pi * .25 / syn) - 1) < .15, str({'sun': round(ds, 6), 'moon': round(dm, 4), 'ratio': round(dm / (-2 * math.pi * .25 / syn), 3)}))
         # eccentricity: perigee and apogee distances differ by about 2e
         per, apo = await at(.3, 0), await at(.3, ano / 2)
         check('eccentric orbit: apogee about 11% further than perigee', abs(apo['d'] / per['d'] - (1 + e) / (1 - e)) < .01, str(round(apo['d'] / per['d'], 3)))
@@ -55,18 +57,19 @@ async def main():
           for (const [n, q] of Object.entries(A.V.bodyPos)) if (n !== 'Moon') o[n] = Math.atan2(q[1] - s[1], q[0] - s[0]) - (A.V.sysRot || 0); return o; }"""
         Y = M and await pg.evaluate("() => window.__aoh.YEAR_SEC")
         t0 = 5000; p0 = await pg.evaluate(PL, t0); p1 = await pg.evaluate(PL, t0 + Y * .05)
-        AU = {'Mercury': .39, 'Venus': .72, 'Mars': 1.52, 'Jupiter': 5.2, 'Saturn': 9.5}
-        errs2 = {n: round(wrap(p1[n] - p0[n]) / (2 * math.pi * .05 / au ** 1.5), 3) for n, au in AU.items() if n in p0}
-        check('planets go round once per au^1.5 game years (Jupiter 11.86), a game year being one season cycle', len(errs2) == 5 and all(abs(v - 1) < .01 for v in errs2.values()), str(errs2))
-        jup = 2 * math.pi / (2 * math.pi / Y / 5.2 ** 1.5)
-        check('Jupiter laps the Sun in about 712 s of sim time', abs(jup - 711.5) < 2, str(round(jup, 1)))
+        # real sidereal periods (Kepler's third law), anticlockwise = decreasing canvas angle
+        TP = {'Mercury': .2408, 'Venus': .6152, 'Mars': 1.8809, 'Jupiter': 11.862, 'Saturn': 29.457}
+        errs2 = {n: round(wrap(p1[n] - p0[n]) / (-2 * math.pi * .05 / T), 3) for n, T in TP.items() if n in p0}
+        check('planets go round once per their real period in game years (Jupiter 11.86), a game year being one season cycle', len(errs2) == 5 and all(abs(v - 1) < .01 for v in errs2.values()), str(errs2))
+        jup = 2 * math.pi / (2 * math.pi / Y / 11.862)
+        check('Jupiter laps the Sun in about 712 s of sim time', abs(jup - 711.7) < 2, str(round(jup, 1)))
         q0 = await pg.evaluate("() => { const A = window.__aoh; A.UI.paused = true; A.render(); return A.V.bodyPos.Jupiter[0]; }"); await pg.wait_for_timeout(800)
         q1 = await pg.evaluate("() => { const A = window.__aoh; A.render(); return A.V.bodyPos.Jupiter[0]; }")
         check('paused: the planets stand still', abs(q1 - q0) < 1e-6, str([q0, q1]))
         # every orbit and spin goes the same way: undo the sky's turn (V.sysRot) to get Sun-centred angles over one game second
         DIRS = open(pathlib.Path(__file__).with_name('moon_dirs.js')).read()
         dr = await pg.evaluate(DIRS)
-        check('all planets, the Earth (once a game year), its spin and the Moon go round the same way', len(set(v for k, v in dr.items() if k != 'earthLaps')) == 1 and abs(dr['earthLaps'] - 1) < .01, str(dr))
+        check('all planets, the Earth (once a game year), its spin and the Moon go round the same way: anticlockwise', set(v for k, v in dr.items() if k != 'earthLaps') == {'ccw'} and abs(abs(dr['earthLaps']) - 1) < .01, str(dr))
         print('\n'.join(errs[:5]) or 'no errors')
         await b.close()
     print(f'{sum(results)}/{len(results)} passed')
