@@ -422,10 +422,15 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 // zoomed out past the globe: the solar system. distances are squeezed so every planet fits on screen
 const AU = 40 * RG;
 // the Moon: synodic and anomalistic months in days, eccentricity, radius as a share of Earth's
-// planets keep the game's own year (one season cycle = 60 s of sim time) and Kepler's third law: period = au^1.5 years
-const YEAR_SEC = 60, orbYears = () => (W.simTime || 0) / YEAR_SEC, orbAng = au => 6.2832 * orbYears() / Math.pow(au, 1.5);
+// One shared orbit clock: the game's own year (one season cycle = 60 s of sim time). Each planet goes round once per its real
+// sidereal period in years (Kepler's third law, T^2 = a^3: Jupiter 11.86 years = 712 s); bodies without a table entry (the
+// asteroid belt) use au^1.5. The real periods are stored, not derived from the rounded distances (Mercury .39 au would give
+// .244 years instead of .241). Seen from above the north pole, as in real life, everything prograde turns anticlockwise:
+// on the y-down canvas that is a decreasing angle, hence the minus sign.
+const YEAR_SEC = 60, orbYears = () => (W.simTime || 0) / YEAR_SEC, orbAng = (au, T = Math.pow(au, 1.5)) => -6.2832 * orbYears() / T;
 const MOON_SYN = 29.53, MOON_ANO = 27.55, MOON_E = .055, MOON_R = .273;
-const PLANETS = [['Mercury', .39, '#a8a29a', 1.4], ['Venus', .72, '#e2c98f', 2.2], ['Earth', 1, null, 0], ['Mars', 1.52, '#c8643c', 1.8], ['Jupiter', 5.2, '#d4b58f', 4.6], ['Saturn', 9.5, '#e0cfa0', 4], ['Uranus', 19.2, '#9fd6dc', 3], ['Neptune', 30, '#5b7fd8', 3]];
+// name, distance (au), colour, dot radius, sidereal period (years)
+const PLANETS = [['Mercury', .387, '#a8a29a', 1.4, .2408], ['Venus', .723, '#e2c98f', 2.2, .6152], ['Earth', 1, null, 0, 1], ['Mars', 1.524, '#c8643c', 1.8, 1.8809], ['Jupiter', 5.203, '#d4b58f', 4.6, 11.862], ['Saturn', 9.537, '#e0cfa0', 4, 29.457], ['Uranus', 19.19, '#9fd6dc', 3, 84.02], ['Neptune', 30.07, '#5b7fd8', 3, 164.8]];
 const orbitR = au => AU * Math.pow(au, .55);
 const sysK = () => smooth(ZSYS, .004, V.zoom), sysC = () => smooth(.006, .0015, V.zoom);
 // and past the solar system: the galaxy, drawn as the Milky Way seen from above its north pole.
@@ -711,7 +716,34 @@ function worldLines(st) {
   for (const e of st.log || []) out.push(`${fmtYear(e.y)}: ${vlogText(e.k, st)}`);
   return out;
 }
-const sunPh = () => (.5 - V.dayT) * 6.2832;
+// The view is from above the Earth's north pole (the flat map's Sun runs left to right, i.e. east is to the left and the
+// globe's east is anticlockwise), so the Earth spins anticlockwise and the Sun crosses the globe's sky clockwise, left to
+// right over the top, matching the flat map.
+const sunPh = () => (V.dayT - .5) * 6.2832;
+// Where the Sun is drawn (angle clockwise from straight up). On the flat map we stand on the ground, so the Sun crosses the
+// sky once a day (sunPh, the day clock V.dayT). From the globe outwards the sky is the solar system's own: the Earth stays put
+// on screen and the Sun drifts round it anticlockwise once a game year (from the Earth's own orbit), the Moon anticlockwise
+// once a month, exactly as zoomed out. The two skies differ by a roll V.skyG, built up by rate while the strip bends into the
+// globe (so nothing jumps) and unwound as the globe flattens back onto your land. V.dayV is the time of day of the drawn Sun,
+// for the globe's light.
+const angW = a => ((a + Math.PI) % 6.2832 + 6.2832) % 6.2832 - Math.PI;
+const skyPin = () => h01(1000) * 6.2832 + orbAng(1) + 4.7124;
+const skyPh = () => V.skyA == null ? sunPh() : V.skyA;
+// Where the Moon is (same angle convention, shared by the flat map, the globe and the solar system): it lags the Sun by one lap
+// per synodic month (el, its elongation), swinging a little ahead and behind over the anomalistic month (M, equation of centre).
+function moonPh() { const md = V.moonD || 0, el = 6.2832 * (md / MOON_SYN % 1), M = 6.2832 * (md / MOON_ANO % 1); return { el, M, ph: skyPh() - el - 2 * MOON_E * Math.sin(M) }; }
+// full roll once the strip has closed into a globe
+const skyW = () => smooth(.3, 1, bendOf(V.zoom));
+function updSky() {
+  const w = skyW(), ph = sunPh(), pin = skyPin();
+  if (V.skyG == null || V.skyP == null) V.skyG = 0;
+  else {
+    V.skyG += w * angW(angW(pin - V.skyI) - angW(ph - V.skyP));
+    if (w < V.skyW) V.skyG *= V.skyW > 0 ? w / V.skyW : 0;
+    else if (w >= 1) V.skyG = angW(V.skyG);
+  }
+  V.skyA = angW(ph + V.skyG); V.skyP = ph; V.skyI = pin; V.skyW = w; V.dayV = .5 - V.skyA / 6.2832;
+}
 function sunDist(rOut, w, h) { return rOut + Math.max(w, h) * .35 + (AU * V.s - rOut - Math.max(w, h) * .35) * sysK(); }
 function bendOf(z) { const u = clamp((Math.log(ZBEND0) - Math.log(z)) / (Math.log(ZBEND0) - Math.log(ZGLOBE)), 0, 1), b = u * u * (3 - 2 * u); return b < .02 ? 0 : b; }
 function dayAt(t) { t -= Math.floor(t); const sv = Math.sin(6.2832 * (t - .25)); const k = clamp((sv + .25) / .6, 0, 1); return k * k * (3 - 2 * k); }
@@ -3562,7 +3594,7 @@ function updateView() {
   const cy = seaFlat + (seaGlobe - seaFlat) * wgt + Rp, lo = CH / 2 - Rp * .95, hi = CH + (V.Rb + ATMO[4].top * V.vs) * V.s;
   V.gdy = clamp(V.gdy, lo - cy, hi - cy);
   V.cy = cy + V.gdy; V.cx = CW / 2;
-  const sc = sysC(); if (sc > 0) { const ph = sunPh(), D = AU * V.s; V.cx -= D * Math.sin(ph) * sc; V.cy += D * Math.cos(ph) * sc; }
+  const sc = sysC(); if (sc > 0) { const ph = skyPh(), D = AU * V.s; V.cx -= D * Math.sin(ph) * sc; V.cy += D * Math.cos(ph) * sc; }
   const gc = galC(); if (gc > 0) { const SG = sunG(); V.cx += SG[0] * V.s * gc; V.cy += SG[1] * V.s * gc; }
   const pw = panW(); if (V.pan) { if (pw > 0) { V.cx += V.pan[0] * V.s * pw; V.cy += V.pan[1] * V.s * pw; } else V.pan = null; }
   V.offY = V.cy - Rp - SEA0 * V.s;
@@ -3588,8 +3620,10 @@ function drawSky(c2, w, h, fm = 1) {
   }
   const p = (V.dayT - .22) / .56;
   if (p > 0 && p < 1) { const sx = w * (.08 + .84 * p), sy = h * .62 - Math.sin(p * Math.PI) * h * .5; const sg = c2.createRadialGradient(sx, sy, 2, sx, sy, 60); sg.addColorStop(0, 'rgba(255,240,200,.55)'); sg.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = sg; c2.fillRect(sx - 60, sy - 60, 120, 120); c2.fillStyle = grey > .4 ? '#d9cfb8' : '#fff4d8'; c2.beginPath(); c2.arc(sx, sy, 11, 0, 6.2832); c2.fill(); }
-  const pm = (((V.dayT + .5) % 1) - .22) / .56;
-  if (pm > 0 && pm < 1) { const mx = w * (.08 + .84 * pm), my = h * .62 - Math.sin(pm * Math.PI) * h * .5; c2.fillStyle = '#e8e4d8'; c2.beginPath(); c2.arc(mx, my, 9, 0, 6.2832); c2.fill(); c2.fillStyle = rgb(top); c2.beginPath(); c2.arc(mx + 4, my - 2, 8, 0, 6.2832); c2.fill(); }
+  // the Moon at the same place in the sky as on the globe and in the solar system (moonPh), with its phase: it lags the Sun,
+  // so a young Moon sits left of the Sun with its right side lit, an old one right of it with its left side lit
+  const mo = moonPh(), pm = (angW(mo.ph) / 6.2832 + .28) / .56; V.flatMoon = null;
+  if (pm > 0 && pm < 1) { const mx = w * (.08 + .84 * pm), my = h * .62 - Math.sin(pm * Math.PI) * h * .5, sh = (mo.el < Math.PI ? -1 : 1) * 18 * Math.sin(mo.el / 2); c2.fillStyle = '#e8e4d8'; c2.beginPath(); c2.arc(mx, my, 9, 0, 6.2832); c2.fill(); c2.fillStyle = rgb(top); c2.beginPath(); c2.arc(mx + sh, my, 8.6, 0, 6.2832); c2.fill(); V.flatMoon = [mx, my, pm]; }
   if (W.rock && W.rock.seen) { const k = clamp(1 - (W.rock.eta - W.simTime) / ROCK_ETA, 0, 1), rx = w * (.78 - .25 * k), ry = h * (.12 + .1 * k), rr = 1.5 + 9 * k * k;
     const tg = c2.createLinearGradient(rx, ry, rx + 30 + 120 * k, ry - 12 - 50 * k); tg.addColorStop(0, `rgba(255,230,200,${(.35 + .5 * k).toFixed(3)})`); tg.addColorStop(1, 'rgba(255,230,200,0)');
     c2.strokeStyle = tg; c2.lineWidth = rr * 1.4; c2.beginPath(); c2.moveTo(rx, ry); c2.lineTo(rx + 30 + 120 * k, ry - 12 - 50 * k); c2.stroke(); c2.fillStyle = '#fff1dc'; c2.beginPath(); c2.arc(rx, ry, rr, 0, 6.2832); c2.fill(); }
@@ -3940,14 +3974,14 @@ function drawFace(c2, w, h, alpha) {
   const x0 = Math.max(0, Math.floor(cx - Rp)), x1 = Math.min(w, Math.ceil(cx + Rp)), y0 = Math.max(0, Math.floor(cy - Rp)), y1 = Math.min(h, Math.ceil(cy + Rp));
   if (x1 <= x0 || y1 <= y0) return;
   const q = clamp(Math.sqrt((x1 - x0) * (y1 - y0) / 42000), 1.4, 6), lw = Math.ceil((x1 - x0) / q), lh = Math.ceil((y1 - y0) / q);
-  const key = [Math.round(V.xc), Math.round(Rp * 2), Math.round(cy * 2), x0, y0, lw, lh, Math.round(alpha * 40), Math.round(V.dayT * 400)].join();
+  const key = [Math.round(V.xc), Math.round(Rp * 2), Math.round(cy * 2), x0, y0, lw, lh, Math.round(alpha * 40), Math.round((V.dayV ?? V.dayT) * 400)].join();
   V.faceN = (V.faceN || 0) + 1;
   if (key === V.faceKey && V.faceN % 3 && faceCv.width === lw) { c2.imageSmoothingEnabled = true; c2.drawImage(faceCv, 0, 0, lw, lh, x0, y0, lw * q, lh * q); return; }
   V.faceKey = key;
   if (faceCv.width !== lw || faceCv.height !== lh) { faceCv.width = lw; faceCv.height = lh; V.faceImg = null; }
   const img = V.faceImg || (V.faceImg = fcx.createImageData(lw, lh)), d = img.data;
   const tw = TEX.tw, th = TEX.th, col = TEX.col, lgt = TEX.lgt, cl = TEX.cloud;
-  const phs = (.5 - V.dayT) * 6.2832, sps = Math.sin(phs), cps = Math.cos(phs), cdl = Math.cos(SUN_TILT), sdl = Math.sin(SUN_TILT);
+  const phs = skyPh(), sps = Math.sin(phs), cps = Math.cos(phs), cdl = Math.cos(SUN_TILT), sdl = Math.sin(SUN_TILT);
   const xcF = V.xc / WORLD_W, kph = V.Rb / WORLD_W, csh = Math.floor((V.t * .006 % 1) * tw), A = 255 * alpha, R2 = Rp * Rp;
   for (let j = 0; j < lh; j++) {
     const dy = cy - (y0 + (j + .5) * q);
@@ -4008,14 +4042,14 @@ function warpStrip(c2, strip, info, nightStrip) {
     const sx = (x - info.xa) * ss, sw = Math.min(swU * ss, strip.width - sx); if (sx < 0) continue; if (sw <= 0) break;
     c2.setTransform(DPR * c, DPR * sn, -DPR * sn, DPR * c, DPR * V.cx, DPR * V.cy);
     c2.drawImage(strip, sx, 0, sw, ph, -dw / 2, top, dw, hgt);
-    if (nightStrip) { const nt = 1 - dayAt(V.dayT + p / 6.2832); if (nt > .02) { c2.globalAlpha = nt; c2.drawImage(nightStrip, sx, 0, sw, ph, -dw / 2, top, dw, hgt); c2.globalAlpha = 1; } }
+    if (nightStrip) { const nt = 1 - dayAt((V.dayV ?? V.dayT) + p / 6.2832); if (nt > .02) { c2.globalAlpha = nt; c2.drawImage(nightStrip, sx, 0, sw, ph, -dw / 2, top, dw, hgt); c2.globalAlpha = 1; } }
   }
   c2.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function conicShell(c2, r, day, night, alpha) {
   const dr = hexRGB(day), nr = hexRGB(night);
   let fill;
-  if (c2.createConicGradient) { fill = c2.createConicGradient(-Math.PI / 2, V.cx, V.cy); for (let k = 0; k <= 24; k++) { const t = k / 24; fill.addColorStop(t, rgb(mixA(nr, dr, dayAt(V.dayT + t)), alpha)); } }
+  if (c2.createConicGradient) { fill = c2.createConicGradient(-Math.PI / 2, V.cx, V.cy); for (let k = 0; k <= 24; k++) { const t = k / 24; fill.addColorStop(t, rgb(mixA(nr, dr, dayAt((V.dayV ?? V.dayT) + t)), alpha)); } }
   else fill = rgb(mixA(nr, dr, V.L), alpha);
   c2.fillStyle = fill; c2.beginPath(); c2.arc(V.cx, V.cy, Math.max(0, r), 0, 6.2832); c2.fill();
 }
@@ -4079,7 +4113,7 @@ function drawSpaceExtras(c2, w, h) {
   c2.globalCompositeOperation = 'lighter';
   c2.lineWidth = Math.max(1.2, R(0) * .01);
   for (let i = 0; i < 160; i++) {
-    const ph = i / 160 * 6.2832 - Math.PI, nt = 1 - dayAt(V.dayT + ph / 6.2832); if (nt < .4) continue;
+    const ph = i / 160 * 6.2832 - Math.PI, nt = 1 - dayAt((V.dayV ?? V.dayT) + ph / 6.2832); if (nt < .4) continue;
     const a = .2 * k * nt * (.45 + .55 * Math.sin(ph * 31 + V.t * 1.7)) * (.6 + .4 * Math.sin(ph * 7 - V.t * .6)); if (a < .02) continue;
     const [x1, y1] = P2(ph, R(1450)), [x2, y2] = P2(ph, R(1700 + 260 * (.5 + .5 * Math.sin(ph * 13 + V.t * .9))));
     if (Math.max(x1, x2) < -20 || Math.min(x1, x2) > w + 20 || Math.max(y1, y2) < -20 || Math.min(y1, y2) > h + 20) continue;
@@ -4101,7 +4135,7 @@ function drawOrbit(c2, w, h, R, P2, k) {
   for (const c of V.alive) n += c.era >= 12 ? 6 + 3 * (c.era - 12) : c.era >= 11 ? 7 : c.era >= 10 ? 3 : c.era >= 9 || c.nuclear ? 1 : 0;
   n = Math.min(kess ? 10 : W.flareUntil > W.simTime ? 4 : 64, n);
   for (let i = 0; i < n; i++) {
-    const alt = i % 3 === 0 ? 1600 + (i % 4) * 150 : i % 3 === 1 ? 2300 + (i % 6) * 160 : 3300 + (i % 5) * 220, ph = h01(i * 7 + 3) * 6.2832 + V.t * (i % 3 === 0 ? .09 : i % 3 === 1 ? .05 : .025) * (i % 2 ? 1 : -1);
+    const alt = i % 3 === 0 ? 1600 + (i % 4) * 150 : i % 3 === 1 ? 2300 + (i % 6) * 160 : 3300 + (i % 5) * 220, ph = h01(i * 7 + 3) * 6.2832 - V.t * (i % 3 === 0 ? .09 : i % 3 === 1 ? .05 : .025);
     const [x, y] = P2(ph, R(alt)); if (off(x, y, 5)) continue; op(x, y, 7, 'sat', null, i);
     c2.fillStyle = `rgba(235,240,250,${(.9 * k).toFixed(3)})`; c2.fillRect(x - 1, y - 1, 2.2, 2.2);
     if (Math.sin(V.t * 4 + i) > .6) { c2.fillStyle = `rgba(255,90,80,${(.9 * k).toFixed(3)})`; c2.fillRect(x + 1.5, y - .5, 1.4, 1.4); }
@@ -4113,19 +4147,19 @@ function drawOrbit(c2, w, h, R, P2, k) {
   for (const c of V.alive) {
     const col = hexRGB(c.color);
     // space telescopes from the Information Age
-    if (c.era >= 10) { const ph = V.t * .03 + c.id * 1.7, [x, y] = P2(ph, R(2150 + (c.id % 3) * 90)); if (!off(x, y)) { op(x, y, 7, 'scope', c, 0); c2.save(); c2.translate(x, y); c2.rotate(ph + 1.2); c2.fillStyle = `rgba(210,214,220,${k})`; c2.fillRect(-2, -5, 4, 9); c2.fillStyle = `rgba(30,32,40,${k})`; c2.fillRect(-1.5, -5.5, 3, 1.2); c2.fillStyle = `rgba(70,110,180,${k})`; c2.fillRect(-7, -1, 4, 3); c2.fillRect(3, -1, 4, 3); c2.restore(); } }
+    if (c.era >= 10) { const ph = c.id * 1.7 - V.t * .03, [x, y] = P2(ph, R(2150 + (c.id % 3) * 90)); if (!off(x, y)) { op(x, y, 7, 'scope', c, 0); c2.save(); c2.translate(x, y); c2.rotate(ph + 1.2); c2.fillStyle = `rgba(210,214,220,${k})`; c2.fillRect(-2, -5, 4, 9); c2.fillStyle = `rgba(30,32,40,${k})`; c2.fillRect(-1.5, -5.5, 3, 1.2); c2.fillStyle = `rgba(70,110,180,${k})`; c2.fillRect(-7, -1, 4, 3); c2.fillRect(3, -1, 4, 3); c2.restore(); } }
     // stations from the Future Age, more with each space age
     const nst = c.era >= 12 ? 1 + (c.era - 11) : c.era >= 11 ? 1 : 0;
     for (let q = 0; q < nst; q++, si++) {
-      const ph = V.t * .045 + si * 2.1 + c.id, [x, y] = P2(ph, R(2000 + si * 110 % 700)); if (off(x, y)) continue;
+      const ph = si * 2.1 + c.id - V.t * .045, [x, y] = P2(ph, R(2000 + si * 110 % 700)); if (off(x, y)) continue;
       const sz = 1 + (c.era >= 12 ? .5 : 0); op(x, y, 9 * sz, 'station', c, q);
       c2.save(); c2.translate(x, y); c2.rotate(ph); c2.scale(sz, sz); c2.fillStyle = `rgba(220,228,236,${k})`; c2.fillRect(-1.5, -6, 3, 12); c2.fillStyle = `rgba(80,120,190,${k})`; c2.fillRect(-9, -2, 6, 4); c2.fillRect(3, -2, 6, 4);
       c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-1.5, -1, 3, 2); c2.restore();
     }
     // a great ring habitat in the Stellar Age and beyond
-    if (c.era >= 13) { const ph = V.t * .012 + c.id * 2.4, [x, y] = P2(ph, R(4600 + (c.id % 3) * 300)); if (!off(x, y, 30)) { op(x, y, 15, 'ring', c, 0); c2.strokeStyle = `rgba(210,220,230,${(.85 * k).toFixed(3)})`; c2.lineWidth = 2.2; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); c2.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${(.8 * k).toFixed(3)})`; c2.lineWidth = .8; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); } }
+    if (c.era >= 13) { const ph = c.id * 2.4 - V.t * .012, [x, y] = P2(ph, R(4600 + (c.id % 3) * 300)); if (!off(x, y, 30)) { op(x, y, 15, 'ring', c, 0); c2.strokeStyle = `rgba(210,220,230,${(.85 * k).toFixed(3)})`; c2.lineWidth = 2.2; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); c2.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${(.8 * k).toFixed(3)})`; c2.lineWidth = .8; c2.beginPath(); c2.ellipse(x, y, 13, 5, ph, 0, 6.2832); c2.stroke(); } }
     // space cylinders: long turning worlds
-    for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = V.t * .008 + m.a, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue; op(x, y, 16, 'cylinder', c, W.megas.indexOf(m));
+    for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = m.a - V.t * .008, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue; op(x, y, 16, 'cylinder', c, W.megas.indexOf(m));
       c2.save(); c2.translate(x, y); c2.rotate(ph + 1.57); c2.fillStyle = `rgba(200,208,216,${k})`; c2.fillRect(-14, -3, 28, 6); c2.fillStyle = `rgba(95,174,106,${k})`; c2.fillRect(-12, -1, 24, 2); c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-15, -3, 2, 6); c2.fillRect(13, -3, 2, 6); c2.restore(); }
     // the space elevator rises from the capital to a counterweight station high above
     if (c.era >= 12) {
@@ -4310,18 +4344,18 @@ function drawSystem(c2, w, h, sx, sy) {
   c2.save(); c2.lineWidth = 1;
   // asteroid belt
   c2.fillStyle = `rgba(170,160,150,${(.5 * k).toFixed(3)})`;
-  // the view turns with the Earth (Earth sits still, the Sun crosses the sky), so the whole solar system turns with it:
-  // rotate the Sun-centred orbits so the Earth's own orbital angle points from the Sun at the Earth. Every body then goes
-  // the same way round (the Earth's orbit too, once a year), as seen from the south like the Earth's spin and the Moon.
+  // up close the view turns with the Earth (Earth sits still, the Sun crosses the sky), so the whole solar system turns with
+  // it: rotate the Sun-centred orbits so the Earth's own orbital angle points from the Sun at the Earth. Zoomed out the sky
+  // stops turning (skyPh), so this rotation stands still and every body shows its true anticlockwise orbit.
   const rot = Math.atan2(V.cy - sy, V.cx - sx) - (h01(1000) * 6.2832 + orbAng(1)); V.sysRot = rot;
   for (let i = 0; i < 220; i++) { const au = 2.3 + h01(i * 13) * 1.1, a = h01(i * 7) * 6.2832 + orbAng(au) + rot, r = orbitR(au) * s; const x = sx + r * Math.cos(a), y = sy + r * Math.sin(a); if (x > -2 && x < w + 2 && y > -2 && y < h + 2) c2.fillRect(x, y, 1.1, 1.1); }
   c2.font = '11px "IBM Plex Mono", ui-monospace, monospace'; c2.textAlign = 'center';
-  for (const [name, au, col, rad] of PLANETS) {
+  for (const [name, au, col, rad, T] of PLANETS) {
     const r = orbitR(au) * s;
     c2.strokeStyle = `rgba(236,229,213,${((name === 'Earth' ? .3 : .14) * k).toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, r, 0, 6.2832); c2.stroke();
     let px, py;
     if (name === 'Earth') { px = V.cx; py = V.cy; }
-    else { const a = h01(au * 1000) * 6.2832 + orbAng(au) + rot; px = sx + r * Math.cos(a); py = sy + r * Math.sin(a); (V.bodyPos = V.bodyPos || {})[name] = [px, py, rad];
+    else { const a = h01(au * 1000) * 6.2832 + orbAng(au, T) + rot; px = sx + r * Math.cos(a); py = sy + r * Math.sin(a); (V.bodyPos = V.bodyPos || {})[name] = [px, py, rad];
       c2.fillStyle = col; c2.globalAlpha = k; c2.beginPath(); c2.arc(px, py, rad, 0, 6.2832); c2.fill(); c2.globalAlpha = 1;
       if (name === 'Mars') drawBases(c2, 'mars', px, py, rad * 2.4, k);
       if (name === 'Saturn') { c2.strokeStyle = `rgba(230,215,170,${(.8 * k).toFixed(3)})`; c2.beginPath(); c2.ellipse(px, py, rad * 2.1, rad * .7, -.4, 0, 6.2832); c2.stroke(); }
@@ -4330,7 +4364,7 @@ function drawSystem(c2, w, h, sx, sy) {
   }
   if (k > .4) { c2.fillStyle = `rgba(255,236,190,${((k - .4) / .6).toFixed(3)})`; c2.fillText('Sun', sx, sy + 30); }
   { const n = Math.round(swarmFrac() * 420), ids = Object.keys(W.dyson ? W.dyson.by : {}), tot = W.dyson ? W.dyson.total : 1;
-    for (let i = 0; i < n; i++) { const a = h01(i * 31) * 6.2832 + V.t * (.05 + h01(i) * .04), rr = 10 + h01(i * 7) * 14, tilt = h01(i * 3) * 3.14;
+    for (let i = 0; i < n; i++) { const a = h01(i * 31) * 6.2832 - V.t * (.05 + h01(i) * .04), rr = 10 + h01(i * 7) * 14, tilt = h01(i * 3) * 3.14;
       const x = sx + rr * Math.cos(a), y = sy + rr * Math.sin(a) * Math.cos(tilt) * .9;
       let acc = 0, owner = null; const pick = h01(i * 11) * tot; for (const id of ids) { acc += W.dyson.by[id]; if (pick <= acc) { owner = civById(+id); break; } }
       c2.fillStyle = owner ? owner.color : '#d8b86a'; c2.globalAlpha = .9 * k; c2.fillRect(x - .8, y - .8, 1.6, 1.6); }
@@ -4339,7 +4373,7 @@ function drawSystem(c2, w, h, sx, sy) {
     const o = r.owner != null ? civById(r.owner) : null, col = o ? o.color : '#9a958a', body = ELEMENTS[r.type].space;
     let x, y;
     if (body === 'belt') { const a = r.a + orbAng(2.8) + rot, rr = orbitR(2.8) * s; x = sx + rr * Math.cos(a); y = sy + rr * Math.sin(a); c2.fillStyle = '#e0a040'; c2.globalAlpha = k; c2.fillRect(x - 2.5, y - 2.5, 5, 5); }
-    else if (body === 'giant') { const J = V.bodyPos && V.bodyPos.Jupiter; if (!J) continue; const a = r.a + V.t * .3; x = J[0] + Math.cos(a) * 9; y = J[1] + Math.sin(a) * 9; c2.fillStyle = '#e8f4fb'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.8, 0, 6.2832); c2.fill(); }
+    else if (body === 'giant') { const J = V.bodyPos && V.bodyPos.Jupiter; if (!J) continue; const a = r.a - V.t * .3; x = J[0] + Math.cos(a) * 9; y = J[1] + Math.sin(a) * 9; c2.fillStyle = '#e8f4fb'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.8, 0, 6.2832); c2.fill(); }
     else { const M = V.bodyPos && V.bodyPos.Moon; if (!M) continue; x = M[0] + Math.cos(r.a) * M[2] * .5; y = M[1] + Math.sin(r.a) * M[2] * .5; c2.fillStyle = '#7fe3ff'; c2.globalAlpha = k; c2.beginPath(); c2.arc(x, y, 1.6, 0, 6.2832); c2.fill(); }
     c2.strokeStyle = col; c2.lineWidth = 1; c2.beginPath(); c2.arc(x, y, 4.5, 0, 6.2832); c2.stroke(); c2.globalAlpha = 1;
     if (k > .3) V.orbPicks.push({ x, y, r: 9, kind: 'claim', c: o, i: r.id, d: r });
@@ -4351,7 +4385,7 @@ function drawSpaceBackdrop(c2, w, h) {
   c2.fillStyle = SPACE; c2.fillRect(0, 0, w, h);
   const sa = smooth(.15, .8, b) * (1 - galK());
   if (sa > .01) for (const st of STARS) { c2.fillStyle = `rgba(235,240,255,${(sa * (.55 + .35 * Math.sin(V.t * st.tw * .4 + st.p))).toFixed(3)})`; c2.fillRect(st.x * w, st.y * h, st.s, st.s); }
-  const phs = (.5 - V.dayT) * 6.2832, sv = smooth(.45, .9, b);
+  const phs = skyPh(), sv = smooth(.45, .9, b);
   if (sv > .01) {
     const D = sunDist(rOut, w, h), sx = cx + D * Math.sin(phs), sy = cy - D * Math.cos(phs);
     V.sunXY = [sx, sy];
@@ -4362,11 +4396,11 @@ function drawSpaceBackdrop(c2, w, h) {
   }
   if (b > .85) {
     // close to the globe the Moon hangs well out in the sky; zoomed out to the solar system it closes in on Earth, so it rides along Earth's orbit
-    // the view turns with the Earth (the Sun crosses the sky once a day), so the Moon crosses too, lagging the Sun by one lap
-    // per synodic month (new moon beside the Sun, full moon opposite); its slightly eccentric orbit swings it nearer and further
+    // the view turns with the Earth (the Sun crosses the sky once a day, clockwise), so the Moon crosses too, lagging the Sun by
+    // one lap per synodic month (it orbits anticlockwise, like everything seen from the north) (new moon beside the Sun, full moon opposite); its slightly eccentric orbit swings it nearer and further
     // (and a little ahead and behind) over the anomalistic month. Distances are squeezed like the rest of the solar system.
-    const md = V.moonD, el = 6.2832 * (md / MOON_SYN % 1), M = 6.2832 * (md / MOON_ANO % 1), ecc = 1 - MOON_E * Math.cos(M);
-    const mr = Math.max(3, V.Rb * s * MOON_R) * (1 - .25 * sysK()), mk = sysK(), mph = phs + el + 2 * MOON_E * Math.sin(M), D = ((rOut * 1.25 + 40) * (1 - mk) + (rOut + mr + 5) * mk) * ecc, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph);
+    const { M, ph: mph } = moonPh(), ecc = 1 - MOON_E * Math.cos(M);
+    const mr = Math.max(3, V.Rb * s * MOON_R) * (1 - .25 * sysK()), mk = sysK(), D = ((rOut * 1.25 + 40) * (1 - mk) + (rOut + mr + 5) * mk) * ecc, mx = cx + D * Math.sin(mph), my = cy - D * Math.cos(mph);
     if (mk > .3) { c2.strokeStyle = `rgba(236,229,213,${(.12 * smooth(.3, .8, mk) * (1 - smooth(0, .15, galK()))).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(cx, cy, D, 0, 6.2832); c2.stroke(); }
     const ma = smooth(.85, .97, b) * (1 - smooth(0, .15, galK()));
     if (ma > .01 && mx > -mr && mx < w + mr && my > -mr && my < h + mr) {
@@ -4438,7 +4472,7 @@ function drawFlatten(c2, w, h) {
   c2.restore();
 }
 function render() {
-  updateView();
+  updSky(); updateView();
   const w = CW, h = CH; if (!w || !h) return;
   V.L = daylight(); V.N = 1 - V.L; V.alive = alive(); V.fronts = []; V.orbPicks = []; V.bodyPos = {}; V.season = ((W.simTime / 60) % 1 + 1) % 1; V.winter = Math.max(0, Math.cos((V.season - .875) * 6.2832)) ** 2;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -4472,7 +4506,7 @@ function updateVisuals(vdt, rdt) {
   V.t += vdt; V.vdt = vdt; if (!UI.paused) V.galT = (V.galT || 0) + rdt;
   zGlideTick();
   if (!V.pan) V.panHome = false;
-  if (UI.day) { if (!UI.paused) { V.dayT = (V.dayT + rdt / 48) % 1; V.moonD = (V.moonD + rdt / 48) % (MOON_SYN * MOON_ANO * 100); } } else V.dayT = .42;
+  if (UI.day) { if (!UI.paused) { V.dayT = (V.dayT + rdt / 48) % 1; V.moonD = (V.moonD + rdt / 48) % (MOON_SYN * MOON_ANO * 100); } }
   if (V.camTarget != null) { V.cam += (V.camTarget - V.cam) * Math.min(1, rdt * 5); if (Math.abs(V.camTarget - V.cam) < 1) V.camTarget = null; }
   V.shake = Math.max(0, V.shake - rdt * 12); V.flash = Math.max(0, V.flash - rdt * 1.1);
   for (let i = V.P.length - 1; i >= 0; i--) { const p = V.P[i]; p.life -= vdt; if (p.life <= 0) { V.P.splice(i, 1); continue; } p.x += p.vx * vdt; p.y += p.vy * vdt; p.vy += p.g * vdt; p.r += p.grow * vdt; }
@@ -5447,7 +5481,7 @@ function initDOM() {
   $('#fsTools').onclick = toggleTools;
   const fsChange = () => { if (!(document.fullscreenElement || document.webkitFullscreenElement) && isFS() && V.fsNative) exitFS(); V.fsNative = !!(document.fullscreenElement || document.webkitFullscreenElement); };
   document.addEventListener('fullscreenchange', fsChange); document.addEventListener('webkitfullscreenchange', fsChange);
-  $('#dayBtn').onclick = e => { UI.day = !UI.day; e.currentTarget.setAttribute('aria-pressed', UI.day ? 'true' : 'false'); };
+  $('#dayBtn').onclick = e => { UI.day = !UI.day; if (!UI.day) V.dayT = .42; e.currentTarget.setAttribute('aria-pressed', UI.day ? 'true' : 'false'); };
   $('#randBtn').onclick = e => { UI.random = !UI.random; e.currentTarget.setAttribute('aria-pressed', UI.random ? 'true' : 'false'); if (UI.random) W.nextRandom = W.simTime + rand(15, 25); };
   $('#saveBtn').onclick = () => {
     const ok = lsSet('aoh.save.v2', JSON.stringify(serialize()));
@@ -5539,7 +5573,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
