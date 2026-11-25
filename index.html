@@ -2056,11 +2056,15 @@ function shipTick(dt) {
 const swarmFrac = () => W.dyson ? W.dyson.total / SWARM_FULL : 0;
 // resources in space: one of each to begin with, more if you place them; held by the people best placed to mine them
 const SPACE_BODY = { moon: 'the Moon', belt: 'the asteroid belt', giant: 'the moons of Jupiter' };
+// Space resources are there from the start, but no one knows of them until a people reaches the Future Age (mining starts in
+// the Planetary Age, see claimSpace). Until then they are not drawn, listed or clickable, unless someone owns one or the
+// player placed it.
+const spaceKnown = r => r.owner != null || !!r.placed || maxEra() >= 11;
 function defaultSpaceRes() { return [{ id: 1, type: 'helium3', a: .7, owner: null }, { id: 2, type: 'asteroid', a: 2.1, owner: null }, { id: 3, type: 'icemoon', a: 4.4, owner: null }]; }
 function placeSpace(type) {
   if (!(V.b && sysK() > .5)) { toast('Zoom out to the solar system to place this.'); return false; }
   if ((W.spaceRes || []).length >= 30) { toast('Space is full of claims already.'); return false; }
-  const r = { id: W.nextId++, type, a: rand(0, 6.2832), owner: null }; W.spaceRes.push(r); W.acts = (W.acts || 0) + 1;
+  const r = { id: W.nextId++, type, a: rand(0, 6.2832), owner: null, placed: true }; W.spaceRes.push(r); W.acts = (W.acts || 0) + 1;
   toast(`${ELEMENTS[type].name} placed on ${SPACE_BODY[ELEMENTS[type].space]}.`); return true;
 }
 function claimSpace() {
@@ -4214,7 +4218,7 @@ function bodyLines(n) {
     for (const b of (W.bases || []).filter(b => b.body === key)) out.push(`${b.name}: a base of ${ppl(b.civ)}, ${fmtPop(b.pop)} people`);
     for (const k of (W.colonies || []).filter(k => k.body === key)) out.push(`The ${k.name}: ${fmtPop(k.pop)} people, ${ERAS[k.era].name}. ${k.free ? 'A free people.' : k.war ? 'Fighting for their freedom.' : `A colony of ${ppl(k.parent)}, unrest ${Math.round(k.tension * 100)}%.`}`);
   }
-  const res = (W.spaceRes || []).filter(r => (n === 'Moon' && ELEMENTS[r.type].space === 'moon') || (n === 'Jupiter' && ELEMENTS[r.type].space === 'giant'));
+  const res = (W.spaceRes || []).filter(r => spaceKnown(r) && ((n === 'Moon' && ELEMENTS[r.type].space === 'moon') || (n === 'Jupiter' && ELEMENTS[r.type].space === 'giant')));
   for (const r of res) out.push(`${ELEMENTS[r.type].name}: ${r.owner != null ? 'mined by ' + ppl(r.owner) : 'no one mines it yet'}`);
   if (n === 'Sun') {
     const D = W.dyson, f = swarmFrac();
@@ -4273,6 +4277,7 @@ function drawBodyClose(c2, n, x, y, r) {
   }
   // claims: Helium-3 rigs on the Moon, ice moons around Jupiter
   for (const rs of W.spaceRes || []) {
+    if (!spaceKnown(rs)) continue;
     const body = ELEMENTS[rs.type].space, o = rs.owner != null ? civById(rs.owner) : null;
     if (n === 'Moon' && body === 'moon') { const px = x + Math.cos(rs.a) * r * .6, py = y + Math.sin(rs.a) * r * .5; c2.fillStyle = '#7fe3ff'; c2.beginPath(); c2.moveTo(px, py - 5); c2.lineTo(px + 4, py); c2.lineTo(px, py + 5); c2.lineTo(px - 4, py); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, 8, 0, 6.2832); c2.stroke(); } closeLabel(c2, 'Helium-3', px + 14, py + 4, 'rgba(220,240,250,.95)'); }
     if (n === 'Jupiter' && body === 'giant') { const mr = clamp(r * .035, 4, 9), a = rs.a + V.t * .15, px = x + Math.cos(a) * r * 1.45, py = y + Math.sin(a) * r * .5; c2.fillStyle = '#e8f4fb'; c2.beginPath(); c2.arc(px, py, mr, 0, 6.2832); c2.fill(); if (o) { c2.strokeStyle = o.color; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(px, py, mr + 4, 0, 6.2832); c2.stroke(); } closeLabel(c2, 'Ice moon', px + mr + 10, py + 4, 'rgba(220,240,250,.95)'); }
@@ -4370,6 +4375,7 @@ function drawSystem(c2, w, h, sx, sy) {
       c2.fillStyle = owner ? owner.color : '#d8b86a'; c2.globalAlpha = .9 * k; c2.fillRect(x - .8, y - .8, 1.6, 1.6); }
     c2.globalAlpha = 1; }
   for (const r of W.spaceRes || []) {
+    if (!spaceKnown(r)) continue;
     const o = r.owner != null ? civById(r.owner) : null, col = o ? o.color : '#9a958a', body = ELEMENTS[r.type].space;
     let x, y;
     if (body === 'belt') { const a = r.a + orbAng(2.8) + rot, rr = orbitR(2.8) * s; x = sx + rr * Math.cos(a); y = sy + rr * Math.sin(a); c2.fillStyle = '#e0a040'; c2.globalAlpha = k; c2.fillRect(x - 2.5, y - 2.5, 5, 5); }
@@ -5092,7 +5098,7 @@ function sanitizeWorld(d) {
   w.ruleState = {}; for (const [k, v] of Object.entries(d.ruleState || {})) if (/^[\w]+$/.test(k) && v) w.ruleState[k] = { done: !!v.done, next: n(v.next, 0, 1e12) };
   w.acts = n(d.acts, 0, 1e6) | 0;
   w.tb = d.tb && typeof d.tb === 'object' ? { t0: n(d.tb.t0, -1e9, 1e12), lock: !!d.tb.lock, probe: !!d.tb.probe, stances: Object.fromEntries(Object.entries(d.tb.stances || {}).filter(([k, v]) => /^\d+$/.test(k) && TB_STANCE[v])), strat: d.tb.strat == null ? null : n(d.tb.strat, 0, 1e9) | 0, plan: TB_PLAN[d.tb.plan] ? d.tb.plan : null, chosen: d.tb.chosen === 'you' ? 'you' : 'fate', fleet: Object.fromEntries(Object.entries(d.tb.fleet || {}).filter(([k]) => /^\d+$/.test(k)).map(([k, v]) => [k, n(v, 0, 1e6)])), ark: n(d.tb.ark, 0, 999) | 0, deterTried: !!d.tb.deterTried, deter: d.tb.deter && typeof d.tb.deter === 'object' ? { holder: n(d.tb.deter.holder, 0, 1e9) | 0, next: n(d.tb.deter.next, -1e9, 1e12) } : null, strikeT: d.tb.strikeT == null ? null : n(d.tb.strikeT, -1e9, 1e12), occ: d.tb.occ && typeof d.tb.occ === 'object' ? { t0: n(d.tb.occ.t0, -1e9, 1e12), res: n(d.tb.occ.res, 0, 1e6), foe: n(d.tb.occ.foe, 0, 1e6) } : null } : null; w.flareUntil = n(d.flareUntil, -1e9, 1e12, 0);
-  w.spaceRes = Array.isArray(d.spaceRes) ? d.spaceRes.filter(r => r && ELEMENTS[r.type] && ELEMENTS[r.type].space).slice(0, 30).map(r => ({ id: n(r.id, 0, 1e9) | 0, type: r.type, a: n(r.a, 0, 7), owner: r.owner == null ? null : n(r.owner, 0, 1e9) | 0 })) : defaultSpaceRes();
+  w.spaceRes = Array.isArray(d.spaceRes) ? d.spaceRes.filter(r => r && ELEMENTS[r.type] && ELEMENTS[r.type].space).slice(0, 30).map(r => ({ id: n(r.id, 0, 1e9) | 0, type: r.type, a: n(r.a, 0, 7), owner: r.owner == null ? null : n(r.owner, 0, 1e9) | 0, ...(r.placed === true ? { placed: true } : {}) })) : defaultSpaceRes();
   w.dyson = { by: {}, total: 0, mark: 0 }; if (d.dyson && typeof d.dyson === 'object') { for (const [k, v] of Object.entries(d.dyson.by || {})) if (/^\d+$/.test(k)) w.dyson.by[k] = n(v, 0, SWARM_FULL); w.dyson.total = n(d.dyson.total, 0, SWARM_FULL); w.dyson.mark = n(d.dyson.mark, 0, 4) | 0; }
   w.megas = (Array.isArray(d.megas) ? d.megas : []).filter(m => m && m.type === 'cylinder').slice(0, 40).map(m => ({ type: 'cylinder', civ: n(m.civ, 0, 1e9) | 0, a: n(m.a, 0, 7) }));
   w.colonies = (Array.isArray(d.colonies) ? d.colonies : []).filter(k => k && BODY[k.body]).slice(0, 8).map(k => ({ id: n(k.id, 0, 1e9) | 0, name: String(k.name || 'Colony').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(k.color) ? k.color : '#b8c4ff', trait: TRAITS[k.trait] ? k.trait : 'Curious', body: k.body, base: String(k.base || '').slice(0, 24), pop: n(k.pop, 0, 1e10), parent: n(k.parent, 0, 1e9) | 0, free: !!k.free, tension: n(k.tension, 0, 1), war: k.war && typeof k.war === 'object' ? { t: n(k.war.t, 0, 1e4), len: n(k.war.len, 1, 1e4, 60) } : null, era: n(k.era, 0, MAXERA) | 0, tech: n(k.tech, 0, 100), born: n(k.born, -60000, 1e6) | 0 }));
@@ -5190,7 +5196,7 @@ function orbitTarget(sx, sy) {
 // a space tip stays open while its object still exists and you stay on the view that shows that kind of object (it may drift off screen)
 function spaceTipLive(q) {
   if (!V.b || V.focus) return false;
-  if (q.kind === 'claim') return (W.spaceRes || []).includes(q.d) && sysK() * (1 - galK()) > .3;
+  if (q.kind === 'claim') return (W.spaceRes || []).includes(q.d) && spaceKnown(q.d) && sysK() * (1 - galK()) > .3;
   if (q.kind === 'voyage') return (W.ships || []).includes(q.d) && galK() > .3;
   if (q.kind === 'starcol') return (W.stars || []).includes(q.d) && galK() > .3;
   if (q.kind === 'sungal' || q.kind === 'gcore') return galK() > .3;
@@ -5573,7 +5579,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
