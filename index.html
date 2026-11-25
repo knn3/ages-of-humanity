@@ -4673,7 +4673,8 @@ function infoContent(key) {
 let popT = 0, popFor = null, popPin = false;
 function showPop(btn) {
   const c = infoContent(btn.dataset.info); if (!c) return;
-  const pop = $('#pop'); clearTimeout(popT);
+  const pop = $('#pop'), host = isFS() ? $('#stage') : document.body; clearTimeout(popT);
+  if (pop.parentNode !== host) host.append(pop); // in full screen only #stage is drawn, so the popover must live inside it
   if (popFor && popFor !== btn) { popFor.setAttribute('aria-expanded', 'false'); popPin = false; }
   pop.innerHTML = `<strong>${esc(c[0])}</strong>${c[1]}`; pop.classList.add('show'); popFor = btn; btn.setAttribute('aria-expanded', 'true');
   placePop();
@@ -5350,6 +5351,7 @@ function enterFS() {
 }
 function exitFS() {
   const st = $('#stage'); if (!isFS()) return; if ($('#modal').parentNode === st) document.body.append($('#modal'));
+  hidePop(0, true); if ($('#pop').parentNode === st) document.body.append($('#pop'));
   st.classList.remove('fs', 'tools-open'); $('#fsTools').setAttribute('aria-pressed', 'false');
   $('.desk').prepend($('#toolbox'));
   $$('.js-fs').forEach(b => b.setAttribute('aria-pressed', 'false')); setHint();
