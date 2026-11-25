@@ -3627,7 +3627,12 @@ function drawSky(c2, w, h, fm = 1) {
   // the Moon at the same place in the sky as on the globe and in the solar system (moonPh), with its phase: it lags the Sun,
   // so a young Moon sits left of the Sun with its right side lit, an old one right of it with its left side lit
   const mo = moonPh(), pm = (angW(mo.ph) / 6.2832 + .28) / .56; V.flatMoon = null;
-  if (pm > 0 && pm < 1) { const mx = w * (.08 + .84 * pm), my = h * .62 - Math.sin(pm * Math.PI) * h * .5, sh = (mo.el < Math.PI ? -1 : 1) * 18 * Math.sin(mo.el / 2); c2.fillStyle = '#e8e4d8'; c2.beginPath(); c2.arc(mx, my, 9, 0, 6.2832); c2.fill(); c2.fillStyle = rgb(top); c2.beginPath(); c2.arc(mx + sh, my, 8.6, 0, 6.2832); c2.fill(); V.flatMoon = [mx, my, pm]; }
+  if (pm > 0 && pm < 1) { const mx = w * (.08 + .84 * pm), my = h * .62 - Math.sin(pm * Math.PI) * h * .5, side = mo.el % 6.2832 < Math.PI ? 1 : -1, tk = Math.cos(mo.el), R = 9;
+    // the dark limb, faint against the sky; then the lit part: a half disc on the lit side closed by the terminator, a half ellipse
+    c2.fillStyle = 'rgba(232,228,216,.07)'; c2.beginPath(); c2.arc(mx, my, R, 0, 6.2832); c2.fill();
+    c2.fillStyle = '#e8e4d8'; c2.beginPath(); c2.arc(mx, my, R, -Math.PI / 2, Math.PI / 2, side < 0);
+    for (let i = 0; i <= 16; i++) { const t = Math.PI / 2 - Math.PI * i / 16; c2.lineTo(mx + side * R * tk * Math.cos(t), my + R * Math.sin(t)); }
+    c2.fill(); V.flatMoon = [mx, my, pm]; }
   if (W.rock && W.rock.seen) { const k = clamp(1 - (W.rock.eta - W.simTime) / ROCK_ETA, 0, 1), rx = w * (.78 - .25 * k), ry = h * (.12 + .1 * k), rr = 1.5 + 9 * k * k;
     const tg = c2.createLinearGradient(rx, ry, rx + 30 + 120 * k, ry - 12 - 50 * k); tg.addColorStop(0, `rgba(255,230,200,${(.35 + .5 * k).toFixed(3)})`); tg.addColorStop(1, 'rgba(255,230,200,0)');
     c2.strokeStyle = tg; c2.lineWidth = rr * 1.4; c2.beginPath(); c2.moveTo(rx, ry); c2.lineTo(rx + 30 + 120 * k, ry - 12 - 50 * k); c2.stroke(); c2.fillStyle = '#fff1dc'; c2.beginPath(); c2.arc(rx, ry, rr, 0, 6.2832); c2.fill(); }
