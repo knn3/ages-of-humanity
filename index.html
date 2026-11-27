@@ -1372,6 +1372,7 @@ function updateWars(dt) {
       continue;
     }
     if (!a.machine && !b.machine && w.t > 28 && Math.random() < .025 * dt * (1 + (a.stability < 20) + (b.stability < 20))) { endWar(w, 'treaty'); continue; }
+    if (engOn() && !E_DONE() && !a.machine && !b.machine && w.t > 6 && Math.random() < .05 * dt) { endWar(w, 'treaty'); log('With the engines waiting, the two sides lay down their arms.', 'world'); continue; }
     if (UI.random && hasBomb(a) && hasBomb(b) && w.t > 15 && (doomsday() || 9) <= 2 && Math.random() < .002 * dt) nuclearWar('escalation');
   }
 }
@@ -1391,6 +1392,7 @@ function relationsTick() {
     if (a.govt === b.govt) d += .3;
     if (a.machine || b.machine) { relSet(a, b, -100); continue; }
     if (W.mw && !W.mw.done) d += 2.5;
+    if (engOn() && engBuilder(a) && engBuilder(b)) d += 2.5;
     relAdd(a, b, d);
     if (!atWar(a, b) && relGet(a, b) < -55) {
       const pr = .04 * (warlike ? 2 : 1) * (adj ? 1 : .6);
@@ -1901,7 +1903,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); sunTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -2324,7 +2326,7 @@ function riseAgain() {
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
-  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
   log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
@@ -2374,7 +2376,9 @@ const FATES = {
   wandering: { name: 'The Dying Sun', span: 220,
     drive: x => .04 + .9 * clamp((x.since - 200) / 450, 0, 1),
     start: 'Astronomers confirm what they feared: the Sun has begun to swell. The world has centuries left, not billions of years.',
-    clock: a => { const f = FATES.wandering, left = clockYear(a.t0 + f.span) - clockYear(W.simTime); return W.simTime - a.t0 >= f.span ? ['Resolving', 1] : [`Sun ${Math.round(100 + 220 * sunK())}% of its old width · verdict in ${fmtSpan(Math.max(1, left))}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
+    ready: () => engReady(),
+    clock: a => { const f = FATES.wandering, left = clockYear(a.t0 + f.span) - clockYear(W.simTime), P = Math.round(engProgress() * 100), eng = engBuilders().length ? ` · engines ${P}%${W.eng && W.eng.stall ? ' (stalled by war)' : ''}` : ' · no one can build engines yet';
+      return W.simTime - a.t0 >= f.span ? [`The Sun has spoken${eng}`, engProgress()] : [`Sun ${Math.round(100 + 220 * sunK())}% of its old width${eng} · verdict in ${fmtSpan(Math.max(1, left))}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
     end: 'The Sun stops swelling. Over the centuries it settles back towards its old size and colour: a pulse in its long life, not its death. The world breathes again.',
     stress: () => 'threat' },
   ascension: { name: 'The Great Upload', span: 160,
@@ -2432,6 +2436,37 @@ function sunTick(dt) {
   for (let i = 0; i < SUN_SAY.length; i++) { const bit = 1 << i; if (on && S.k >= SUN_SAY[i] && !(S.said & bit)) { S.said |= bit; log(SUN_LINES[i], 'nature'); if (i === 3) banner('A red sun', 'The Sun fills the sky', '#e0784a'); } }
   if (!on && S.k === 0) S.said = 0;
 }
+// WE-02: planet engines. While the Dying Sun runs, every human people from the Future Age on builds an engine on its land
+// (W.eng.by[id], 0..1, ENG_TIME sim seconds at peace). Any war anywhere stalls everyone (ENG_WAR of the speed) and a people at war
+// builds nothing, so rivals have reasons to make peace: builders' relations warm and their wars end in treaties sooner.
+// The Long Voyage ending needs every builder's engine finished (FATES.wandering.ready).
+const E_DONE = () => !!(W.eng && W.eng.done);
+const ENG_TIME = 150, ENG_WAR = .08, ENG_FIRE = .3;
+const engOn = () => !!W.fates && W.fates.active.some(a => a.id === 'wandering') && !W.fates.ended;
+const engBuilder = c => !!(c && c.alive && !c.machine && c.era >= FUTURE && !(W.care && careOf(c)));
+const engOf = c => (W.eng && W.eng.by[c.id]) || 0;
+const engBuilders = () => alive().filter(engBuilder);
+const engProgress = () => { const b = engBuilders(); return b.length ? b.reduce((a, c) => a + Math.min(1, engOf(c)), 0) / b.length : 0; };
+const engReady = () => { const b = engBuilders(); return b.length > 0 && b.every(c => engOf(c) >= 1); };
+const engWars = () => W.wars.filter(w => { const a = civById(w.a), b = civById(w.b); return a && b && a.alive && b.alive; });
+function engTick(dt) {
+  if (!engOn()) return;
+  const E = W.eng || (W.eng = { by: {}, said: 0, stall: false, done: false }), wars = engWars(), bs = engBuilders();
+  for (const c of bs) {
+    const p0 = E.by[c.id] || 0; if (p0 >= 1) continue;
+    const own = warsOf(c).length > 0, rate = own ? 0 : wars.length ? ENG_WAR : 1;
+    E.by[c.id] = Math.min(1, p0 + rate * dt / ENG_TIME);
+    if (p0 === 0 && E.by[c.id] > 0) log(fillT('{Civ} begin a planet engine on their land: a mountain of steel and fusion fire that must one day push the whole world.', names(c)), 'world');
+    if (p0 < 1 && E.by[c.id] >= 1) log(fillT('The planet engine of {civ} is finished. Its blue fire lights the clouds for a hundred miles.', names(c)), 'world');
+  }
+  if (!E.done && bs.length) {
+    if (wars.length && !E.stall) { E.stall = true; const w = wars[0], a = civById(w.a), b = civById(w.b); log(`Work on the planet engines stops while the ${esc(a.name)} and the ${esc(b.name)} fight. Without peace, the world will not move.`, 'world'); }
+    else if (!wars.length && E.stall) { E.stall = false; log('Peace returns, and work on the planet engines begins again.', 'world'); }
+    const P = engProgress();
+    if (P >= .5 && !(E.said & 1)) { E.said |= 1; log('Half of the planet engines stand built. Across the world, rivals who hated each other work side by side.', 'world'); }
+    if (engReady()) { E.done = true; E.stall = false; log('Every planet engine stands complete. On a calm night their blue jets light the sky from one horizon to the other. The world is ready to move.', 'world'); banner('The engines are ready', 'The world can leave its Sun', '#6fb8ff'); }
+  }
+}
 const SUN_LINES = ['The Sun rises a little wider and a little redder each year. The days grow hot and the noon light has turned to gold.',
   'The Sun now looks half as wide again as it did. Harvests wilt, the snows retreat up the mountains and the seas creep onto the coasts.',
   'A swollen orange Sun fills a broad piece of the sky. Noon is a furnace; the old blue of the sky has gone to amber.',
@@ -2461,7 +2496,7 @@ function fateTick(dt) {
   }
   for (const a of F.active) if (FATES[a.id].tick) FATES[a.id].tick(a, dt);
   // while the grey spreads (AGI-06), no future ends or fades: the world waits to see how it turns out
-  if (!greyOn()) for (const a of [...F.active]) { if (FATES[a.id].manual || (a.id === 'agi' && W.mw && !W.mw.done)) continue; const age = W.simTime - a.t0, sp = FATES[a.id].span; if (age > sp && !F.ended && d[a.id] * (F.bias[a.id] || 1) >= .62) endFate(a.id, 'ending'); else if ((age > sp && d[a.id] < .25) || age > sp * 2) endFate(a.id, 'faded'); }
+  if (!greyOn()) for (const a of [...F.active]) { if (FATES[a.id].manual || (a.id === 'agi' && W.mw && !W.mw.done)) continue; const age = W.simTime - a.t0, sp = FATES[a.id].span, rd = FATES[a.id].ready; if (age > sp && !F.ended && (rd ? rd() : d[a.id] * (F.bias[a.id] || 1) >= .62)) endFate(a.id, 'ending'); else if ((!rd && age > sp && d[a.id] < .25) || age > sp * 2) endFate(a.id, 'faded'); }
   if (F.active.length >= FATE_MAX || W.simTime - F.lastStart < FATE_GAP) return;
   let best = null; for (const id in F.p) if (F.p[id] >= 1 && !act.has(id) && !F.done.includes(id) && (!best || F.p[id] > F.p[best])) best = id;
   if (best) startFate(best);
@@ -3731,6 +3766,31 @@ function soilColor(i, snowY, sea) {
 }
 // remember a clickable thing drawn this frame: its box in world units, how it is named, and its priority (0 moving things, 3 scenery)
 function pk(x0, y0, x1, y1, pr, kind, d) { if (V.picking) V.picks.push({ x0, y0, x1, y1, pr, kind, d }); }
+// WE-02: where a people's planet engine stands: halfway from its capital to the border, on dry land
+function engX(c) { const sea = seaY(); for (const f of [.5, -.5, .3, -.3, 0]) { const x = c.x + (f > 0 ? c.r - c.x : c.x - c.l) * f; if (gy(x) < sea - 2) return x; } return c.x; }
+const engTowerH = p => 40 + 150 * Math.min(1, p);
+// how strongly an engine fires: test burns while it is built (from ENG_FIRE), full once all are ready; nothing while war stalls the work
+const engFire = (c, t) => { const p = engOf(c); if (p < ENG_FIRE || (W.eng && W.eng.stall && !W.eng.done)) return 0; return W.eng && W.eng.done ? .9 + .1 * Math.sin(t * 9 + c.id) : p >= 1 ? .55 : .2 + .15 * Math.max(0, Math.sin(t * 1.3 + c.id * 2)); };
+function drawEngines(x0, x1, sea) {
+  if (!W.eng) return;
+  const o = g;
+  for (const c of V.alive) {
+    const p = engOf(c); if (p <= 0 || !engBuilder(c)) continue;
+    const x = engX(c); if (x < x0 - 60 || x > x1 + 60) continue;
+    const y = gy(x), H = engTowerH(p), top = y - H, f = engFire(c, V.t), cc = hexRGB(c.color);
+    // the blue jet
+    if (f > 0) { const L = (90 + 300 * f), wj = 7 + 9 * f, jg = o.createLinearGradient(0, top, 0, top - L); jg.addColorStop(0, `rgba(200,236,255,${(.95 * f + .05).toFixed(3)})`); jg.addColorStop(.25, `rgba(110,180,255,${(.75 * f).toFixed(3)})`); jg.addColorStop(1, 'rgba(60,110,255,0)');
+      o.fillStyle = jg; o.beginPath(); o.moveTo(x - wj, top); o.lineTo(x + wj, top); o.lineTo(x + wj * .25, top - L); o.lineTo(x - wj * .25, top - L); o.closePath(); o.fill();
+      const hg = o.createRadialGradient(x, top, 0, x, top, 40 + 50 * f); hg.addColorStop(0, `rgba(150,210,255,${(.45 * f).toFixed(3)})`); hg.addColorStop(1, 'rgba(150,210,255,0)'); o.fillStyle = hg; o.fillRect(x - 90, top - 90, 180, 180); }
+    // the tower: a tapering block of steel with a band in its people's colour; scaffolding while it is still being built
+    o.fillStyle = '#3d4450'; o.beginPath(); o.moveTo(x - 24, y + 2); o.lineTo(x + 24, y + 2); o.lineTo(x + 13, top); o.lineTo(x - 13, top); o.closePath(); o.fill();
+    o.fillStyle = '#596273'; o.beginPath(); o.moveTo(x - 24, y + 2); o.lineTo(x - 8, y + 2); o.lineTo(x - 4, top); o.lineTo(x - 13, top); o.closePath(); o.fill();
+    o.fillStyle = rgb(cc, .9); o.fillRect(x - 18 + 6 * (1 - (y - (y - H * .35)) / H), y - H * .35, 36 - 12 * .35, 4);
+    o.fillStyle = '#20252e'; o.beginPath(); o.ellipse(x, top, 14, 4, 0, 0, 6.2832); o.fill(); o.strokeStyle = '#8a95a8'; o.lineWidth = 1.2; o.stroke();
+    if (p < 1) { o.strokeStyle = 'rgba(190,170,120,.75)'; o.lineWidth = .8; o.beginPath(); for (let i = 0; i < 6; i++) { const yy = top - 4 - i * 9; o.moveTo(x - 15, yy); o.lineTo(x + 15, yy); o.moveTo(x - 15, yy); o.lineTo(x + 15, yy - 9); } o.moveTo(x - 15, top); o.lineTo(x - 15, top - 54); o.moveTo(x + 15, top); o.lineTo(x + 15, top - 54); o.stroke(); }
+    pk(x - 24, top - (f > 0 ? 40 : 0), x + 24, y, 0, 'engine', { name: 'Planet engine', c, p });
+  }
+}
 function drawWorld(o, x0, x1) {
   g = o;
   const i0 = Math.max(0, Math.floor(x0 / STEP)), i1 = Math.min(NCOL - 1, Math.ceil(x1 / STEP)), sea = seaY(), snowY = snowLine();
@@ -3776,6 +3836,7 @@ function drawWorld(o, x0, x1) {
     const a = SMOG[c.era] * clamp(W.pollution / 70, 0, 1) * (policyOf(c) === 'exploit' ? 1.25 : policyOf(c) === 'protect' ? .6 : 1);
     if (a > .02) { const gy0 = gy(c.x), gr = o.createLinearGradient(0, gy0 - 260, 0, gy0 + 10); gr.addColorStop(0, 'rgba(122,104,78,0)'); gr.addColorStop(.6, `rgba(122,104,78,${(a * .3).toFixed(3)})`); gr.addColorStop(1, `rgba(110,96,72,${(a * .5).toFixed(3)})`); o.fillStyle = gr; o.fillRect(c.l, gy0 - 260, c.r - c.l, 270); }
   }
+  drawEngines(x0, x1, sea);
   drawBirds(x0, x1);
   for (const w of W.wars) drawWar(w, x0, x1);
   if (W.tradeUntil > W.simTime) {
@@ -4235,6 +4296,11 @@ function drawOrbit(c2, w, h, R, P2, k) {
     // space cylinders: long turning worlds
     for (const m of (W.megas || []).filter(m => m.civ === c.id)) { const ph = m.a - V.t * .008, [x, y] = P2(ph, R(3900 + (m.a * 97 % 500))); if (off(x, y, 30)) continue; op(x, y, 16, 'cylinder', c, W.megas.indexOf(m));
       c2.save(); c2.translate(x, y); c2.rotate(ph + 1.57); c2.fillStyle = `rgba(200,208,216,${k})`; c2.fillRect(-14, -3, 28, 6); c2.fillStyle = `rgba(95,174,106,${k})`; c2.fillRect(-12, -1, 24, 2); c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${k})`; c2.fillRect(-15, -3, 2, 6); c2.fillRect(13, -3, 2, 6); c2.restore(); }
+    // WE-02: a firing planet engine sends a blue jet straight out from its land
+    { const f = engFire(c, V.t); if (f > 0 && engBuilder(c)) { const ex = engX(c); let dx = ex - V.xc; dx = ((dx % WORLD_W) + WORLD_W * 1.5) % WORLD_W - WORLD_W / 2;
+      const ph = dx / V.Rb, base = SEA0 - gy(ex) + engTowerH(engOf(c)), [x0, y0] = P2(ph, R(base)), [x1, y1] = P2(ph, R(base + 500 + 2200 * f));
+      if (!(off(x0, y0, 400) && off(x1, y1, 400))) { const jg = c2.createLinearGradient(x0, y0, x1, y1); jg.addColorStop(0, `rgba(200,236,255,${(.95 * k * f).toFixed(3)})`); jg.addColorStop(.3, `rgba(110,180,255,${(.7 * k * f).toFixed(3)})`); jg.addColorStop(1, 'rgba(60,110,255,0)');
+        c2.strokeStyle = jg; c2.lineCap = 'round'; c2.lineWidth = 3 + 4 * f; c2.beginPath(); c2.moveTo(x0, y0); c2.lineTo(x1, y1); c2.stroke(); c2.lineCap = 'butt'; op(x0 + (x1 - x0) * .15, y0 + (y1 - y0) * .15, 9, 'enginejet', c, 0); } } }
     // the space elevator rises from the capital to a counterweight station high above
     if (c.era >= 12) {
       let dx = c.x - V.xc; dx = ((dx % WORLD_W) + WORLD_W * 1.5) % WORLD_W - WORLD_W / 2;
@@ -5176,6 +5242,7 @@ function sanitizeWorld(d) {
   w.colonies = (Array.isArray(d.colonies) ? d.colonies : []).filter(k => k && BODY[k.body]).slice(0, 8).map(k => ({ id: n(k.id, 0, 1e9) | 0, name: String(k.name || 'Colony').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(k.color) ? k.color : '#b8c4ff', trait: TRAITS[k.trait] ? k.trait : 'Curious', body: k.body, base: String(k.base || '').slice(0, 24), pop: n(k.pop, 0, 1e10), parent: n(k.parent, 0, 1e9) | 0, free: !!k.free, tension: n(k.tension, 0, 1), war: k.war && typeof k.war === 'object' ? { t: n(k.war.t, 0, 1e4), len: n(k.war.len, 1, 1e4, 60) } : null, era: n(k.era, 0, MAXERA) | 0, tech: n(k.tech, 0, 100), born: n(k.born, -60000, 1e6) | 0 }));
   w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0), ...sanFrom(x) }));
   w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
+  w.eng = d.eng && typeof d.eng === 'object' ? { by: Object.fromEntries(Object.entries(d.eng.by && typeof d.eng.by === 'object' ? d.eng.by : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, 0, 1)])), said: n(d.eng.said, 0, 15) | 0, stall: !!d.eng.stall, done: !!d.eng.done } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
   w.bases = (Array.isArray(d.bases) ? d.bases : []).filter(b => b && BODY[b.body]).slice(0, 64).map(b => ({ id: n(b.id, 0, 1e9) | 0, civ: n(b.civ, 0, 1e9) | 0, body: b.body, name: String(b.name || 'Base').slice(0, 24), pop: n(b.pop, 0, 1e9), t0: n(b.t0, -60000, 1e6) | 0 })); w.debris = n(d.debris, 0, 1); w.kessler = d.kessler == null ? null : n(d.kessler, -1e9, 1e12); w.warCount = n(d.warCount, 0, 1e6) | 0; w.lastWarT = n(d.lastWarT, -1e9, 1e12); w.nukeT = d.nukeT == null ? null : n(d.nukeT, -1e9, 1e12);
@@ -5305,6 +5372,7 @@ const ORB_INFO = {
   station: ['Space station', 'A crewed outpost in orbit: laboratories, docks and a stopover on the way to the Moon and Mars.'],
   ring: ['Ring habitat', 'A great turning ring. Its spin gives weight to the towns and fields along its inside, home to millions.'],
   cylinder: ['Space cylinder', 'A turning world miles long, with its own sky, farms and towns on the inside of the hull.'],
+  enginejet: ['Planet engine', 'The blue jet of a planet engine, firing from the land below. Together the engines must push the whole world away from its dying Sun.'],
   elevator: ['Space elevator station', 'The counterweight station at the top of a cable that rises from the capital. Cargo goes up by climber instead of rocket.'],
   climber: ['Elevator climber', 'A car carrying cargo and people up the space elevator cable.'],
   claim: ['Claim', ''],
@@ -5344,6 +5412,7 @@ function tipBody(t) {
     else if (q.kind === 'crater') h = row('Width', Math.round(d.r * 2) + ' paces') + row('Left by', 'a blast from the sky');
     else if (q.kind === 'ruin') h = row('Left by', 'the ' + (d.r.by || 'old world') + ', ' + ERAS[d.r.era].name) + row('Overgrown', Math.round(ruinOv(d.r) * 100) + '%') + row('Scavenged by', (civAt(d.r.x) && civAt(d.r.x).era < d.r.era - 1) ? 'the ' + civAt(d.r.x).name + ', who learn faster from it' : 'no one yet');
     else if (q.kind === 'flag') h = row('Marks the edge of', 'the lands of the ' + c.name);
+    else if (q.kind === 'engine') h = `<span>A tower of steel and fusion fire, one of the engines that must push the whole world away from its dying Sun.</span>` + row('Built', Math.round(Math.min(1, engOf(c)) * 100) + '%') + row('All engines', Math.round(engProgress() * 100) + '%') + row('Now', W.eng && W.eng.done ? 'firing with all the others' : W.eng && W.eng.stall ? 'work stopped: there is war' : warsOf(c).length ? 'work stopped: its people are at war' : engOf(c) >= 1 ? 'finished, waiting for the others' : engOf(c) >= ENG_FIRE ? 'building, with test burns' : 'building');
     else if (q.kind === 'soldier') h = row('Fights for', 'the ' + c.name) + row('Against', 'the ' + (d.foe ? d.foe.name : 'enemy'));
     else h = row('Belongs to', 'the ' + c.name) + row('Age', ERAS[c.era].name);
     return [esc(d.name) + own, h];
@@ -5653,7 +5722,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, engTick, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
