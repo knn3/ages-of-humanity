@@ -84,7 +84,7 @@ Reply from the Hevari of Hevar → fleet countdown → sentinels lock physics (n
 
 ## Space
 
-Orbit layer (satellites, telescopes, stations, ring habitats, space elevators, cylinders, debris and cascades) · Moon and Mars bases with life-support failures · helium-3, asteroid mines, ice moons held by the best-placed people · energy scale Type 0–3 with milestones · Dyson swarm that dims the Sun · colonies becoming peoples, independence wars · generation ships to real nearby stars with voyage events · galaxy view · space events (solar flare, colony strike, life-support failure, debris cascade, rogue comet).
+Orbit layer (satellites, telescopes, stations, ring habitats, space elevators, cylinders, debris and cascades) · Moon and Mars bases with life-support failures · helium-3, asteroid mines, ice moons held by the best-placed people · energy scale Type 0–3 with milestones · Dyson swarm that dims the Sun · colonies becoming peoples, independence wars · generation ships to real nearby stars with voyage events; large, old star colonies send ships of their own to the nearest free star, so settlement spreads from colony to colony · galaxy view · space events (solar flare, colony strike, life-support failure, debris cascade, rogue comet).
 
 ## Nature
 

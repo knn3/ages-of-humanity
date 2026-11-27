@@ -538,15 +538,21 @@ const lostMarks = () => W.lost || [];
 // what the lens is showing: { kind: 'ship', sh } or { kind: 'lost', m }, or null when closed or no longer there
 function lensTarget() {
   const L = V.lensShip; if (!L) return null;
-  if (L.kind === 'ship') { const sh = (W.ships || []).find(x => x.id === L.id); return sh ? { kind: 'ship', sh, star: sh.star, civ: sh.civ, name: sh.name, id: sh.id } : null; }
-  const m = (W.lost || []).find(x => x.id === L.id); return m ? { kind: 'lost', m, star: m.star, civ: m.civ, name: m.name || 'Ship', id: m.id } : null;
+  if (L.kind === 'ship') { const sh = (W.ships || []).find(x => x.id === L.id); return sh ? { kind: 'ship', sh, star: sh.star, civ: sh.civ, name: sh.name, id: sh.id, from: sh.from != null ? sh.from : null } : null; }
+  const m = (W.lost || []).find(x => x.id === L.id); return m ? { kind: 'lost', m, star: m.star, civ: m.civ, name: m.name || 'Ship', id: m.id, from: m.from != null ? m.from : null } : null;
 }
 const lensOn = () => galK() > .3 && !!lensTarget();
 // a ship's course in the lens (lens units: 1 = the rim): a gentle quadratic curve from just off the Sun to its star.
 // Ships bend to one side or the other by id, by a little more or less, so two ships bound for the same star (or neighbours) stay apart.
-function shipCurve(star, id) {
-  const [u, v] = lensXY(star), d = Math.hypot(u, v), ux = u / d, uy = v / d, x0 = ux * .12, y0 = uy * .12, L = d - .12;
-  const bend = (id % 2 ? 1 : -1) * (.12 + .08 * ((id * 7) % 5) / 4) * L, cx = (x0 + u) / 2 - uy * bend, cy = (y0 + v) / 2 + ux * bend;
+// SV-07: a ship sent by a star colony (from: its star) sets out from just beside that star instead of the Sun; its curve's middle
+// point is pulled in if need be so the whole course stays inside the lens.
+function shipCurve(star, id, from) {
+  const [u, v] = lensXY(star); let x0, y0;
+  if (from != null && XSTARS[from]) { const [a, b] = lensXY(from), d0 = Math.hypot(u - a, v - b) || 1; x0 = a + (u - a) / d0 * .04; y0 = b + (v - b) / d0 * .04; }
+  else { const d = Math.hypot(u, v); x0 = u / d * .12; y0 = v / d * .12; }
+  const L = Math.hypot(u - x0, v - y0) || 1e-6, ux = (u - x0) / L, uy = (v - y0) / L;
+  let bend = (id % 2 ? 1 : -1) * (.12 + .08 * ((id * 7) % 5) / 4) * L, cx, cy;
+  for (let k = 0; k < 12; k++) { cx = (x0 + u) / 2 - uy * bend; cy = (y0 + v) / 2 + ux * bend; if (Math.hypot(cx, cy) <= .95) break; bend *= .7; }
   const p = f => { const g = 1 - f; return [g * g * x0 + 2 * g * f * cx + f * f * u, g * g * y0 + 2 * g * f * cy + f * f * v]; };
   const tan = f => { const tx = 2 * (1 - f) * (cx - x0) + 2 * f * (u - cx), ty = 2 * (1 - f) * (cy - y0) + 2 * f * (v - cy); return Math.atan2(ty, tx); };
   return { p, tan };
@@ -601,7 +607,10 @@ function drawLens(c2, w, h, sx, sy) {
   const [u, v] = lensXY(T.star), dx = L.x + u * R, dy = L.y + v * R;
   if (T.kind === 'ship') { const ph = ((V.t || 0) * .7) % 1; c2.strokeStyle = col; c2.globalAlpha = a * .7 * (1 - ph); c2.lineWidth = 1.2; c2.beginPath(); c2.arc(dx, dy, 3.5 + 8 * ph, 0, 6.2832); c2.stroke(); c2.globalAlpha = a; }
   c2.fillStyle = T.kind === 'lost' ? 'rgba(220,226,240,.6)' : col; c2.beginPath(); c2.arc(dx, dy, 3.4, 0, 6.2832); c2.fill();
-  const cv = shipCurve(T.star, T.id), S = q => { const [p, r] = cv.p(q); return [L.x + p * R, L.y + r * R]; }, shipsAt = [];
+  // SV-07: a colony's ship starts from that colony's star, drawn as a settled star (a ring in the people's colour)
+  let ox = null, oy = null;
+  if (T.from != null) { const [a, b] = lensXY(T.from); ox = L.x + a * R; oy = L.y + b * R; c2.fillStyle = col; c2.beginPath(); c2.arc(ox, oy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = col; c2.lineWidth = 1; c2.globalAlpha = a * .8; c2.beginPath(); c2.arc(ox, oy, 5.5, 0, 6.2832); c2.stroke(); c2.globalAlpha = a; }
+  const cv = shipCurve(T.star, T.id, T.from), S = q => { const [p, r] = cv.p(q); return [L.x + p * R, L.y + r * R]; }, shipsAt = [];
   if (T.kind === 'ship') {
     const sh = T.sh, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), th = cv.tan(f), [px, py] = S(f);
     // the way still to go, faint and dotted; behind the ship, a short fading trail
@@ -628,13 +637,13 @@ function drawLens(c2, w, h, sx, sy) {
     else { c2.arc(m.x, m.y2, 3.3, 0, 6.2832); c2.lineWidth = 3; c2.stroke(); c2.strokeStyle = g.col; c2.lineWidth = 1.4; c2.stroke(); } }
   // labels: the destination, then each mark (and the place a lost ship went silent), clear of each other, the Sun, the ship and every mark
   c2.font = '11px "IBM Plex Sans Condensed", sans-serif'; c2.textBaseline = 'top';
-  const nm = XSTARS[T.star][0], dots = [[L.x, L.y], [dx, dy], ...shipsAt.map(q => [q.x, q.y]), ...marks.map(m => [m.x, m.y2])];
-  const items = [{ i: T.star, x: dx, y: dy, name: nm, col: 'rgba(232,224,210,.95)' }, ...marks.map(m => ({ x: m.x, y: m.y2, name: `${VMARK[m.k].name} · ${fmtYear(m.y)}`, col: VMARK[m.k].txt }))];
+  const nm = XSTARS[T.star][0], fromNm = T.from != null ? XSTARS[T.from][0] : null, dots = [[L.x, L.y], [dx, dy], ...(fromNm ? [[ox, oy]] : []), ...shipsAt.map(q => [q.x, q.y]), ...marks.map(m => [m.x, m.y2])];
+  const items = [{ i: T.star, x: dx, y: dy, name: nm, col: 'rgba(232,224,210,.95)' }, ...(fromNm ? [{ i: T.from, x: ox, y: oy, name: fromNm, col: 'rgba(214,200,176,.85)' }] : []), ...marks.map(m => ({ x: m.x, y: m.y2, name: `${VMARK[m.k].name} · ${fmtYear(m.y)}`, col: VMARK[m.k].txt }))];
   if (T.kind === 'lost') { const e = log.find(x => x.k === 'lost'); items.push({ x: shipsAt[0].x, y: shipsAt[0].y, name: 'Silent' + (e ? ' · ' + fmtYear(e.y) : ''), col: 'rgba(214,206,190,.85)' }); }
   const labs = lensLabels(c2, L, items, dots), colOf = new Map(items.map(it => [it.name, it.col]));
-  for (const lb of labs) { const mk = lb.name !== nm; c2.font = mk ? '10px "IBM Plex Sans Condensed", sans-serif' : '11px "IBM Plex Sans Condensed", sans-serif'; c2.textAlign = 'left'; c2.lineWidth = 3; c2.strokeStyle = 'rgba(10,9,12,.9)'; c2.strokeText(lb.name, lb.x, lb.y); c2.fillStyle = colOf.get(lb.name); c2.fillText(lb.name, lb.x, lb.y); }
+  for (const lb of labs) { const mk = lb.name !== nm && lb.name !== fromNm; c2.font = mk ? '10px "IBM Plex Sans Condensed", sans-serif' : '11px "IBM Plex Sans Condensed", sans-serif'; c2.textAlign = 'left'; c2.lineWidth = 3; c2.strokeStyle = 'rgba(10,9,12,.9)'; c2.strokeText(lb.name, lb.x, lb.y); c2.fillStyle = colOf.get(lb.name); c2.fillText(lb.name, lb.x, lb.y); }
   c2.restore();
-  V.lens = { x: L.x, y: L.y, r: R, kind: T.kind, id: T.id, labels: labs.map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h, name: l.name })), stars: [{ i: T.star, x: dx, y: dy }], ships: shipsAt, marks: marks.map(m => ({ k: m.k, f: m.f, x: m.x, y: m.y2 })) };
+  V.lens = { x: L.x, y: L.y, r: R, kind: T.kind, id: T.id, labels: labs.map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h, name: l.name })), stars: [{ i: T.star, x: dx, y: dy }], from: fromNm ? { i: T.from, x: ox, y: oy } : null, ships: shipsAt, marks: marks.map(m => ({ k: m.k, f: m.f, x: m.x, y: m.y2 })) };
 }
 // Clicking a chronicle line about a ship: a ship on its way or lost opens the lens out in the galaxy; a ship that arrived opens a
 // close-up of the world it settled. instant: no glide (tests).
@@ -710,7 +719,7 @@ function drawWorldClose(c2, st, x, y, r) {
 function worldLines(st) {
   const c = civById(st.civ), out = [];
   out.push(`Around ${XSTARS[st.star][0]}, ${starLy(st.star)}.`);
-  out.push(`Settled in ${fmtYear(st.t0)} by the crew of the ${st.name}${c ? ', sent by the ' + c.name : ''}.`);
+  out.push(st.from != null ? `Settled in ${fmtYear(st.t0)} by the crew of the ${st.name}, sent from ${st.fromW || XSTARS[st.from][0]} around ${XSTARS[st.from][0]}${c ? ', a colony of the ' + c.name : ''}.` : `Settled in ${fmtYear(st.t0)} by the crew of the ${st.name}${c ? ', sent by the ' + c.name : ''}.`);
   out.push(`${fmtPop(st.pop)} people live here now.`);
   if (st.forgot) out.push('Its first settlers had forgotten they were on a ship; they stepped out under a strange sun and remembered.');
   for (const e of st.log || []) out.push(`${fmtYear(e.y)}: ${vlogText(e.k, st)}`);
@@ -2018,21 +2027,51 @@ const vlogText = (k, sh) => ({ launch: 'Leaves home', mutiny: 'Mutiny: the rebel
 const sanVlog = (a, y0) => { let q = 0; const out = (Array.isArray(a) ? a : []).filter(e => e && VLOG_K.includes(e.k)).slice(-VLOG_MAX).map(e => { const o = { y: Math.round(Number.isFinite(+e.y) ? clamp(+e.y, -60000, 1e6) : y0), k: e.k };
   const ev = e.k !== 'launch' && e.k !== 'arrive'; if (ev) q++; o.f = Number.isFinite(+e.f) && e.f !== null && e.f !== '' ? +clamp(+e.f, 0, 1).toFixed(3) : e.k === 'launch' ? 0 : e.k === 'arrive' ? 1 : Math.min(.99, .25 * q + .01); return o; });
   return out.length || y0 == null ? out : [{ y: y0, k: 'launch', f: 0 }]; };
+// SV-07: colonies send ships of their own once they are this large (people) and this old (years); chance per colony per sim second
+const COL_SHIP_POP = 2e7, COL_SHIP_AGE = 300, COL_SHIP_RATE = .004, SHIPS_MAX = 40;
+const starsTaken = () => new Set((W.ships || []).map(sh => sh.star).concat((W.stars || []).map(st => st.star)));
+// the free star nearest to star i (in the galaxy's own units), or -1 if every star is held or a ship is bound for it
+function nearFreeStar(i) {
+  const taken = starsTaken(), [x, y] = starXY(i); let best = -1, bd = 1e9;
+  for (let j = 0; j < XSTARS.length; j++) { if (taken.has(j)) continue; const [u, v] = starXY(j), d = Math.hypot(u - x, v - y); if (d < bd) { bd = d; best = j; } }
+  return best;
+}
+// a new ship from the home world (from: null) or from the colony at star `from`; d: the length that sets the voyage's time
+function launchShip(civ, si, from, d) {
+  const usedN = new Set(W.ships.map(x => x.name).concat(W.stars.map(x => x.name))), nm = SHIPNAME.find(x => !usedN.has(x)) || SHIPNAME[(W.nextId * 7) % SHIPNAME.length] + ' ' + ROMAN[(W.ships.length + W.stars.length) % ROMAN.length];
+  const sh = { id: W.nextId++, civ, star: si, name: nm, t0: W.simTime, dur: 120 + d * 1400, crew: 1e5, crew0: 1e5, y0: Math.round(W.year), told: 0, log: [{ y: Math.round(W.year), k: 'launch', f: 0 }] };
+  if (from != null) sh.from = from;
+  W.ships.push(sh); return sh;
+}
+// SV-07: where a colony's ship set out from (a star index) and that colony's world name; nothing for ships from the home world
+const sanFrom = (x, noW) => { if (!x || x.from == null || x.from === '' || !Number.isFinite(+x.from) || !XSTARS[+x.from | 0] || +x.from !== (+x.from | 0) || +x.from === +x.star) return {};
+  const o = { from: +x.from | 0 }; if (!noW) o.fromW = typeof x.fromW === 'string' && x.fromW ? x.fromW.slice(0, 28) : XSTARS[o.from][0]; return o; };
 function shipTick(dt) {
   if (!W.ships) W.ships = []; if (!W.stars) W.stars = [];
   for (const c of alive()) {
     if (c.era < 13 || W.ships.filter(sh => sh.civ === c.id).length >= (c.era >= 14 ? 3 : 1)) continue;
     if (Math.random() < dt * (c.era >= 14 ? .012 : .006) * (c.trait === 'Curious' ? 1.5 : 1)) {
-      const taken = new Set(W.ships.map(sh => sh.star).concat(W.stars.map(st => st.star)));
-      let si = XSTARS.findIndex((st, i) => !taken.has(i)); if (si < 0) si = (Math.random() * XSTARS.length) | 0;
-      const usedN = new Set(W.ships.map(x => x.name).concat(W.stars.map(x => x.name))), nm = SHIPNAME.find(x => !usedN.has(x)) || SHIPNAME[(W.nextId * 7) % SHIPNAME.length] + ' ' + ROMAN[(W.ships.length + W.stars.length) % ROMAN.length], dur = 120 + XSTARS[si][1] * 1400 * (c.era >= 14 ? .5 : 1);
-      W.ships.push({ id: W.nextId++, civ: c.id, star: si, name: nm, t0: W.simTime, dur, crew: 1e5, crew0: 1e5, y0: Math.round(W.year), told: 0, log: [{ y: Math.round(W.year), k: 'launch', f: 0 }] });
+      const taken = starsTaken();
+      // the first star on the list that no one holds and no ship is bound for; with every star taken, no ship is sent (they used to
+      // pick a random held star, piling dozens of colonies onto 14 stars and leaving none free for colonies to reach)
+      const si = XSTARS.findIndex((st, i) => !taken.has(i)); if (si < 0) continue;
+      const sh = launchShip(c.id, si, null, XSTARS[si][1] * (c.era >= 14 ? .5 : 1));
       c.culture = Math.min(100, c.culture + 4);
-      log(fillT(`{Civ} launch the generation ship ${nm} toward ${XSTARS[si][0]}. Its crew will not live to see the voyage end; their grandchildren's grandchildren will.`, names(c)), 'event', W.ships[W.ships.length - 1].id);
+      log(fillT(`{Civ} launch the generation ship ${sh.name} toward ${XSTARS[si][0]}. Its crew will not live to see the voyage end; their grandchildren's grandchildren will.`, names(c)), 'event', sh.id);
     }
   }
+  // SV-07: a large, old star colony sends a ship of its own to the nearest free star, so settlement spreads outward from colony
+  // to colony, not only from the home world. One ship in flight per colony; only to a star no one holds or is heading for.
+  for (const st of [...W.stars]) {
+    if (st.pop < COL_SHIP_POP || W.year - st.t0 < COL_SHIP_AGE || W.ships.length >= SHIPS_MAX || W.ships.some(sh => sh.from === st.star)) continue;
+    if (Math.random() >= dt * COL_SHIP_RATE) continue;
+    const si = nearFreeStar(st.star); if (si < 0) continue;
+    const [ax, ay] = starXY(st.star), [bx, by] = starXY(si), sh = launchShip(st.civ, si, st.star, Math.hypot(bx - ax, by - ay) * .5), c = civById(st.civ);
+    sh.fromW = st.world || XSTARS[st.star][0];
+    log(`The settlers of ${esc(sh.fromW)}, around ${esc(XSTARS[st.star][0])}, launch the generation ship ${esc(sh.name)} toward ${esc(XSTARS[si][0])}.${c && c.alive ? ` The children of the ${esc(c.name)} reach out from star to star.` : ''} Their world is old and full enough now to send its own children on.`, 'event', sh.id);
+  }
   for (const sh of [...W.ships]) {
-    const c = civById(sh.civ), f = (W.simTime - sh.t0) / sh.dur, who = c ? 'the ' + c.name : 'its lost homeland';
+    const c = civById(sh.civ), f = (W.simTime - sh.t0) / sh.dur, who = sh.from != null ? 'the settlers of ' + (sh.fromW || XSTARS[sh.from][0]) : c ? 'the ' + c.name : 'its lost homeland';
     // events on the way
     if (f > .25 * (sh.told + 1) && sh.told < 3) {
       sh.told++;
@@ -2040,14 +2079,16 @@ function shipTick(dt) {
       if (roll < .2) { sh.crew *= .6; shipLog(sh, 'mutiny'); log(`Mutiny aboard the ${esc(sh.name)}, sent by ${esc(who)}. The rebels take the bridge and change the ship's laws.`, 'event', sh.id); }
       else if (roll < .35) { sh.crew *= .5; shipLog(sh, 'plague'); log(`Plague aboard the ${esc(sh.name)}. Half its crew die between the stars.`, 'event', sh.id); }
       else if (roll < .5) { if (!sh.forgot) shipLog(sh, 'forgot'); sh.forgot = true; log(`On the ${esc(sh.name)}, the crew have forgotten they are on a ship. Their priests teach that the corridors are the whole world.`, 'event', sh.id); }
-      else if (roll < .56) { W.ships.splice(W.ships.indexOf(sh), 1); shipLog(sh, 'lost'); (W.lost = W.lost || []).push({ id: sh.id, star: sh.star, civ: sh.civ, f: clamp(f, 0, 1), t: W.simTime, name: sh.name, log: sh.log }); if (W.lost.length > LOST_MAX) W.lost.shift(); log(`The ${esc(sh.name)} falls silent somewhere between the stars. No one will ever know why.`, 'event', sh.id); continue; }
+      else if (roll < .56) { W.ships.splice(W.ships.indexOf(sh), 1); shipLog(sh, 'lost'); (W.lost = W.lost || []).push({ id: sh.id, star: sh.star, civ: sh.civ, f: clamp(f, 0, 1), t: W.simTime, name: sh.name, log: sh.log, ...(sh.from != null ? { from: sh.from } : {}) }); if (W.lost.length > LOST_MAX) W.lost.shift(); log(`The ${esc(sh.name)} falls silent somewhere between the stars. No one will ever know why.`, 'event', sh.id); continue; }
     }
     if (f >= 1) {
       W.ships.splice(W.ships.indexOf(sh), 1);
       shipLog(sh, 'arrive');
       const st = { star: sh.star, civ: sh.civ, name: sh.name, pop: sh.crew, t0: Math.round(W.year), forgot: !!sh.forgot, log: sh.log, sid: sh.id };
+      if (sh.from != null) { st.from = sh.from; st.fromW = sh.fromW || XSTARS[sh.from][0]; }
       st.world = worldName(st); W.stars.push(st);
-      log(`After ${fmtSpan(Math.max(1, Math.round(W.year - sh.y0)))}, the ${esc(sh.name)} reaches ${esc(XSTARS[sh.star][0])}.${sh.forgot ? ' Its crew step out under a strange sun and remember, at last, what they are.' : ''} ${c && c.alive ? esc('The ' + c.name) + ' have a colony among the stars.' : 'Its settlers have no homeland left to answer to.'}` + ` They call their new world ${esc(st.world)}.`, 'world', sh.id);
+      const home = sh.from != null ? `${c && c.alive ? esc('The ' + c.name) + ' now hold another star, settled' : 'A new colony is born,'} from ${esc(st.fromW)} and not from Earth.` : c && c.alive ? esc('The ' + c.name) + ' have a colony among the stars.' : 'Its settlers have no homeland left to answer to.';
+      log(`After ${fmtSpan(Math.max(1, Math.round(W.year - sh.y0)))}, the ${esc(sh.name)} reaches ${esc(XSTARS[sh.star][0])}.${sh.forgot ? ' Its crew step out under a strange sun and remember, at last, what they are.' : ''} ${home}` + ` They call their new world ${esc(st.world)}.`, 'world', sh.id);
       banner('A new star', `${XSTARS[sh.star][0]} · ${sh.name}`, c ? c.color : '#c9a27c');
     }
   }
@@ -5108,9 +5149,9 @@ function sanitizeWorld(d) {
   w.dyson = { by: {}, total: 0, mark: 0 }; if (d.dyson && typeof d.dyson === 'object') { for (const [k, v] of Object.entries(d.dyson.by || {})) if (/^\d+$/.test(k)) w.dyson.by[k] = n(v, 0, SWARM_FULL); w.dyson.total = n(d.dyson.total, 0, SWARM_FULL); w.dyson.mark = n(d.dyson.mark, 0, 4) | 0; }
   w.megas = (Array.isArray(d.megas) ? d.megas : []).filter(m => m && m.type === 'cylinder').slice(0, 40).map(m => ({ type: 'cylinder', civ: n(m.civ, 0, 1e9) | 0, a: n(m.a, 0, 7) }));
   w.colonies = (Array.isArray(d.colonies) ? d.colonies : []).filter(k => k && BODY[k.body]).slice(0, 8).map(k => ({ id: n(k.id, 0, 1e9) | 0, name: String(k.name || 'Colony').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(k.color) ? k.color : '#b8c4ff', trait: TRAITS[k.trait] ? k.trait : 'Curious', body: k.body, base: String(k.base || '').slice(0, 24), pop: n(k.pop, 0, 1e10), parent: n(k.parent, 0, 1e9) | 0, free: !!k.free, tension: n(k.tension, 0, 1), war: k.war && typeof k.war === 'object' ? { t: n(k.war.t, 0, 1e4), len: n(k.war.len, 1, 1e4, 60) } : null, era: n(k.era, 0, MAXERA) | 0, tech: n(k.tech, 0, 100), born: n(k.born, -60000, 1e6) | 0 }));
-  w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0) }));
-  w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null) }));
-  w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length] }));
+  w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0), ...sanFrom(x) }));
+  w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
+  w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
   w.bases = (Array.isArray(d.bases) ? d.bases : []).filter(b => b && BODY[b.body]).slice(0, 64).map(b => ({ id: n(b.id, 0, 1e9) | 0, civ: n(b.civ, 0, 1e9) | 0, body: b.body, name: String(b.name || 'Base').slice(0, 24), pop: n(b.pop, 0, 1e9), t0: n(b.t0, -60000, 1e6) | 0 })); w.debris = n(d.debris, 0, 1); w.kessler = d.kessler == null ? null : n(d.kessler, -1e9, 1e12); w.warCount = n(d.warCount, 0, 1e6) | 0; w.lastWarT = n(d.lastWarT, -1e9, 1e12); w.nukeT = d.nukeT == null ? null : n(d.nukeT, -1e9, 1e12);
   w.sig = d.sig && typeof d.sig === 'object' ? { t: n(d.sig.t, -1e9, 1e12), era: n(d.sig.era, 0, MAXERA) | 0 } : null;
   w.ruins = (Array.isArray(d.ruins) ? d.ruins : []).filter(r => r && RUIN_NAME[r.k]).slice(-48).map(r => ({ x: n(r.x, 0, WORLD_W) | 0, w: n(r.w, 10, 600, 40) | 0, h: n(r.h, 4, 220, 30) | 0, era: n(r.era, 0, MAXERA) | 0, k: r.k, t0: n(r.t0, -1e9, 1e12), by: String(r.by || '').slice(0, 20) }));
@@ -5249,10 +5290,10 @@ const ORB_INFO = {
 function orbitTipBody(q) {
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
   if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
-  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Distance', starLy(st.star)) + row('Founded by', 'the crew of the ' + st.name + (c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop)) + (st.world ? row('World', st.world + ' (left click to see it)') : '')]; }
+  if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Distance', starLy(st.star)) + row('Founded by', 'the crew of the ' + st.name + (st.from != null ? ', sent from ' + (st.fromW || XSTARS[st.from][0]) : c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop)) + (st.world ? row('World', st.world + ' (left click to see it)') : '')]; }
   if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), col = c ? c.color : '#c9a27c', c0 = sh.crew0 || 1e5;
     const lg = (sh.log && sh.log.length ? sh.log : [{ y: sh.y0, k: 'launch' }]).map(e => `<span class="vl"><b>${esc(fmtYear(e.y))}</b> ${esc(vlogText(e.k, sh))}</span>`).join('');
-    return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0] + ', ' + starLy(sh.star)) + row('Sent by', c ? 'the ' + c.name : 'a people now gone') + row('Under way', fmtSpan(Math.max(0, Math.round(W.year - sh.y0))))
+    return [esc(sh.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Bound for', XSTARS[sh.star][0] + ', ' + starLy(sh.star)) + (sh.from != null ? row('Sent from', (sh.fromW || XSTARS[sh.from][0]) + ', around ' + XSTARS[sh.from][0] + (c ? ' (a colony of the ' + c.name + ')' : '')) : row('Sent by', c ? 'the ' + c.name : 'a people now gone')) + row('Under way', fmtSpan(Math.max(0, Math.round(W.year - sh.y0))))
       + `<span class="pb"><i style="width:${(f * 100).toFixed(1)}%;background:${col}"></i></span><span class="pbl">${Math.round(f * 100)}% of the way</span>`
       + row('Crew left', fmtPop(sh.crew) + (sh.crew < c0 * .99 ? ' of ' + fmtPop(c0) : '')) + (sh.forgot ? row('Aboard', 'the crew have forgotten they are on a ship') : '') + `<span class="vlh">Ship’s log</span>` + lg]; }
   let h = `<span>${esc(I[1])}</span>`;
@@ -5586,7 +5627,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
