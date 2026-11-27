@@ -1049,7 +1049,16 @@ function recomputeTerrain() {
 function landIdx(x) { let best = 0, bd = 1e9; V.lands.forEach((L, i) => { const d = x < L.l ? L.l - x : x > L.r ? x - L.r : 0; if (d < bd) { bd = d; best = i; } }); return best; }
 const landOf = x => V.lands[landIdx(x)];
 function gy(x) { const f = x / STEP; const i = Math.floor(f); if (i < 0) return T[0]; if (i >= NCOL - 1) return T[NCOL - 1]; const t = f - i; return T[i] + (T[i + 1] - T[i]) * t; }
-const temp = () => W.tempShift + W.pollution * .02;
+// WE-01: the dying Sun. W.sun.k is how far it has swollen (0 = as ever, 1 = a red giant filling far more of the sky); it grows while
+// the Dying Sun future runs (full by the verdict) and settles back slowly if that future fades. Its heat adds to the temperature
+// (seas, snow, harvests) but not to the greenhouse tipping point, which stays about pollution (tempGH).
+const SUN_TEMP = 2.6, SUN_FADE = 150, SUN_DATE = 40000, SUN_SAY = [.25, .5, .75, .97];
+const sunK = () => (W.sun && W.sun.k) || 0;
+const sunHeat = () => SUN_TEMP * Math.pow(sunK(), 1.3);
+const tempGH = () => W.tempShift + W.pollution * .02;
+const temp = () => tempGH() + sunHeat();
+// the Sun's colour as it swells: from its usual pale gold to a deep orange-red
+const sunRGB = (k, base = [255, 244, 216]) => [Math.round(base[0] + (255 - base[0]) * k), Math.round(base[1] + (150 - base[1]) * k), Math.round(base[2] + (96 - base[2]) * k)];
 function seaY() { const t = temp(); return SEA0 - clamp(t - 1, 0, 4) * 2.5 + clamp(-t - 1, 0, 5) * 2 - (W.seaRise || 0); }
 const inRiver = x => W.elements.some(e => e.type === 'river' && Math.abs(e.x - x) < 20);
 const isLand = x => x > 20 && x < WORLD_W - 20 && gy(x) < seaY() - 2 && !inRiver(x);
@@ -1892,7 +1901,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); sunTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -2326,7 +2335,7 @@ const FATE_UI = {
   threebody: ['answering the signal from the stars, and Curious peoples', 'Fleet due in {n}'],
   collapse: ['pollution, climate swings, war, nuclear war and unrest', 'Crisis peaks in {n}'],
   agi: ['machine autonomy (it rises in the Information and Future Ages), each AI Awakening, and Curious peoples. Devout peoples hold it back', 'Turning point in {n}'],
-  wandering: ['time: it grows slowly once peoples reach space', 'The Sun’s verdict in {n}'],
+  wandering: ['time: it grows slowly once peoples reach space, and it comes for certain by ' + SUN_DATE.toLocaleString('en-US') + ' CE', 'The Sun’s verdict in {n}'],
   ascension: ['calm, prosperous, Curious and Mercantile peoples. War holds it back', 'Upload wave peaks in {n}'],
   garden: ['peoples that protect healthy land, and low pollution', 'Movement peaks in {n}'],
   silence: ['the number of peoples in space', 'The fear fades in {n}'],
@@ -2365,7 +2374,8 @@ const FATES = {
   wandering: { name: 'The Dying Sun', span: 220,
     drive: x => .04 + .9 * clamp((x.since - 200) / 450, 0, 1),
     start: 'Astronomers confirm what they feared: the Sun has begun to swell. The world has centuries left, not billions of years.',
-    end: 'Better measurements calm the panic. The Sun’s crisis lies further off than feared.',
+    clock: a => { const f = FATES.wandering, left = clockYear(a.t0 + f.span) - clockYear(W.simTime); return W.simTime - a.t0 >= f.span ? ['Resolving', 1] : [`Sun ${Math.round(100 + 220 * sunK())}% of its old width · verdict in ${fmtSpan(Math.max(1, left))}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
+    end: 'The Sun stops swelling. Over the centuries it settles back towards its old size and colour: a pulse in its long life, not its death. The world breathes again.',
     stress: () => 'threat' },
   ascension: { name: 'The Great Upload', span: 160,
     drive: x => Math.max(0, .12 + .35 * clamp((x.stab - 45) / 25, 0, 1) + .3 * x.share.Curious + .2 * x.share.Mercantile + .3 * (x.top >= 13) - .5 * Math.min(1, x.wars)),
@@ -2413,6 +2423,19 @@ const FATES = {
     end: 'Ageing returns to everyone. The dream of living forever fades.',
     stress: () => 'unrest' }
 };
+function sunTick(dt) {
+  const F = W.fates, on = F.active.some(a => a.id === 'wandering'), S = W.sun || (W.sun = { k: 0, said: 0 });
+  // the far-future date: by then the Sun begins to swell whatever else is happening (once a people has reached space)
+  if (!on && F.edgeT != null && !F.ended && !F.done.includes('wandering') && W.year >= SUN_DATE && alive().length && !W.care) { startFate('wandering', 'date'); return; }
+  if (on) { const a = F.active.find(a => a.id === 'wandering'); S.k = Math.max(S.k, clamp((W.simTime - a.t0) / FATES.wandering.span, 0, 1)); }
+  else if (S.k > 0) S.k = Math.max(0, S.k - dt / SUN_FADE);
+  for (let i = 0; i < SUN_SAY.length; i++) { const bit = 1 << i; if (on && S.k >= SUN_SAY[i] && !(S.said & bit)) { S.said |= bit; log(SUN_LINES[i], 'nature'); if (i === 3) banner('A red sun', 'The Sun fills the sky', '#e0784a'); } }
+  if (!on && S.k === 0) S.said = 0;
+}
+const SUN_LINES = ['The Sun rises a little wider and a little redder each year. The days grow hot and the noon light has turned to gold.',
+  'The Sun now looks half as wide again as it did. Harvests wilt, the snows retreat up the mountains and the seas creep onto the coasts.',
+  'A swollen orange Sun fills a broad piece of the sky. Noon is a furnace; the old blue of the sky has gone to amber.',
+  'The Sun has become a vast red disc, more than three times its old width. The world bakes under a sky the colour of embers.'];
 function freshFates() {
   const bias = {}; for (const id in FATES) bias[id] = +rand(.45, 1.7).toFixed(3);
   return { edgeT: null, p: {}, bias, active: [], done: [], hist: [], lastStart: -1e9, cycle: 1, ended: null, endY: null, riseAt: null };
@@ -2600,7 +2623,7 @@ function endTick(dt) {
   if (W.winter && W.simTime >= W.winter.until) endWinter();
   if (W.winter && !V.fx.some(f => f.type === 'ash' && f.x == null)) V.fx.push({ type: 'ash', x: null, r: 0, t0: V.t, dur: 16 });
   // END-04 the tipping point and the rising seas
-  const H = W.hot || (W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }), t = temp();
+  const H = W.hot || (W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }), t = tempGH();
   if (!H.on) {
     H.acc = t > TIP_T ? H.acc + (t - TIP_T) * dt : Math.max(0, H.acc - .2 * dt);
     if (H.acc >= TIP_HOLD && maxEra() >= 8 && !F.active.some(a => a.id === 'geo' || a.id === 'garden')) tipWarming();
@@ -3655,6 +3678,7 @@ function drawSky(c2, w, h, fm = 1) {
   top = mixA(top, SKY.haze, grey * (.35 + .65 * L)); bot = mixA(bot, SKY.haze, grey * (.35 + .65 * L));
   if (nk > 0) { top = mixA(top, [24, 20, 20], nk * .8); bot = mixA(bot, [74, 60, 50], nk * .75); }
   if (W.hot && W.hot.on) { const hk = clamp((temp() - 1.5) / 4, 0, 1) * L; bot = mixA(bot, [222, 150, 96], .35 * hk); top = mixA(top, [190, 160, 130], .15 * hk); }
+  const sk = sunK(); if (sk > 0) { top = mixA(top, [176, 104, 64], .62 * sk * L); bot = mixA(bot, [240, 156, 92], .65 * sk * L); }
   const gr = c2.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, rgb(top)); gr.addColorStop(1, rgb(bot));
   c2.fillStyle = gr; c2.fillRect(0, 0, w, h);
   const sa = Math.pow(1 - L, 2) * (1 - grey * .8);
@@ -3664,7 +3688,7 @@ function drawSky(c2, w, h, fm = 1) {
     for (let i = 0; i < Math.min(9, sats); i++) { const x = ((V.t * (14 + i * 3) + h01(i * 71) * w * 2) % (w * 1.4)) - w * .2, y = h * (.06 + h01(i * 53) * .3); c2.fillStyle = `rgba(255,255,240,${(sa * .9).toFixed(3)})`; c2.fillRect(x, y, 1.6, 1.6); }
   }
   const p = (V.dayT - .22) / .56;
-  if (p > 0 && p < 1) { const sx = w * (.08 + .84 * p), sy = h * .62 - Math.sin(p * Math.PI) * h * .5; const sg = c2.createRadialGradient(sx, sy, 2, sx, sy, 60); sg.addColorStop(0, 'rgba(255,240,200,.55)'); sg.addColorStop(1, 'rgba(255,240,200,0)'); c2.fillStyle = sg; c2.fillRect(sx - 60, sy - 60, 120, 120); c2.fillStyle = grey > .4 ? '#d9cfb8' : '#fff4d8'; c2.beginPath(); c2.arc(sx, sy, 11, 0, 6.2832); c2.fill(); }
+  if (p > 0 && p < 1) { const sx = w * (.08 + .84 * p), sy = h * .62 - Math.sin(p * Math.PI) * h * .5, R0 = 11 * (1 + 2.2 * sk), gR = 60 * (1 + 1.6 * sk), gc = sunRGB(sk, [255, 240, 200]).join(','); const sg = c2.createRadialGradient(sx, sy, 2, sx, sy, gR); sg.addColorStop(0, `rgba(${gc},${(.55 + .2 * sk).toFixed(3)})`); sg.addColorStop(1, `rgba(${gc},0)`); c2.fillStyle = sg; c2.fillRect(sx - gR, sy - gR, gR * 2, gR * 2); c2.fillStyle = grey > .4 ? rgb(mixA([217, 207, 184], sunRGB(sk), sk)) : rgb(sunRGB(sk)); c2.beginPath(); c2.arc(sx, sy, R0, 0, 6.2832); c2.fill(); V.flatSun = [sx, sy, R0]; } else V.flatSun = null;
   // the Moon at the same place in the sky as on the globe and in the solar system (moonPh), with its phase: it lags the Sun,
   // so a young Moon sits left of the Sun with its right side lit, an old one right of it with its left side lit
   const mo = moonPh(), pm = (angW(mo.ph) / 6.2832 + .28) / .56; V.flatMoon = null;
@@ -4270,6 +4294,7 @@ function bodyLines(n) {
     const D = W.dyson, f = swarmFrac();
     if (D && D.total > 0) { out.push(`A swarm of collectors catches its light: ${Math.round(f * 100)}% built.`); for (const [id, v] of Object.entries(D.by).sort((a, b) => b[1] - a[1]).slice(0, 4)) out.push(`  ${ppl(+id)}: ${Math.round(v / D.total * 100)}% of the swarm`); }
     if (W.flareUntil > W.simTime) out.push('A great flare is raging. Satellites and power grids are down.');
+    if (sunK() > .005) out.push(`It is dying: swollen to ${(1 + 2.2 * sunK()).toFixed(1)} times its old width and burning ${sunK() > .6 ? 'a deep red' : sunK() > .25 ? 'orange' : 'a hotter gold'}. It warms the Earth by ${sunHeat().toFixed(1)} °C.`);
     if (W.tb) out.push('Far beyond it, the Hevari fleet is on its way.');
   }
   if (n === 'Jupiter' && (W.ships || []).length) out.push(`${W.ships.length} ship${W.ships.length > 1 ? 's' : ''} out among the stars took on water here.`);
@@ -4283,7 +4308,7 @@ function drawBodyClose(c2, n, x, y, r) {
   const col = BODY_LOOK[n] || '#aaa', rgbC = hexRGB(col);
   if (n === 'Sun') {
     const g = c2.createRadialGradient(x, y, r * .2, x, y, r * 2); g.addColorStop(0, 'rgba(255,240,200,.9)'); g.addColorStop(.45, 'rgba(255,200,110,.35)'); g.addColorStop(1, 'rgba(255,170,80,0)'); c2.fillStyle = g; c2.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
-    const d = c2.createRadialGradient(x - r * .2, y - r * .2, r * .1, x, y, r); d.addColorStop(0, '#fff6d8'); d.addColorStop(.7, '#ffd27a'); d.addColorStop(1, '#f2a24a'); c2.fillStyle = d; c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.fill();
+    const sk = sunK(), d = c2.createRadialGradient(x - r * .2, y - r * .2, r * .1, x, y, r); d.addColorStop(0, rgb(mixA(hexRGB('#fff6d8'), [255, 196, 140], sk))); d.addColorStop(.7, rgb(mixA(hexRGB('#ffd27a'), [240, 120, 70], sk))); d.addColorStop(1, rgb(mixA(hexRGB('#f2a24a'), [180, 60, 40], sk))); c2.fillStyle = d; c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.fill();
     c2.save(); c2.beginPath(); c2.arc(x, y, r, 0, 6.2832); c2.clip();
     for (let i = 0; i < 260; i++) { const a = h01(i * 17) * 6.2832, rr = Math.sqrt(h01(i * 5)) * r, fl = .5 + .5 * Math.sin(V.t * 2 + i); c2.fillStyle = `rgba(255,${200 + 40 * fl | 0},120,${(.25 * fl).toFixed(3)})`; c2.fillRect(x + rr * Math.cos(a) - 2, y + rr * Math.sin(a) - 2, 4, 4); }
     c2.restore();
@@ -4342,7 +4367,7 @@ function drawFocus(c2, w, h) {
   const sc = side ? clamp(w / 1100, 1, 1.35) : 1, pad = side ? 0 : 16;
   const cardW = side ? clamp(w * .3, 300, 440) : w - 32, tw = cardW - pad * 2;
   const body = `${(13.5 * sc).toFixed(1)}px "IBM Plex Sans Condensed", system-ui, sans-serif`, mono = `${(11 * sc).toFixed(1)}px "IBM Plex Mono", ui-monospace, monospace`, lh = 19 * sc, items = [];
-  c2.font = body; for (const l of wrapLines(c2, F.body === 'world' ? 'A world around another star, settled by a generation ship. The people here are the far grandchildren of those who left.' : BODY_FACT[F.body], tw)) items.push([l, body, 'rgba(222,216,204,.92)', lh]);
+  c2.font = body; for (const l of wrapLines(c2, F.body === 'world' ? 'A world around another star, settled by a generation ship. The people here are the far grandchildren of those who left.' : F.body === 'Sun' && sunK() > .25 ? 'A dying star, swelling towards a red giant long before its time. Everything in this system circles it, and every age of humanity has run on its light.' : BODY_FACT[F.body], tw)) items.push([l, body, 'rgba(222,216,204,.92)', lh]);
   items.push(['', body, '', 12 * sc]); items.push(['WHAT IS GOING ON', mono, '#c9a27c', 21 * sc]);
   for (const ln of (F.body === 'world' ? worldLines(F.st) : bodyLines(F.body)).slice(0, 16)) { c2.font = body; for (const l of wrapLines(c2, ln.trim(), tw)) items.push([l, body, 'rgba(244,239,228,.98)', lh]); items.push(['', body, '', 3]); }
   items.push(['', body, '', 11 * sc]); c2.font = mono; for (const l of wrapLines(c2, 'Click anywhere, scroll or press Esc to zoom back out', tw)) items.push([l, mono, 'rgba(200,196,186,.6)', 16 * sc]);
@@ -4442,8 +4467,8 @@ function drawSpaceBackdrop(c2, w, h) {
     const D = sunDist(rOut, w, h), sx = cx + D * Math.sin(phs), sy = cy - D * Math.cos(phs);
     V.sunXY = [sx, sy];
     if (galK() > .01) drawGalaxy(c2, w, h, sx, sy);
-    const gR = (160 - 110 * sysK()) * (1 - .85 * galK()), gr = c2.createRadialGradient(sx, sy, 0, sx, sy, gR); gr.addColorStop(0, `rgba(255,244,214,${.9 * sv})`); gr.addColorStop(.12, `rgba(255,226,160,${.55 * sv})`); gr.addColorStop(1, 'rgba(255,200,120,0)');
-    const dimS = 1 - .65 * swarmFrac() * sysK(); c2.globalAlpha = dimS; c2.fillStyle = gr; c2.fillRect(sx - gR, sy - gR, gR * 2, gR * 2); c2.globalAlpha = 1; c2.fillStyle = `rgba(255,250,232,${sv * (1 - .6 * swarmFrac() * sysK())})`; c2.beginPath(); c2.arc(sx, sy, 14 * (1 - .8 * galK()), 0, 6.2832); c2.fill();
+    const sk = sunK() * (1 - galK()), gR = (160 - 110 * sysK()) * (1 - .85 * galK()) * (1 + .9 * sk), c0 = sunRGB(sk, [255, 244, 214]).join(','), c1 = sunRGB(sk, [255, 226, 160]).join(','), c3 = sunRGB(sk, [255, 200, 120]).join(','), gr = c2.createRadialGradient(sx, sy, 0, sx, sy, gR); gr.addColorStop(0, `rgba(${c0},${.9 * sv})`); gr.addColorStop(.12, `rgba(${c1},${.55 * sv})`); gr.addColorStop(1, `rgba(${c3},0)`);
+    const dimS = 1 - .65 * swarmFrac() * sysK(); c2.globalAlpha = dimS; c2.fillStyle = gr; c2.fillRect(sx - gR, sy - gR, gR * 2, gR * 2); c2.globalAlpha = 1; c2.fillStyle = `rgba(${sunRGB(sk, [255, 250, 232]).join(',')},${sv * (1 - .6 * swarmFrac() * sysK())})`; c2.beginPath(); c2.arc(sx, sy, 14 * (1 - .8 * galK()) * (1 + 1.4 * sk), 0, 6.2832); c2.fill(); V.spaceSunR = 14 * (1 - .8 * galK()) * (1 + 1.4 * sk);
     drawLens(c2, w, h, sx, sy);
   }
   if (b > .85) {
@@ -5151,6 +5176,7 @@ function sanitizeWorld(d) {
   w.colonies = (Array.isArray(d.colonies) ? d.colonies : []).filter(k => k && BODY[k.body]).slice(0, 8).map(k => ({ id: n(k.id, 0, 1e9) | 0, name: String(k.name || 'Colony').slice(0, 20), color: /^#[0-9a-f]{6}$/i.test(k.color) ? k.color : '#b8c4ff', trait: TRAITS[k.trait] ? k.trait : 'Curious', body: k.body, base: String(k.base || '').slice(0, 24), pop: n(k.pop, 0, 1e10), parent: n(k.parent, 0, 1e9) | 0, free: !!k.free, tension: n(k.tension, 0, 1), war: k.war && typeof k.war === 'object' ? { t: n(k.war.t, 0, 1e4), len: n(k.war.len, 1, 1e4, 60) } : null, era: n(k.era, 0, MAXERA) | 0, tech: n(k.tech, 0, 100), born: n(k.born, -60000, 1e6) | 0 }));
   w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0), ...sanFrom(x) }));
   w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
+  w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
   w.bases = (Array.isArray(d.bases) ? d.bases : []).filter(b => b && BODY[b.body]).slice(0, 64).map(b => ({ id: n(b.id, 0, 1e9) | 0, civ: n(b.civ, 0, 1e9) | 0, body: b.body, name: String(b.name || 'Base').slice(0, 24), pop: n(b.pop, 0, 1e9), t0: n(b.t0, -60000, 1e6) | 0 })); w.debris = n(d.debris, 0, 1); w.kessler = d.kessler == null ? null : n(d.kessler, -1e9, 1e12); w.warCount = n(d.warCount, 0, 1e6) | 0; w.lastWarT = n(d.lastWarT, -1e9, 1e12); w.nukeT = d.nukeT == null ? null : n(d.nukeT, -1e9, 1e12);
   w.sig = d.sig && typeof d.sig === 'object' ? { t: n(d.sig.t, -1e9, 1e12), era: n(d.sig.era, 0, MAXERA) | 0 } : null;
@@ -5627,7 +5653,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, seaY, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
