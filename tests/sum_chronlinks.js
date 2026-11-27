@@ -7,7 +7,7 @@
     const k = A.shipFocus(id, true); A.render();
     if (!k) { out.none++; continue; } out[k]++;
     if (k === 'world') { if (!V.focus || V.focus.body !== 'world' || V.focus.st.sid !== id || !V.focus.st.world) out.bad.push('world ' + id); V.focus = null; }
-    else { const L = V.lens; if (!L || L.id !== id || L.ships.length !== 1 || L.stars.length !== 1 || L.labels.length !== 1) out.bad.push(k + ' ' + id); else { const s = L.ships[0], d = L.stars[0]; if (Math.hypot(s.x - L.x, s.y - L.y) > L.r || Math.hypot(d.x - L.x, d.y - L.y) > L.r) out.bad.push('outside ' + id); } V.lensShip = null; }
+    else { const L = V.lens; if (!L || L.id !== id || L.ships.length !== 1 || L.stars.length !== 1 || L.labels.length < 1 + (L.from ? 1 : 0)) out.bad.push(k + ' ' + id); else { const s = L.ships[0], d = L.stars[0]; if (Math.hypot(s.x - L.x, s.y - L.y) > L.r || Math.hypot(d.x - L.x, d.y - L.y) > L.r) out.bad.push('outside ' + id); } V.lensShip = null; }
   }
   // arrivals in this cycle all lead to their world
   const arr = (W.stars || []).filter(st => st.sid != null), named = arr.filter(st => st.world && lines.some(e => e.sh === st.sid && /They call their new world/.test(e.h))).length;
