@@ -97,6 +97,12 @@ async def main():
           return JSON.stringify({ full, dead: W.ships.length, lines: W.hist.slice(-2).map(e => e.h.replace(/<[^>]+>/g, '')) }); }'''))
         check('with every star held, no colony sends a ship', r['full'] == 0, str(r))
         check('a colony whose homeland is gone still sends its own ships', r['dead'] >= 1, str(r['lines'])[:200])
+        # the home world: no ship to a star already held or targeted; with one star free, that is where it goes
+        r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W, X = A.XSTARS, c = W.civs[0]; c.alive = true; for (const o of W.civs) o.era = 12; c.era = 14; W.ships = [];
+          W.stars = X.map((s, i) => ({ star: i, civ: c.id, name: 'S' + i, pop: 1e5, t0: 1000, forgot: false, log: [], sid: 900 + i, world: 'W' + i }));
+          const R = Math.random; Math.random = () => 0; A.shipTick(1); const full = W.ships.length; W.stars.splice(7, 1); A.shipTick(1); const one = W.ships.map(s => s.star); A.shipTick(1); const after = W.ships.length; Math.random = R; c.era = 12;
+          return JSON.stringify({ full, one, after }); }'''))
+        check('the home world sends no ship when every star is held, and only to a free one otherwise', r['full'] == 0 and r['one'] == [7] and r['after'] == 1, str(r))
         # natural: from the real tick with real chance
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; W.civs[0].alive = true; W.ships = []; W.stars = [W.stars[0]]; W.stars[0].pop = 1e8; let t = 0, n = 0; for (let i = 0; i < 6000; i++) { const k = W.ships.length; A.shipTick(.5); if (W.ships.length > k) n++; if (W.ships.some(s => s.from === 0)) { t = i * .5; break; } } return JSON.stringify({ t, n }); }'''))
         check('with the real chance a big colony sends a ship now and then (mean 250 sim s)', 0 < r["t"] < 2500, str(r))

@@ -2052,7 +2052,9 @@ function shipTick(dt) {
     if (c.era < 13 || W.ships.filter(sh => sh.civ === c.id).length >= (c.era >= 14 ? 3 : 1)) continue;
     if (Math.random() < dt * (c.era >= 14 ? .012 : .006) * (c.trait === 'Curious' ? 1.5 : 1)) {
       const taken = starsTaken();
-      let si = XSTARS.findIndex((st, i) => !taken.has(i)); if (si < 0) si = (Math.random() * XSTARS.length) | 0;
+      // the first star on the list that no one holds and no ship is bound for; with every star taken, no ship is sent (they used to
+      // pick a random held star, piling dozens of colonies onto 14 stars and leaving none free for colonies to reach)
+      const si = XSTARS.findIndex((st, i) => !taken.has(i)); if (si < 0) continue;
       const sh = launchShip(c.id, si, null, XSTARS[si][1] * (c.era >= 14 ? .5 : 1));
       c.culture = Math.min(100, c.culture + 4);
       log(fillT(`{Civ} launch the generation ship ${sh.name} toward ${XSTARS[si][0]}. Its crew will not live to see the voyage end; their grandchildren's grandchildren will.`, names(c)), 'event', sh.id);
