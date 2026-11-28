@@ -37,7 +37,7 @@ docs/GAMEPLAY.md      design: ages, peoples, events, futures, endings, space
 docs/TESTING.md       how the headless tests work and how to run them
 docs/CHANGELOG.md     what was built, in order, with the user's requests
 docs/WORKFLOW.md      how work has been done here (tickets, testing, publishing, user preferences)
-tickets/tickets.xlsx  all 71 tickets + epic progress (formulas)
+tickets/tickets.xlsx  all tickets (live tracker is the source of truth) + epic progress (formulas)
 tickets/tickets.csv   same tickets as CSV
 tests/                Python + Playwright test scripts and JS summaries (endworld.py, end06.py, end07.py, endnat.py for the END epic; agi01.py…agi06.py, aginat.py for AGI; sv01.py…sv05.py, sum_chronlinks.js, sum_vlog.js, sum_marks.js, sum_dots.js, sv06.py, sum_lights.js, shot_lens.py, sv07.py, sum_sv07.js, shot_sv07.py for Star voyages; we01.py, sum_sun.js, shot_sun.py, we02.py, sum_eng.js, shot_eng.py, we03.py, sum_voy.js, shot_voy.py, we04.py, shot_arr.py for Wandering Earth; asc01.py, asc02.py, asc03.py, sum_asc.js, shot_asc.py, shot_reclaim.py, shot_hold.py for Ascension; stress.py for long-run error hunts)
 ```
@@ -46,7 +46,7 @@ tests/                Python + Playwright test scripts and JS summaries (endworl
 
 - **Done:** Foundation epic (FND-01…07), Into space (SPC-01…10), Three-Body (TB-01…08), End of the world epic (END-01…07: new cycles, ruins, nuclear winter, runaway warming, engineered plague, supervolcano and asteroid, seed vaults and libraries), AGI takeover epic (AGI-01…06: machine autonomy meter, reactions by character, caretaker ending, war against the machines, the merge, the grey spread), Star voyages epic SV-01…07 (chronicle ship lines or a settled star's dot open a one-ship lens or the world's close-up; ship on its way; voyage log and ship card; named new worlds; events marked on the path; night lights that grow with each colony; big old colonies send ships of their own from star to star), WE-01 the dying Sun (swells and reddens over its countdown, amber sky, extra heat; certain by 40,000 CE), WE-02 planet engines (built only in peace, blue jets; the Long Voyage needs them all), WE-03 the journey (the world leaves its orbit, freezes, peoples live under the ice, the Jupiter pass), WE-04 arrival or loss (A New Sun or Lost in the Dark) — the Wandering Earth epic is complete — and ASC-01 mind upload (cities go dark, data centres), ASC-02 nature reclaims (uploaded land rewilds, dark towns grow over), ASC-03 the holdouts (refusers break away; war or uneasy peace) — the Ascension epic is complete — plus many UI requests (see CHANGELOG).
 - **In progress:** FND-08 balance pass (re-run after the remaining epics).
-- **Next:** Garden, Great Silence, Simulation reveal, Speciation, Long Night, Geoengineering, First contact, Immortality. All are in `tickets/tickets.xlsx` with descriptions, "done when" criteria and dependencies.
+- **Next:** Garden, Great Silence, Simulation reveal, Speciation, Long Night, Geoengineering, First contact, Immortality, Occupied Earth (OCC-01…06: the Hevari stay, alien colonies, the reservation, resistance, four endings). All are in `tickets/tickets.xlsx` with descriptions, "done when" criteria and dependencies.
 - Several later epics already have placeholder behaviour: each future starts, has reactions, a countdown and an ending text (see `FATES` and `ENDINGS`). Their tickets replace placeholders with real content, the way TB-01…08 did for the Three-Sun Signal.
 
 ## Hard rules and user preferences (keep these)
