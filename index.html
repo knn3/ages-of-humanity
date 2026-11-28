@@ -1841,7 +1841,7 @@ function natureTick(dt) {
       N.fish[i] = clamp(fsh, 0, 1); N.f[i] = 0; N.w[i] = 0; continue;
     }
     const cap = V.cap[i], c = owner[i], m = MOIST[Math.min(NCOL - 1, Math.round(x / STEP))];
-    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3; regrow *= 1 - greyAt(i);
+    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3; const up = c && W.asc ? ascOf(c) : 0; if (up) regrow *= 1 + ASC_REGROW * up; regrow *= 1 - greyAt(i);
     let f = N.f[i], w = N.w[i], so = N.s[i];
     f += .01 * regrow * (cap - f) * (.5 + so) * dt;
     const wcap = clamp((.2 + .8 * Math.min(1, f / Math.max(.15, cap))) * (1 - poll * .6) * (dam[i] ? .8 : 1), .05, 1);
@@ -1849,7 +1849,7 @@ function natureTick(dt) {
     so += .004 * (.45 + .45 * m - so) * dt;
     if (c && !prot[i]) {
       let dm = 1e9; for (const sx of sites.get(c.id)) dm = Math.min(dm, Math.abs(sx - x));
-      const foot = clamp(Math.log10(Math.max(10, c.pop)) / 9, 0, 1) * (.35 + .65 * Math.exp(-dm / 350)) * POLICY[policyOf(c)].mul * (kept ? .2 : c.machine ? 2 : 1);
+      const foot = clamp(Math.log10(Math.max(10, c.pop)) / 9, 0, 1) * (.35 + .65 * Math.exp(-dm / 350)) * POLICY[policyOf(c)].mul * (kept ? .2 : c.machine ? 2 : 1) * (1 - ASC_K * up);
       f -= CLEAR[c.era] * foot * dt; w -= HUNT[c.era] * foot * dt; so -= FARM[c.era] * foot * (f < cap * .5 ? 1 : .3) * dt;
       if (c.era >= 8) w -= poll * .012 * foot * dt;
     }
@@ -2558,10 +2558,20 @@ const ascCan = c => !!(c && c.alive && !c.machine && c.era >= FUTURE && !(W.care
 const ascRate = c => ASC_RATE[c.trait] == null ? 1 : ASC_RATE[c.trait];
 // a building is dark once its people has uploaded past its own fixed share
 const ascDark = (c, b) => { const u = ascOf(c); return u > 0 && h01((b.s ^ 0x2f1d) + 13) < u; };
+// ASC-02: nature reclaims. On uploaded land the regrowth speeds up (natureTick: × 1 + ASC_REGROW × up) and the people's footprint
+// shrinks with the bodies left (× 1 − ASC_K × up). W.asc.green[id] (0..1) climbs over ASC_GREEN sim seconds at the pace of the upload,
+// and keeps climbing after the future ends: forests close in on the empty towns, animals come back to the streets, and the dark
+// buildings grow over one by one (ascOver).
+const ASC_GREEN = 140, ASC_REGROW = 3;
+const ascGreen = c => (W.asc && W.asc.green && W.asc.green[c.id]) || 0;
+// how far the wild has come into the town itself: never past the share that has left, so a mostly living town stays cleared
+const ascWild = c => Math.min(ascGreen(c), ascOf(c));
+const ascOver = (c, b) => ascDark(c, b) ? clamp((ascGreen(c) - .45 * h01((b.s ^ 0x1c3) + 7)) * 1.8, 0, 1) : 0;
 const ascShare = () => { let up = 0, all = 0; for (const c of alive()) { if (c.machine) continue; const m = ascMinds(c); up += m; all += m + c.pop; } return all ? up / all : 0; };
 function ascTick(dt) {
+  if (W.asc) ascGreenTick(dt);
   if (!ascOn()) return;
-  const S = W.asc || (W.asc = { up: {}, minds: {}, said: {}, pop: {} });
+  const S = W.asc || (W.asc = { up: {}, minds: {}, said: {}, pop: {}, green: {} });
   for (const c of alive()) {
     if (!ascCan(c)) continue;
     const said = S.said[c.id] || 0, r = ascRate(c);
@@ -2574,6 +2584,17 @@ function ascTick(dt) {
     if (u0 === 0) { S.said[c.id] = (S.said[c.id] || 0) | 1; log(fillT('{Civ} begin to upload their minds. Queues of the old and the dying form outside the data centres, and then everyone else’s.', names(c)), 'world'); }
     if (u1 >= .5 && !((S.said[c.id] || 0) & 2)) { S.said[c.id] |= 2; log(fillT('Half of {civ} now live in the machines. Whole districts stand empty, their windows dark.', names(c)), 'world'); }
     if (u1 >= 1 && !((S.said[c.id] || 0) & 4)) { S.said[c.id] |= 4; log(fillT('The last of {civ} who wanted to go have left their bodies. Their cities are dark; only the data centres hum.', names(c)), 'world'); banner('Minds in the machine', c.name + ' have uploaded', c.color); }
+  }
+}
+function ascGreenTick(dt) {
+  const S = W.asc, G = S.green || (S.green = {});
+  for (const c of alive()) {
+    const u = ascOf(c); if (u <= 0) continue;
+    const g0 = G[c.id] || 0; if (g0 >= 1) continue;
+    const g1 = Math.min(1, g0 + dt * u / ASC_GREEN); G[c.id] = g1;
+    const said = S.said[c.id] || 0;
+    if (g1 >= .3 && u >= .3 && !(said & 16)) { S.said[c.id] = said | 16; log(fillT('Saplings push up through the empty streets of {civ}. Deer graze in the old parks, and foxes den in the dark apartment towers.', names(c)), 'nature'); }
+    if (g1 >= .8 && u >= .7 && !(said & 32)) { S.said[c.id] = (S.said[c.id] || 0) | 32; log(fillT('The dark cities of {civ} are sinking under forest. Wolves and bears hunt where millions once lived, and only the data centres stand clear of the green.', names(c)), 'nature'); }
   }
 }
 const SUN_LINES = ['The Sun rises a little wider and a little redder each year. The days grow hot and the noon light has turned to gold.',
@@ -3287,6 +3308,15 @@ function crisisMeta() {
   return out.length ? ' · ' + out.join(' · ') : '';
 }
 // ruins on the strip: rusted towers, broken domes, fallen walls and buried highways, slowly sinking under the green
+// ASC-02 ivy, moss and young trees over an empty building; ov 0..1
+function drawOvergrowth(b, ov) {
+  const y = b.base, sd = b.s | 0, w = b.w, h = b.h, top = y - h;
+  El(b.x + w / 2, y + 1, w / 2 + 4, 2 + 6 * ov, `rgba(78,118,58,${(.45 + .45 * ov).toFixed(3)})`, Math.PI, 6.2832);
+  const nv = Math.round(ov * Math.min(9, 2 + w / 6));
+  for (let k = 0; k < nv; k++) { const vx = b.x + 1 + h01(sd + k * 31) * (w - 2), vl = h * (.25 + .7 * h01(sd + k * 17)) * ov; Ln(vx, y, vx + (h01(sd + k) - .5) * 3, y - vl, 'rgba(70,110,52,.9)', 1.2); Ci(vx, y - vl, 1.6 + 1.4 * ov, k % 2 ? '#56803c' : '#4a6e35'); }
+  if (ov > .4) for (let k = 0; k < Math.round((ov - .4) * 8); k++) Ci(b.x + h01(sd + k * 13) * w, top + h01(sd + k * 29) * Math.min(14, h * .3), 2 + 2 * ov, k % 2 ? '#4f7a3a' : '#5a8a42');
+  if (ov > .7 && w > 14) decid(b.x + w * (.2 + .6 * h01(sd + 3)), y + 1, 10 + 10 * ov, sd);
+}
 function drawRuins(x0, x1, sea) {
   for (const r of W.ruins || []) {
     const hw = r.w / 2; if (r.x + hw < x0 - 20 || r.x - hw > x1 + 20) continue;
@@ -3702,12 +3732,12 @@ function drawNature(x0, x1, sea, snowY) {
   for (let i = iA; i <= iB; i++) {
     if (V.seaCell[i]) continue;
     const cap = V.cap[i], nT = Math.round(N.f[i] * 9), own = V.cellOwner[i], nCap = own && own.era >= 1 ? Math.round(cap * 9) : nT;
-    const near = own ? own._.sitesV : null, clr = own ? 60 + own._.tierV * 22 : 0;
+    const near = own ? own._.sitesV : null, ag = own && W.asc ? ascWild(own) : 0, clr = own ? (60 + own._.tierV * 22) * (1 - .85 * ag) : 0;
     for (let k = 0; k < Math.max(nT, nCap); k += lod) {
       const tx = i * CELL + h01(i * 131 + k * 7) * CELL; if (tx < x0 - 30 || tx > x1 + 30) continue;
       const ty = gy(tx); if (ty >= sea - 1 || inRiver(tx)) continue;
       if (near && near.some(sx => Math.abs(sx - tx) < clr)) continue;
-      if (k >= nT) { if (!fine) continue; R(tx - 1.2, ty - 2.2, 2.4, 2.4, '#6b4a2e'); R(tx - 1.6, ty - 2.7, 3.2, .9, '#c9a77a'); continue; }
+      if (k >= nT) { if (!fine || ag > .2) continue; R(tx - 1.2, ty - 2.2, 2.4, 2.4, '#6b4a2e'); R(tx - 1.6, ty - 2.7, 3.2, .9, '#c9a77a'); continue; }
       const m = MOIST[Math.min(NCOL - 1, Math.round(tx / STEP))], hh = 12 + h01(i * 17 + k) * 13;
       let tn;
       if (ty < snowY + 60 || t < -2.5) { tree(tx, ty + 1, hh, '#2f5a35', ty < snowY); tn = ty < snowY ? 'Snowy pine' : 'Pine'; }
@@ -3968,7 +3998,7 @@ function drawWorld(o, x0, x1) {
     for (const bx of [c.l, c.r]) { if (bx < x0 || bx > x1) continue; const by = gy(bx); pk(bx - 3, by - 15, bx + 7, by, 1, 'flag', { name: 'Border marker', c }); Ln(bx, by, bx, by - 14, '#3a3028', 1.2); P([bx, by - 14, bx + 6, by - 12, bx, by - 10], c.color); }
     const rd = c._.road;
     if (rd && rd[1] > x0 && rd[0] < x1) { const a0 = Math.max(rd[0], x0), a1 = Math.min(rd[1], x1); o.strokeStyle = c.era < 8 ? '#8b7a5d' : c.era < 10 ? '#2f2b29' : '#4a4d52'; o.lineWidth = c.era < 8 ? 1.6 : 2.4; o.beginPath(); for (let x = a0; x <= a1; x += 6) { const y = gy(x) - .4; x === a0 ? o.moveTo(x, y) : o.lineTo(x, y); } o.stroke(); if (c.era >= 8 && c.era < 10) for (let x = a0; x <= a1; x += 5) R(x, gy(x) - 1.2, 1, 2.2, '#5a4636'); }
-    for (const b of c._.items) { if (b.x + b.w < x0 || b.x > x1) continue; if (c.ruin > .05 && b.t !== 'field' && h01(b.s ^ 0x5bd1) < c.ruin) drawRuin(b, c); else if (W.asc && ascDark(c, b)) { DARKB = true; const nL = LT.length, nG = GL.length; (DRAW[b.t] || DRAW.hut)(b, c); LT.length = nL; GL.length = nG; DARKB = false; o.save(); o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(14,16,22,.55)'; o.fillRect(b.x - 2, b.base - b.h - 4, b.w + 4, b.h + 4); o.restore(); } else (DRAW[b.t] || DRAW.hut)(b, c); }
+    for (const b of c._.items) { if (b.x + b.w < x0 || b.x > x1) continue; if (c.ruin > .05 && b.t !== 'field' && h01(b.s ^ 0x5bd1) < c.ruin) drawRuin(b, c); else if (W.asc && ascDark(c, b)) { DARKB = true; const nL = LT.length, nG = GL.length; (DRAW[b.t] || DRAW.hut)(b, c); LT.length = nL; GL.length = nG; DARKB = false; o.save(); o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(14,16,22,.55)'; o.fillRect(b.x - 2, b.base - b.h - 4, b.w + 4, b.h + 4); o.restore(); const ov = ascOver(c, b); if (ov > .02) drawOvergrowth(b, ov); } else (DRAW[b.t] || DRAW.hut)(b, c); }
     if (W.asc && ascOf(c) > 0) drawDatacentre(c);
     if (c._.train) { drawTrain(c._.train, c.era); const tn = c._.train; pk(Math.min(tn.x, tn.x - tn.dir * 52) - 8, gy(tn.x) - 13, Math.max(tn.x, tn.x - tn.dir * 52) + 8, gy(tn.x), 0, 'train', { name: c.era >= 10 ? 'High-speed train' : 'Steam train', c }); }
     for (const a of c._.agents) if (a.x > x0 - 20 && a.x < x1 + 20) drawAgent(a, c);
@@ -5391,7 +5421,7 @@ function sanitizeWorld(d) {
   w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
   w.eng = d.eng && typeof d.eng === 'object' ? { by: Object.fromEntries(Object.entries(d.eng.by && typeof d.eng.by === 'object' ? d.eng.by : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, 0, 1)])), said: n(d.eng.said, 0, 15) | 0, stall: !!d.eng.stall, done: !!d.eng.done } : null;
   { const A0 = d.asc && typeof d.asc === 'object' ? d.asc : null, nm = (o, a, b) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, a, b)]));
-    w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 15)).map(([k, v]) => [k, v | 0])), pop: {} } : null; }
+    w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 63)).map(([k, v]) => [k, v | 0])), pop: {}, green: nm(A0.green, 0, 1) } : null; }
   w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 511) | 0, done: !!d.voy.done, out: ['arrive', 'lost'].includes(d.voy.out) ? d.voy.out : null, dest: n(d.voy.dest, 0, NEWSUN.length - 1) | 0, t1: d.voy.t1 != null && Number.isFinite(+d.voy.t1) ? n(d.voy.t1, -1e9, 1e12) : null, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
@@ -5579,7 +5609,7 @@ function tipBody(t) {
     return [esc(d.name), h];
   }
   const c = t.civ, n = c._.nat, own = `<span style="color:${c.color}">${esc(c.name)}</span>`;
-  if (t.b) return [`${esc(BNAME[t.b.t] || 'Building')} · ${own}`, row('Built by', 'the ' + c.name) + row('Kind', BKIND_TXT[bkindOf(t.b.t)]) + row('Age', ERAS[c.era].name) + row('Population', fmtPop(c.pop))];
+  if (t.b) return [`${esc(BNAME[t.b.t] || 'Building')} · ${own}`, row('Built by', 'the ' + c.name) + row('Kind', BKIND_TXT[bkindOf(t.b.t)]) + row('Age', ERAS[c.era].name) + row('Population', fmtPop(c.pop)) + (W.asc && ascDark(c, t.b) ? row('Empty', 'its people uploaded') + row('Overgrown', Math.round(ascOver(c, t.b) * 100) + '%') : '')];
   if (t.a) return [`${esc(AGENT_NAME(t.a, c))} · ${own}`, row('One of', 'the ' + c.name) + row('Age', ERAS[c.era].name) + row('Mood', c.stability > 65 ? 'content' : c.stability > 35 ? 'uneasy' : 'angry') + row('Food', c.food > 60 ? 'plenty' : c.food > 35 ? 'enough' : 'hungry') + (warsOf(c).length ? row('At war', 'yes') : '')];
   let h = row('Age', ERAS[c.era].name) + row('Energy level', fmtK(energyOf(c)) + (c.era >= 12 ? '' : ' (Type I is all of a planet’s energy)')) + row('Rule', GOVT[c.era][c.govt]) + row('Character', `${c.trait}, ${TRAITS[c.trait].note.toLowerCase()}`) + row('Population', fmtPop(c.pop)) + row('Progress to the next age', c.era >= MAXERA ? 'complete' : c.tech.toFixed(0) + '%') + row('Land use', POLICY[policyOf(c)].name);
   { const sw = W.dyson && W.dyson.by[c.id], cy = (W.megas || []).filter(m => m.civ === c.id).length; if (sw || cy) h += row('Megastructures', [sw ? `${Math.round(sw / SWARM_FULL * 100)}% of the Sun's swarm` : '', cy ? `${cy} space cylinder${cy > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ')); }
@@ -5875,7 +5905,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ASC: { ASC_TIME, ASC_K, ASC_RATE }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
