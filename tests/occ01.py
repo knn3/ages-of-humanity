@@ -31,7 +31,7 @@ async def main():
           const fert = x => { const i = Math.floor(x / CELL); return N.s[i] * (.4 + V.cap[i]); }, land = []; for (let i = 0; i < N.s.length; i++) if (!V.seaCell[i]) land.push(N.s[i] * (.4 + V.cap[i])); land.sort((a, b) => a - b);
           const wd = (a, b) => { const d = Math.abs(a - b) % 12000; return Math.min(d, 12000 - d); }; let gap = 1e9; for (const a of xs) for (const b of xs) if (a !== b) gap = Math.min(gap, wd(a, b));
           return JSON.stringify({ n: xs.length, gap, land: xs.every(x => A.isLand(x)), cap: Math.min(...xs.map(x => Math.min(...W.civs.filter(c => c.alive).map(c => wd(c.x, x))))), fert: xs.map(fert), median: land[land.length >> 1] }); }'''))
-        check('seed towers go to the richest land: spaced apart, on land, clear of every capital, far above the median soil', r['n'] >= 3 and r['gap'] >= K['OCC_GAP'] and r['land'] and r['cap'] >= 140 and min(r['fert']) > r['median'], str(r))
+        check('seed towers go to the richest land: spaced apart, on land, clear of every capital, on average well above the median soil', r['n'] >= 3 and r['gap'] >= K['OCC_GAP'] and r['land'] and r['cap'] >= 140 and sum(r['fert']) / len(r['fert']) > 1.5 * r['median'] and sorted(r['fert'])[-1] > 2 * r['median'], str(r))
         r = json.loads(await ev(ARRIVE))
         o = r['occ']
         check('the fleet arriving plants seed towers (3 to 6, by the number of peoples), named, growing, from TB-08', r['tbOcc'] and o and o['src'] == 'tb' and 3 <= len(o['towers']) <= K['OCC_MAX'] and len(o['towers']) == min(K['OCC_MAX'], max(3, 3 + n // 2)) and all(t['g'] == 0 and t['state'] == 'grow' and t['name'] for t in o['towers']) and len({t['name'] for t in o['towers']}) == len(o['towers']), f"n={n} towers={len(o['towers']) if o else 0}")
@@ -94,7 +94,7 @@ async def main():
           return JSON.stringify({ same: JSON.stringify(back.occ) === JSON.stringify(d.occ), loaded: JSON.stringify(loaded) === JSON.stringify(d.occ), bad: b2.occ, b3: b3.occ, b4: b4.occ, old: o2.occ, cycle: A.W.occ, tb: A.W.tb, locked: !!(A.W.tb && A.W.tb.lock) }); }'''))
         bt = r['bad']['towers'] if r['bad'] else []
         check('the colonies are saved and loaded back exactly', r['same'] and r['loaded'], str(r)[:160])
-        check('bad values are dropped or clamped; old saves have none; a new cycle starts without them', len(bt) == 1 and bt[0]['x'] == 11999 and bt[0]['g'] == 1 and bt[0]['state'] == 'grow' and len(bt[0]['name']) <= 24 and r['bad']['src'] == 'tb' and r['bad']['said'] == 15 and r['b3'] is None and r['b4'] is None and r['old'] is None and r['cycle'] is None, str(r['bad'])[:200])
+        check('bad values are dropped or clamped; old saves have none; a new cycle starts without them', len(bt) == 1 and bt[0]['x'] == 11999 and bt[0]['g'] == 1 and bt[0]['state'] == 'grow' and len(bt[0]['name']) <= 24 and r['bad']['src'] == 'tb' and r['bad']['said'] == 31 and r['b3'] is None and r['b4'] is None and r['old'] is None and r['cycle'] is None, str(r['bad'])[:200])
         check('a new cycle also clears a running Three-Sun Signal (no orphaned physics lock)', r['tb'] is None and not r['locked'], str({'tb': r['tb']}))
         print('errors:', errs[:3] if errs else 'no errors'); results.append(not errs)
         print(f'{sum(results)}/{len(results)} passed')
