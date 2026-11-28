@@ -524,6 +524,13 @@ function drawGalaxy(c2, w, h, sx, sy) {
   // settled stars: a small dot in their people's colour, no labels or lines; a left click on it (or its chronicle lines) opens the world
   for (const st of W.stars || []) { const [x, y] = starPos(st.star), px = sx + x * s, py = sy + y * s, c = civById(st.civ); if (Math.hypot(px - sx, py - sy) < 14) continue; c2.fillStyle = c ? c.color : '#c9a27c'; c2.globalAlpha = .7 * k; c2.beginPath(); c2.arc(px, py, 1.6, 0, 6.2832); c2.fill(); c2.globalAlpha = 1;
     if (k > .3) V.orbPicks.push({ x: px, y: py, r: 7, kind: 'starcol', c, i: W.stars.indexOf(st), d: st }); }
+  // SIL-01 the ruins among the stars: a dim crossed ring where each dead civilisation was found, turning with the disc
+  if (W.sil && k > .3) for (let i = 0; i < W.sil.sites.length; i++) { const t = W.sil.sites[i], a = t.a + gOmega(t.r) * T, px = gx + t.r * Math.cos(a) * R, py = gy + t.r * Math.sin(a) * R;
+    if (px < -10 || px > w + 10 || py < -10 || py > h + 10) continue; const al = Math.min(1, (k - .3) / .4);
+    c2.globalAlpha = al; c2.strokeStyle = 'rgba(196,112,96,.95)'; c2.lineWidth = 1.3; c2.beginPath(); c2.arc(px, py, 5.5, 0, 6.2832); c2.stroke();
+    c2.strokeStyle = 'rgba(232,200,190,.85)'; c2.lineWidth = 1; c2.beginPath(); c2.moveTo(px - 3.2, py - 3.2); c2.lineTo(px + 3.2, py + 3.2); c2.moveTo(px + 3.2, py - 3.2); c2.lineTo(px - 3.2, py + 3.2); c2.stroke();
+    c2.fillStyle = 'rgba(196,112,96,.12)'; c2.beginPath(); c2.arc(px, py, 11, 0, 6.2832); c2.fill(); c2.globalAlpha = 1;
+    V.orbPicks.push({ x: px, y: py, r: 9, kind: 'deadciv', i, d: t }); }
   // the Sun: a small bright point with a soft ring, so you can find home on the Orion Spur
   if (k > .3) { const a = Math.min(1, (k - .3) / .5); c2.fillStyle = `rgba(255,240,200,${a.toFixed(3)})`; c2.beginPath(); c2.arc(sx, sy, 2.6, 0, 6.2832); c2.fill(); c2.strokeStyle = `rgba(255,236,190,${(.5 * a).toFixed(3)})`; c2.lineWidth = 1; c2.beginPath(); c2.arc(sx, sy, 7, 0, 6.2832); c2.stroke(); V.orbPicks.push({ x: sx, y: sy, r: 9, kind: 'sungal', c: null, i: 0, d: null }); V.orbPicks.push({ x: gx, y: gy, r: Math.max(12, R * .05), kind: 'gcore', c: null, i: 0, d: null }); }
   c2.restore();
@@ -1916,7 +1923,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); occTick(W._fateT); gdnTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); occTick(W._fateT); gdnTick(W._fateT); silTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -2074,7 +2081,7 @@ function shipTick(dt) {
   if (!W.ships) W.ships = []; if (!W.stars) W.stars = [];
   for (const c of alive()) {
     if (c.era < 13 || W.ships.filter(sh => sh.civ === c.id).length >= (c.era >= 14 ? 3 : 1)) continue;
-    if (Math.random() < dt * (c.era >= 14 ? .012 : .006) * (c.trait === 'Curious' ? 1.5 : 1)) {
+    if (Math.random() < dt * (c.era >= 14 ? .012 : .006) * (c.trait === 'Curious' ? 1.5 : 1) * (W.sil ? silShips(c) : 1)) {
       const taken = starsTaken();
       // the first star on the list that no one holds and no ship is bound for; with every star taken, no ship is sent (they used to
       // pick a random held star, piling dozens of colonies onto 14 stars and leaving none free for colonies to reach)
@@ -2088,7 +2095,7 @@ function shipTick(dt) {
   // to colony, not only from the home world. One ship in flight per colony; only to a star no one holds or is heading for.
   for (const st of [...W.stars]) {
     if (st.pop < COL_SHIP_POP || W.year - st.t0 < COL_SHIP_AGE || W.ships.length >= SHIPS_MAX || W.ships.some(sh => sh.from === st.star)) continue;
-    if (Math.random() >= dt * COL_SHIP_RATE) continue;
+    if (Math.random() >= dt * COL_SHIP_RATE * (W.sil && civById(st.civ) ? silShips(civById(st.civ)) : 1)) continue;
     const si = nearFreeStar(st.star); if (si < 0) continue;
     const [ax, ay] = starXY(st.star), [bx, by] = starXY(si), sh = launchShip(st.civ, si, st.star, Math.hypot(bx - ax, by - ay) * .5), c = civById(st.civ);
     sh.fromW = st.world || XSTARS[st.star][0];
@@ -2403,7 +2410,7 @@ function riseAgain() {
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
-  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null; W.occ = null; W.tb = null;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null; W.sil = null; W.occ = null; W.tb = null;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
   log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
@@ -2476,6 +2483,9 @@ const FATES = {
   silence: { name: 'The Great Silence', span: 120,
     drive: x => .05 + .1 * clamp(x.edge - 1, 0, 2),
     start: 'Telescopes find the ruins of dead civilisations around distant stars. Something, it seems, stops almost everyone.',
+    begin: () => silDiscover(),
+    clock: a => { const f = FATES.silence, left = clockYear(a.t0 + f.span) - clockYear(W.simTime), sh = silShares(), n = alive().filter(c => !c.machine).length, k = x => Math.round(sh[x] * n);
+      return [`${k('hide')} gone quiet · ${k('arm')} arming · ${k('race')} racing outward${W.simTime - a.t0 < f.span ? ' · the fear fades in ' + fmtSpan(Math.max(1, left)) : ''}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
     end: 'The ruins become a matter for historians, and the fear eases.',
     stress: c => c.trait === 'Curious' ? 'boom' : 'threat' },
   simulation: { name: 'The Watcher', span: 160,
@@ -2819,6 +2829,76 @@ function drawGarden(b, k) {
   for (let k2 = 0; k2 < Math.min(4, w / 10); k2++) { const vx = b.x + 2 + h01(sd + k2 * 41) * (w - 4), vl = Math.min(b.h * .5, 6 + h01(sd + k2 * 7) * 16); Ln(vx, top, vx, top + vl, 'rgba(84,140,62,.9)', 1.1); Ci(vx, top + vl, 1.3, '#d9739a'); }
   El(b.x + w / 2, y + 1, w / 2 + 3, 3, 'rgba(96,150,70,.75)', Math.PI, 6.2832);
 }
+// SIL-01 discovery of the ruins. When the Great Silence begins (FATES.silence.begin), the astronomers of the most advanced people find
+// SIL_MIN..SIL_MAX dead civilisations far across the galaxy (W.sil.sites: name, kind, galactic radius r and angle a, how long dead in
+// millions of years). A chronicle line for the find and one for each site; in the galaxy view each is a crossed ring (right-click: 'deadciv').
+const SIL_MIN = 3, SIL_MAX = 5;
+const SIL_NAMES = ['the Kethra Shell', 'the Ossuary Ring', 'the Varn Beacon', 'the Glass Worlds', 'the Tyrr Halo', 'the Hollow Suns', 'the Ammun Lattice', 'the Ember Belt', 'the Quiet Choir', 'the Sorrow Gate'];
+const SIL_KINDS = [
+  ['ring', 'a shattered ring around its star', 'A ring of habitats once circled this star. It was broken all at once, and its pieces have been falling inwards ever since.'],
+  ['beacon', 'a radio beacon that stopped mid-word', 'For thousands of years it called out across the galaxy. Then it stopped in the middle of a message, and has never spoken again.'],
+  ['glass', 'worlds whose surfaces were melted to glass', 'Every rocky world here has a crust of glass, as if all of them were burned in the same instant.'],
+  ['shell', 'a half-built shell around a dimmed star', 'Someone began to wrap this star in a shell to drink all of its light. The work stops abruptly, two-thirds done.'],
+  ['tombs', 'cities sealed and buried under ice', 'The cities here were sealed from the inside and left to freeze. No one came out, and no one came back for them.'],
+  ['cinder', 'a star pushed to explode before its time', 'This star should have shone for billions of years more. Something made it explode, and the worlds around it went with it.']];
+const silOn = () => !!W.sil;
+function silDiscover(by) {
+  if (W.sil) return W.sil;
+  const cs = alive().filter(c => !c.machine), c = by || cs.reduce((b, x) => !b || x.era > b.era || (x.era === b.era && x.tech > b.tech) ? x : b, null);
+  const n = SIL_MIN + Math.floor(Math.random() * (SIL_MAX - SIL_MIN + 1)), pool = [...SIL_NAMES].sort(() => Math.random() - .5), kinds = [...SIL_KINDS].sort(() => Math.random() - .5), sites = [];
+  for (let i = 0; i < n; i++) { const r = rand(.18, .92), a = Math.random() * 6.2832, K = kinds[i % kinds.length];
+    // never on top of home (the Sun sits at GSUN_R, GSUN_A at the galaxy's own time zero)
+    if (Math.abs(r - GSUN_R) < .06 && Math.abs(((a - GSUN_A) % 6.2832 + 6.2832) % 6.2832 - 3.1416) > 2.9) { i--; continue; }
+    sites.push({ name: pool[i], kind: K[0], r: +r.toFixed(4), a: +a.toFixed(4), dead: Math.round(rand(2, 900)) }); }
+  W.sil = { t0: W.simTime, y: Math.round(W.year), by: c ? c.id : null, byName: c ? c.name : '', sites, said: 0, stance: {} };
+  const who = c ? fillT('the astronomers of {civ}', names(c)) : 'astronomers';
+  log(`<b>The ruins among the stars.</b> ${who[0].toUpperCase() + who.slice(1)} find the remains of ${n} dead civilisations scattered across the galaxy. None of them is younger than two million years, and none of them is still speaking.`, 'world');
+  for (const t of sites) log(`${t.name[0].toUpperCase() + t.name.slice(1)}: ${silKind(t)[1]}, dead for ${t.dead} million years.`, 'world');
+  banner('The ruins among the stars', `${n} dead civilisations found`, '#c47060');
+  return W.sil;
+}
+// SIL-02 fear or urgency. Once the ruins are found every people takes a stance by character (SIL_STANCE weights): hide (go quiet),
+// arm, or race into space; W.sil.stance[id]. The fear (silFear) starts at 1 and fades over SIL_FEAR sim s. While it lasts each stance
+// acts on its people (silTick: hide slows research, steadies them and sends few ships; arm builds armies and costs calm; race speeds
+// research and sends twice the ships), and the shares of the stances shift the pressure of the other futures (silShift in fateDrives).
+const SIL_FEAR = 500;
+const SIL_STANCE = { Devout: { hide: .7, arm: .2, race: .1 }, Warlike: { hide: .1, arm: .7, race: .2 }, Curious: { hide: .2, arm: .15, race: .65 }, Mercantile: { hide: .35, arm: .2, race: .45 }, Merged: { hide: .2, arm: .3, race: .5 } };
+// how each stance's share (× fear) moves each future's drive
+const SIL_SHIFT = { hide: { silence: .9, garden: .3, contact: -.5, threebody: -.3 }, arm: { collapse: .3, agi: .3, longnight: .25, garden: -.3 }, race: { speciation: .4, contact: .3, threebody: .2 } };
+const SIL_TXT = { hide: '{Civ} go quiet. They switch off their beacons, stop their broadcasts and turn their telescopes inward, hoping not to be noticed.', arm: '{Civ} decide that whatever killed the others will not find them unready. Shipyards turn out warships and the sky fills with sentinels.', race: '{Civ} see the ruins as a warning to hurry: spread out among the stars, so that no single blow can end them.' };
+const SIL_LAB = { hide: 'gone quiet', arm: 'arming against the dark', race: 'racing for the stars' };
+const silFear = () => W.sil ? clamp(1 - (W.simTime - W.sil.t0) / SIL_FEAR, 0, 1) : 0;
+const silStance = c => (W.sil && W.sil.stance && W.sil.stance[c.id]) || null;
+function silPick(c) { const w = SIL_STANCE[c.trait] || SIL_STANCE.Curious; let r = Math.random() * (w.hide + w.arm + w.race); for (const k of ['hide', 'arm', 'race']) { r -= w[k]; if (r < 0) return k; } return 'race'; }
+function silTick(dt) {
+  const S = W.sil; if (!S) return; const St = S.stance || (S.stance = {}), f = silFear(); if (f <= 0) return;
+  for (const c of alive()) {
+    if (c.machine) continue;
+    if (!St[c.id]) { St[c.id] = silPick(c); log(fillT(SIL_TXT[St[c.id]], names(c)), 'world'); floater(c.x, SIL_LAB[St[c.id]], St[c.id] === 'arm' ? '#e36a55' : St[c.id] === 'hide' ? '#9aa3ad' : '#8fb8ff'); }
+    const k = St[c.id];
+    if (k === 'hide') c.mods.push({ until: W.simTime + 1.5, techMul: 1 - .12 * f, stab: 5 * f, name: 'Gone quiet' });
+    else if (k === 'arm') { c.military = Math.min(100, c.military + (95 - c.military) * .03 * f * dt); c.mods.push({ until: W.simTime + 1.5, stab: -5 * f, name: 'Arming' }); }
+    else c.mods.push({ until: W.simTime + 1.5, techMul: 1 + .15 * f, name: 'Racing for the stars' });
+    // one mod of each kind at a time
+    for (let i = c.mods.length - 2; i >= 0; i--) if (c.mods[i].name === c.mods[c.mods.length - 1].name) c.mods.splice(i, 1);
+  }
+  if (!(S.said & 1) && f < .5) { S.said |= 1; log('The first terror of the ruins eases. The beacons that went dark stay dark, the warships stay in their docks, and the far colonies keep growing.', 'world'); }
+}
+// colony ships sent by a people: racing doubles them, hiding cuts them
+const silShips = c => { const k = silStance(c), f = silFear(); return !k || !f ? 1 : k === 'race' ? 1 + f : k === 'hide' ? 1 - .7 * f : 1; };
+function silShares() { const cs = alive().filter(c => !c.machine), o = { hide: 0, arm: 0, race: 0 }; if (!cs.length) return o; for (const c of cs) { const k = silStance(c); if (k) o[k]++; } for (const k in o) o[k] /= cs.length; return o; }
+function silShift(out) {
+  const f = silFear(); if (!f) return out; const sh = silShares();
+  for (const k in SIL_SHIFT) for (const id in SIL_SHIFT[k]) if (out[id] != null) out[id] = Math.max(0, out[id] + SIL_SHIFT[k][id] * sh[k] * f);
+  return out;
+}
+const silKind = t => SIL_KINDS.find(k => k[0] === t.kind) || SIL_KINDS[0];
+function sanSil(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.sites)) return null;
+  const n = (v, a, b, def = 0) => Number.isFinite(+v) ? clamp(+v, a, b) : def;
+  const sites = d.sites.filter(t => t && typeof t === 'object').slice(0, SIL_MAX).map(t => ({ name: String(t.name || 'the ruins').slice(0, 30), kind: SIL_KINDS.some(k => k[0] === t.kind) ? t.kind : 'ring', r: n(t.r, .05, 1, .5), a: n(t.a, 0, 6.2832), dead: n(t.dead, 1, 1e4, 100) | 0 }));
+  return sites.length ? { t0: n(d.t0, -1e9, 1e12), y: n(d.y, -60000, 1e6) | 0, by: d.by == null ? null : n(d.by, 0, 1e9) | 0, byName: String(d.byName || '').slice(0, 20), sites, said: n(d.said, 0, 255) | 0, stance: Object.fromEntries(Object.entries(d.stance && typeof d.stance === 'object' ? d.stance : {}).filter(([k, v]) => /^\d+$/.test(k) && ['hide', 'arm', 'race'].includes(v)).slice(0, 60)) } : null;
+}
 const SUN_LINES = ['The Sun rises a little wider and a little redder each year. The days grow hot and the noon light has turned to gold.',
   'The Sun now looks half as wide again as it did. Harvests wilt, the snows retreat up the mountains and the seas creep onto the coasts.',
   'A swollen orange Sun fills a broad piece of the sky. Noon is a furnace; the old blue of the sky has gone to amber.',
@@ -2837,7 +2917,7 @@ function fateCtx() {
     mach: cs.reduce((a, c) => Math.max(a, c.mach || 0), 0), machAvg: avg('mach') || 0,
     since: W.simTime - W.fates.edgeT, top: maxEra(), edge: cs.filter(c => c.era > FUTURE).length, acts: W.acts || 0, peace: W.simTime - (W.lastWarT || 0), green };
 }
-function fateDrives() { const x = fateCtx(), out = {}; for (const id in FATES) out[id] = Math.max(0, FATES[id].drive(x)); return out; }
+function fateDrives() { const x = fateCtx(), out = {}; for (const id in FATES) out[id] = Math.max(0, FATES[id].drive(x)); return W.sil ? silShift(out) : out; }
 function fateTick(dt) {
   const F = W.fates; if (F.edgeT == null || !alive().length || W.care) return;
   const d = fateDrives(), act = new Set(F.active.map(a => a.id));
@@ -5704,6 +5784,7 @@ function sanitizeWorld(d) {
     w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 63)).map(([k, v]) => [k, v | 0])), pop: {}, green: nm(A0.green, 0, 1), hold: sanHold(A0.hold) } : null; }
   { const G0 = d.gdn && typeof d.gdn === 'object' ? d.gdn : null, nm = (o, a, b) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, a, b)]));
     w.gdn = G0 ? { on: Object.fromEntries(Object.entries(nm(G0.on, 0, 1)).filter(([k, v]) => v > 0).map(([k]) => [k, 1])), k: nm(G0.k, 0, 1), said: Object.fromEntries(Object.entries(nm(G0.said, 0, 7)).map(([k, v]) => [k, v | 0])), hold: Number.isFinite(+G0.hold) ? clamp(+G0.hold, 0, 1e4) : 0, top: Number.isFinite(+G0.top) ? clamp(+G0.top, 0, 1e13) : 0, end: sanGdnEnd(G0.end) } : null; }
+  w.sil = sanSil(d.sil);
   w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 511) | 0, done: !!d.voy.done, out: ['arrive', 'lost'].includes(d.voy.out) ? d.voy.out : null, dest: n(d.voy.dest, 0, NEWSUN.length - 1) | 0, t1: d.voy.t1 != null && Number.isFinite(+d.voy.t1) ? n(d.voy.t1, -1e9, 1e12) : null, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
@@ -5801,6 +5882,7 @@ function spaceTipLive(q) {
   if (q.kind === 'claim') return (W.spaceRes || []).includes(q.d) && spaceKnown(q.d) && sysK() * (1 - galK()) > .3;
   if (q.kind === 'voyage') return (W.ships || []).includes(q.d) && galK() > .3;
   if (q.kind === 'starcol') return (W.stars || []).includes(q.d) && galK() > .3;
+  if (q.kind === 'deadciv') return !!W.sil && W.sil.sites.includes(q.d) && galK() > .3;
   if (q.kind === 'sungal' || q.kind === 'gcore') return galK() > .3;
   if (q.kind === 'cylinder' && !(W.megas || [])[q.i]) return false;
   return sysK() < .3 && (!q.c || q.c.alive);
@@ -5846,6 +5928,7 @@ const ORB_INFO = {
 function orbitTipBody(q) {
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`, I = ORB_INFO[q.kind] || ['Object in orbit', ''], c = q.c;
   if (q.kind === 'claim') { const r = q.d, E = ELEMENTS[r.type]; return [esc(E.name) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(E.sub)}.</span>` + row('Where', SPACE_BODY[E.space]) + row('Mined by', c ? 'the ' + c.name : 'no one yet: peoples from the Planetary Age on can take it')]; }
+  if (q.kind === 'deadciv') { const t = q.d, K = silKind(t); return [esc(t.name[0].toUpperCase() + t.name.slice(1)), `<span>${esc(K[2])}</span>` + row('What is left', K[1]) + row('Dead for', t.dead + ' million years') + row('Found', fmtYear(W.sil.y) + (W.sil.byName ? ' by the astronomers of the ' + W.sil.byName : '')) + row('Where', (Math.round(t.r * 50) * 1000).toLocaleString('en-US') + ' light years from the centre of the galaxy')]; }
   if (q.kind === 'starcol') { const st = q.d; return [esc(XSTARS[st.star][0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), `<span>${esc(I[1])}</span>` + row('Distance', starLy(st.star)) + row('Founded by', 'the crew of the ' + st.name + (st.from != null ? ', sent from ' + (st.fromW || XSTARS[st.from][0]) : c ? ', sent by the ' + c.name : '')) + row('Settled', fmtYear(st.t0)) + row('People', fmtPop(st.pop)) + (st.world ? row('World', st.world + ' (left click to see it)') : '')]; }
   if (q.kind === 'voyage') { const sh = q.d, f = clamp((W.simTime - sh.t0) / sh.dur, 0, 1), col = c ? c.color : '#c9a27c', c0 = sh.crew0 || 1e5;
     const lg = (sh.log && sh.log.length ? sh.log : [{ y: sh.y0, k: 'launch' }]).map(e => `<span class="vl"><b>${esc(fmtYear(e.y))}</b> ${esc(vlogText(e.k, sh))}</span>`).join('');
@@ -5908,6 +5991,7 @@ function tipBody(t) {
   { const sh = (W.ships || []).filter(x => x.civ === c.id), stc = (W.stars || []).filter(x => x.civ === c.id); if (sh.length) h += row('Ships in flight', sh.map(x => `${x.name} to ${XSTARS[x.star][0]} (${Math.round((W.simTime - x.t0) / x.dur * 100)}%)`).join(', ')); if (stc.length) h += row('Star colonies', stc.map(x => XSTARS[x.star][0]).join(', ')); }
   if (W.asc && (ascOf(c) > 0 || (W.asc.said[c.id] & 8))) h += row('Uploaded', ascOf(c) > 0 ? `${Math.round(ascOf(c) * 100)}% (${fmtPop(ascMinds(c))} minds in the machines)` : 'refuses the upload');
   if (ascHold(c)) h += row('Holdouts', ascHoldText(c));
+  if (silStance(c)) h += row('After the ruins', SIL_LAB[silStance(c)] + (silFear() > 0 ? '' : ' (the fear has faded)'));
   if (W.gdn && (W.gdn.on[c.id] || gdnOf(c) > 0)) h += row('Garden path', W.gdn.on[c.id] ? `${Math.round(gdnOf(c) * 100)}% of the way to a garden land` : 'left it; the cities grow back');
   { const bs = basesOf(c); if (bs.length) h += row('Off-world', bs.map(b => `${b.name} on ${BODY[b.body].name} (${fmtPop(b.pop)})`).join(', ')); }
   if ((c.bunker || 0) > .05) h += row(c.trait === 'Devout' ? 'Deep vaults' : 'Bunkers', Math.round(c.bunker * 100) + '% built' + (c.bunker >= .5 ? ', enough to shelter them through a nuclear winter' : ''));
@@ -6198,7 +6282,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { isLand, infoContent, occLand, occTick, occSites, occWithdraw, occStage, occPop, occLive, sanOcc, tbAdvanced, OCC: { OCC_GROW, OCC_GAP, OCC_MAX }, get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, gdnTick, gdnOf, gdnAll, gdnReady, gdnEndTick, gardenRows, gardenStory, sanGdnEnd, showEpilogue, gdnFit, gdnCan, gdnOnF, gdnPeoples, drawGarden, GDN: { GDN_PULL, GDN_ALL_K, GDN_FOREST, GDN_WILD, GDN_HOLD, GDN_TIME, GDN_K, GDN_JOIN, GDN_DRIFT, GDN_DRIFT_ERA, GDN_TRAIT }, policyOf, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, silDiscover, silKind, silTick, silFear, silStance, silPick, silShips, silShares, silShift, SIL_STANCE, SIL_SHIFT, SIL_FEAR, fateDrives, silOn, sanSil, SIL: { SIL_MIN, SIL_MAX, SIL_NAMES, SIL_KINDS }, drawGalaxy, gdnTick, gdnOf, gdnAll, gdnReady, gdnEndTick, gardenRows, gardenStory, sanGdnEnd, showEpilogue, gdnFit, gdnCan, gdnOnF, gdnPeoples, drawGarden, GDN: { GDN_PULL, GDN_ALL_K, GDN_FOREST, GDN_WILD, GDN_HOLD, GDN_TIME, GDN_K, GDN_JOIN, GDN_DRIFT, GDN_DRIFT_ERA, GDN_TRAIT }, policyOf, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
