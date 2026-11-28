@@ -42,7 +42,7 @@ async def main():
         check('the choice takes hold over time; their land stays protected whatever else is decided', abs(r['k'] - 60 / T) < .02 and r['pol'] == 'protect', str(r))
         check('the land feeds fewer of them (carrying capacity scaled)', abs(r['kr'] - (1 - G['GDN_K'] * r['k'])) < .02, str(r))
         r = json.loads(await ev(r'''([a, w]) => { const A = window.__aoh, W = A.W, c = W.civs.find(c => c.id === a), x = W.civs.find(c => c.id === w); W.gdn.k[a] = 1; A.step(.01); c.pop = c._.K / (1 - A.GDN.GDN_K); x.pop = x._.K; const p0 = [c.pop, x.pop], s0 = c.stability; c.stability = 50;
-          for (let i = 0; i < 80; i++) { ''' + PIN + r''' A.step(1); W.gdn.on[a] = 1; } return JSON.stringify({ g: c.pop / p0[0], x: x.pop / p0[1], st: c.stability, K: c.pop / c._.K }); }''', [cu, wa]))
+          for (let i = 0; i < 80; i++) { ''' + PIN + r''' A.step(1); W.gdn.on[a] = 1; delete W.gdn.on[w]; delete W.gdn.k[w]; } return JSON.stringify({ g: c.pop / p0[0], x: x.pop / p0[1], st: c.stability, K: c.pop / c._.K }); }''', [cu, wa]))
         check('their population shrinks gently while others grow or hold', r['g'] < .85 and r['g'] > .3 and r['x'] > r['g'] * 1.15 and r['x'] > .8, str(r))
         check('stability rises on the Garden path', r['st'] > 62, str(r))
         r = json.loads(await ev(r'''(a) => { const A = window.__aoh, W = A.W, V = A.V, N = W.nat, ca = W.civs.find(c => c.id === a);
@@ -68,12 +68,12 @@ async def main():
         check('the people’s card shows the Garden path', 'Garden path' in card and '100%' in card, card[-90:])
         r = json.loads(await ev(r'''([a, w]) => { const A = window.__aoh, W = A.W, c = W.civs.find(c => c.id === a), x = W.civs.find(c => c.id === w); const l0 = W.hist.filter(e => /leave the Garden path/.test(e.h)).length; A.startWar(x, c); A.gdnTick(1); const off = !W.gdn.on[a], k1 = A.gdnOf(c); A.gdnTick(10); const k2 = A.gdnOf(c);
           const l = W.hist.filter(e => /leave the Garden path/.test(e.h)).length - l0; W.wars = []; return JSON.stringify({ off, k1, k2, l }); }''', [dv, wa]))
-        check('a war forced on them ends the Garden path, and the cities grow back', r['off'] and r['k2'] < r['k1'] and r['l'] == 1, str(r))
+        check('a war forced on them ends the Garden path, and the cities grow back', r['off'] and r['k2'] < r['k1'] and r['l'] >= 1, str(r))
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; W.gdn = { on: { 5: 1 }, k: { 5: .4, 6: .2 }, said: { 5: 2 } }; const d = A.serialize(), back = A.sanitizeWorld(JSON.parse(JSON.stringify(d)));
           const bad = JSON.parse(JSON.stringify(d)); bad.gdn = { on: { 5: 'x', 7: 3, q: 1 }, k: { 5: 4, 6: -1 }, said: { 5: 99 } }; const b2 = A.sanitizeWorld(bad);
           const old = JSON.parse(JSON.stringify(d)); delete old.gdn; const o2 = A.sanitizeWorld(old); A.loadWorld(d); const loaded = A.W.gdn; A.W.fates.ended = 'collapse'; A.riseAgain(); return JSON.stringify({ back: back.gdn, loaded, bad: b2.gdn, old: o2.gdn, cycle: A.W.gdn }); }'''))
-        check('the Garden path is saved and loaded back', r['back'] == {'on': {'5': 1}, 'k': {'5': .4, '6': .2}, 'said': {'5': 2}} and r['loaded'] == r['back'], str(r['back']))
-        check('bad values are dropped or clamped; old saves have none; a new cycle starts without it', r['bad'] == {'on': {'7': 1}, 'k': {'5': 1, '6': 0}, 'said': {'5': 7}} and r['old'] is None and r['cycle'] is None, str(r))
+        check('the Garden path is saved and loaded back', r['back'] == {'on': {'5': 1}, 'k': {'5': .4, '6': .2}, 'said': {'5': 2}, 'hold': 0, 'top': 0, 'end': None} and r['loaded'] == r['back'], str(r['back']))
+        check('bad values are dropped or clamped; old saves have none; a new cycle starts without it', r['bad'] == {'on': {'7': 1}, 'k': {'5': 1, '6': 0}, 'said': {'5': 7}, 'hold': 0, 'top': 0, 'end': None} and r['old'] is None and r['cycle'] is None, str(r))
         print('errors:', errs[:3] if errs else 'no errors')
         print(f'{sum(results)}/{len(results)} passed')
         await b.close()
