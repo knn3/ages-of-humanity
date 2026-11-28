@@ -7,4 +7,7 @@
     // ASC-02: forests and animals on uploaded land (peoples ≥ 50% uploaded) against everyone else's, and how far it has grown over
     green: S && S.green ? Object.entries(S.green).filter(([k, v]) => v > .05).map(([k, v]) => k + ':' + Math.round(v * 100)) : [], reclaim: (() => { const up = [], rest = []; for (const c of W.civs) { if (!c.alive || !c._.nat) continue; ((S && S.up[c.id] >= .5) ? up : rest).push(c._.nat); } const av = (a, k) => a.length ? +(a.reduce((s, n) => s + n[k], 0) / a.length).toFixed(2) : null; return { up: [av(up, 'fr'), av(up, 'w')], rest: [av(rest, 'fr'), av(rest, 'w')] }; })(),
     saplings: cnt(/Saplings push up through the empty streets/), sinking: cnt(/are sinking under forest/),
+    // ASC-03: holdout peoples (split from whom, or Devout from the start), tension, how it ended; lines
+    hold: S && S.hold ? Object.entries(S.hold).map(([k, H]) => { const h = W.civs.find(c => c.id === +k); return (h ? h.name.slice(0, 6) : k) + (H.from != null ? '<' + H.from : '') + ':' + (H.out || Math.round(H.ten * 100) + '%') + (H.end ? '/' + H.end : '') + (h && !h.alive ? '†' : ''); }) : [],
+    split: cnt(/break away and call themselves/), tomb: cnt(/data centres of .* tombs/), sab: cnt(/Saboteurs from/), uneasy: cnt(/sign an uneasy peace/), march: cnt(/march on the data centres/), plugs: cnt(/pull the plugs/), drones: cnt(/Drones flown by the uploaded/),
     saved: !S ? back.asc === null : !!back.asc && Object.keys(S.up).every(k => Math.abs(back.asc.up[k] - S.up[k]) < 1e-3) }); }
