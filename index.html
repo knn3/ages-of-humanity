@@ -1241,7 +1241,7 @@ function updateCiv(c, dt) {
   for (let i = c.mods.length - 1; i >= 0; i--) { const m = c.mods[i]; if (m.until <= W.simTime) { c.mods.splice(i, 1); continue; } mFood += m.food || 0; mTech *= m.techMul || 1; mStab += m.stab || 0; }
   const width = Math.max(100, c.r - c.l);
   const climate = clamp(1 - Math.abs(t) * (c.era >= 10 ? .05 : .09), .35, 1.1);
-  const K = ERAS[c.era].K * clamp(.35 + .65 * r.food, .3, 3) * Math.pow(width / 400, .7) * climate * (1 - ASC_K * ascOf(c));
+  const K = ERAS[c.era].K * clamp(.35 + .65 * r.food, .3, 3) * Math.pow(width / 400, .7) * climate * (1 - ASC_K * ascOf(c)) * (1 - GDN_K * gdnOf(c));
   c._.K = K;
   const nW = warsOf(c).length, p = c.pop / K;
   const foodT = clamp(95 - 45 * p, 3, 100) + mFood - Math.abs(t) * 4 - nW * 6 + (pol === 'exploit' ? 5 : pol === 'protect' ? -4 : 0);
@@ -1783,7 +1783,7 @@ const SMOG = [0, 0, 0, 0, 0, 0, 0, 0, .55, .5, .25, .05];
 const POLICY = { exploit: { name: 'Exploit', mul: 1.5, regrow: .8, note: 'More food and faster growth, and nature pays for it' }, balance: { name: 'Balance', mul: 1, regrow: 1, note: 'Take what the land can give back' }, protect: { name: 'Protect', mul: .4, regrow: 1.6, note: 'Forests and animals recover; a little less food' } };
 const DEFPOL = { Warlike: 'exploit', Mercantile: 'exploit', Devout: 'protect', Curious: 'balance', Merged: 'balance' };
 const cellOf = x => clamp(Math.floor(x / CELL), 0, NCELL - 1);
-function policyOf(c) { return c.tmpPol && c.tmpPol.until > W.simTime ? c.tmpPol.p : (POLICY[c.policy] ? c.policy : 'balance'); }
+function policyOf(c) { if (W.gdn && W.gdn.on[c.id]) return 'protect'; return c.tmpPol && c.tmpPol.until > W.simTime ? c.tmpPol.p : (POLICY[c.policy] ? c.policy : 'balance'); }
 function refreshCaps() {
   if (!V.cap || V.cap.length !== NCELL) { V.cap = new Float32Array(NCELL); V.seaCell = new Uint8Array(NCELL); V.fishCap = new Float32Array(NCELL); }
   const sea = seaY(), t = temp(), snow = 200 - t * 28;
@@ -1843,7 +1843,7 @@ function natureTick(dt) {
       N.fish[i] = clamp(fsh, 0, 1); N.f[i] = 0; N.w[i] = 0; continue;
     }
     const cap = V.cap[i], c = owner[i], m = MOIST[Math.min(NCOL - 1, Math.round(x / STEP))];
-    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3; const up = c && W.asc ? ascOf(c) : 0; if (up) regrow *= 1 + ASC_REGROW * up; regrow *= 1 - greyAt(i);
+    let regrow = prot[i] ? 2 : 1; if (c) regrow *= POLICY[policyOf(c)].regrow; const kept = c && W.care && careOf(c); if (kept) regrow *= CARE_GREEN; if (c && c.machine) regrow *= .3; const up = c && W.asc ? ascOf(c) : 0; if (up) regrow *= 1 + ASC_REGROW * up; const gk = c && W.gdn ? gdnOf(c) : 0; if (gk) regrow *= 1 + 1.5 * gk; regrow *= 1 - greyAt(i);
     let f = N.f[i], w = N.w[i], so = N.s[i];
     f += .01 * regrow * (cap - f) * (.5 + so) * dt;
     const wcap = clamp((.2 + .8 * Math.min(1, f / Math.max(.15, cap))) * (1 - poll * .6) * (dam[i] ? .8 : 1), .05, 1);
@@ -1851,7 +1851,7 @@ function natureTick(dt) {
     so += .004 * (.45 + .45 * m - so) * dt;
     if (c && !prot[i]) {
       let dm = 1e9; for (const sx of sites.get(c.id)) dm = Math.min(dm, Math.abs(sx - x));
-      const foot = clamp(Math.log10(Math.max(10, c.pop)) / 9, 0, 1) * (.35 + .65 * Math.exp(-dm / 350)) * POLICY[policyOf(c)].mul * (kept ? .2 : c.machine ? 2 : 1) * (1 - ASC_K * up);
+      const foot = clamp(Math.log10(Math.max(10, c.pop)) / 9, 0, 1) * (.35 + .65 * Math.exp(-dm / 350)) * POLICY[policyOf(c)].mul * (kept ? .2 : c.machine ? 2 : 1) * (1 - ASC_K * up) * (1 - .7 * gk);
       f -= CLEAR[c.era] * foot * dt; w -= HUNT[c.era] * foot * dt; so -= FARM[c.era] * foot * (f < cap * .5 ? 1 : .3) * dt;
       if (c.era >= 8) w -= poll * .012 * foot * dt;
     }
@@ -1906,7 +1906,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); gdnTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -2317,7 +2317,7 @@ function showEpilogue() {
   const row = (a, b) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`;
   const canRise = E.kind === 'doom' && cs.length;
   openModal(`<div class="epi-in"><p class="kind">${esc(ENDKIND[E.kind])} · ${esc(fmtYear(F.endY))}${F.cycle > 1 ? ' · ' + esc(ORD[Math.min(7, F.cycle)] || F.cycle + 'th') + ' cycle' : ''}</p><h3 id="dlgTitle">${esc(E.name)}</h3><p class="story">${esc(E.text)}</p>
-    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}${F.ended === 'grey' && W.grey ? greyRows(row) : ''}${alive().some(c => c.merged) ? row('Merged with their machines', alive().filter(c => c.merged).map(c => c.name).join(', ')) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
+    <dl>${row('Furthest age', ERAS[top].name)}${row('Peoples', `${W.civs.length} in all, ${cs.length} still living`)}${row('Wars fought', String(W.warCount || 0))}${row('Futures', fut.length ? fut.join(', ') : 'none')}${row('Survivors', cs.length ? cs.map(c => `${c.name} (${ERAS[c.era].name})`).join(', ') : 'none')}${F.arks ? row('Escaped', `${F.arks} ship${F.arks > 1 ? 's' : ''} fled before the end`) : ''}${(W.ruins || []).length ? row('Ruins', `${W.ruins.length} left standing`) : ''}${keepersLine() ? row('Kept safe', keepersLine()) : ''}${F.ended === 'agi' && W.care ? careRows(row) : ''}${F.ended === 'dominion' && W.mw ? mwRows(row) : ''}${F.ended === 'grey' && W.grey ? greyRows(row) : ''}${F.ended === 'garden' ? gardenRows(row) : ''}${alive().some(c => c.merged) ? row('Merged with their machines', alive().filter(c => c.merged).map(c => c.name).join(', ')) : ''}</dl>${F.ended === 'agi' && W.care ? `<p class="story">${esc(careStory())}</p>` : ''}${F.ended === 'garden' && W.gdn && W.gdn.end ? `<p class="story">${esc(gardenStory())}</p>` : ''}${canRise ? '<p class="story" style="opacity:.72">Keep watching, and the survivors will begin again on their own.</p>' : ''}
     <div class="row"><button class="btn" type="button" data-close>Keep watching</button>${canRise ? '<button class="btn primary" type="button" id="epiRise" autofocus>Begin again from the ruins</button>' : ''}<button class="btn${canRise ? '' : ' primary'}" type="button" id="epiNew"${canRise ? '' : ' autofocus'}>New world</button></div></div>`);
   const dlg = $('#dialog'); dlg.classList.add('epi'); dlg.classList.toggle('doom', E.kind === 'doom'); dlg.classList.toggle('goal', E.kind === 'goal');
   const clean = () => { if (!dlg.classList.contains('epi')) return; dlg.classList.remove('epi', 'doom', 'goal'); if (UI.paused) togglePause(); };
@@ -2333,7 +2333,7 @@ function riseAgain() {
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
-  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
   log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
@@ -2399,6 +2399,8 @@ const FATES = {
   garden: { name: 'The Garden', span: 160,
     drive: x => Math.max(0, 1.1 * clamp((x.green - .12) / .5, 0, 1) * clamp((30 - x.poll) / 20, 0, 1) - .4 * x.share.Warlike),
     start: 'More and more peoples choose to stay small: fewer cities, wilder land, slower lives.',
+    ready: () => gdnReady(),
+    clock: a => { const f = FATES.garden, n = gdnPeoples().length, all = alive().filter(c => !c.machine).length, left = clockYear(a.t0 + f.span) - clockYear(W.simTime); return [`${n} of ${all} ${all === 1 ? 'people' : 'peoples'} on the Garden path · nature ${Math.round(((V.planet ? V.planet.forest + V.planet.wild : 0) / 2) * 100)}%${W.gdn && W.gdn.hold ? ' · the world holds its breath' : ''}${W.simTime - a.t0 < f.span ? ' · movement peaks in ' + fmtSpan(Math.max(1, left)) : ''}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
     end: 'The pull of growth returns, and the Garden movement fades.',
     stress: () => 'boom' },
   silence: { name: 'The Great Silence', span: 120,
@@ -2664,6 +2666,89 @@ function ascGreenTick(dt) {
     if (g1 >= .8 && u >= .7 && !(said & 32)) { S.said[c.id] = (S.said[c.id] || 0) | 32; log(fillT('The dark cities of {civ} are sinking under forest. Wolves and bears hunt where millions once lived, and only the data centres stand clear of the green.', names(c)), 'nature'); }
   }
 }
+// GDN-01: the Garden path. A people with healthy land that protects it, at peace and from the Industrial Age on, may choose to stay
+// small (gdnTick: a chance per second set by character; while the Garden future runs, far higher and from the Industrial Age; else
+// only from the Information Age). W.gdn.on[id] marks the choice and
+// W.gdn.k[id] (0..1) follows it over GDN_TIME sim s: the land feeds fewer (K × 1 − GDN_K × k), so the population shrinks gently and
+// the cities shrink with it; nature regrows faster and is barely touched; stability rises. Forests close in on the towns and roofs,
+// terraces and fields turn to gardens (drawGarden). A war forced on them, or ruined land, ends the choice.
+const GDN_TIME = 120, GDN_K = .6, GDN_JOIN = .04, GDN_DRIFT = .001, GDN_DRIFT_ERA = 10, GDN_TRAIT = { Devout: 1.5, Curious: 1, Merged: .8, Mercantile: .5, Warlike: 0 };
+const gdnOf = c => (W.gdn && W.gdn.k[c.id]) || 0;
+const gdnOnF = () => !!W.fates && W.fates.active.some(a => a.id === 'garden') && !W.fates.ended;
+const gdnCan = c => !!(c && c.alive && !c.machine && !c.merged && c.era >= 8 && !ascHold(c) && ascOf(c) === 0 && !(W.care && careOf(c)));
+// healthy, protected land at peace: who may choose the Garden (while the Garden future runs, any people with healthy land may: joining sets Protect)
+const gdnFit = c => { const n = c._.nat, f = gdnOnF(); return gdnCan(c) && !!n && n.fr > (f ? .35 : .5) && n.w > (f ? .35 : .45) && c.stability >= 45 && !warsOf(c).length && (gdnOnF() || c.policy === 'protect' || (c.tmpPol && c.tmpPol.p === 'protect' && c.tmpPol.until > W.simTime)); };
+const gdnPeoples = () => alive().filter(c => W.gdn && W.gdn.on[c.id]);
+function gdnTick(dt) {
+  const G = W.gdn || (W.gdn = { on: {}, k: {}, said: {}, hold: 0, top: 0, end: null }), fate = gdnOnF();
+  // GDN-02: the example of the neighbours. While the Garden future runs, every people (even the Warlike) is drawn by the share already on the path
+  const cs0 = alive().filter(c => !c.machine), pull = fate && cs0.length ? GDN_PULL * cs0.filter(c => G.on[c.id]).length / cs0.length : 0;
+  for (const c of alive()) {
+    const on = !!G.on[c.id], sd = G.said[c.id] || 0, nm = names(c);
+    if (!on) {
+      const tw = (GDN_TRAIT[c.trait] == null ? 1 : GDN_TRAIT[c.trait]) + pull;
+      const rate = fate ? GDN_JOIN : c.era >= GDN_DRIFT_ERA ? GDN_DRIFT : 0;
+      if (tw > 0 && rate && gdnFit(c) && Math.random() < rate * tw * dt) {
+        G.on[c.id] = 1; G.said[c.id] = sd & ~6; c.policy = 'protect';
+        log(fillT('{Civ} choose the Garden path. They will grow no larger: their cities may shrink, and the land they give back will be left to the forest.', nm), 'nature');
+        floater(c.x, 'the Garden path', '#8fd18b', true); queueReaction(c, 'boom');
+      }
+    } else {
+      const n = c._.nat, why = !gdnCan(c) ? 'gone' : warsOf(c).length ? 'war' : n && n.fr < .3 ? 'land' : null;
+      if (why) { delete G.on[c.id]; if (why !== 'gone') log(fillT(why === 'war' ? 'War comes to {civ}, and they leave the Garden path to raise armies and factories again.' : 'The land of {civ} is failing, and they give up the Garden path.', nm), 'nature'); continue; }
+    }
+    const k0 = G.k[c.id] || 0, k1 = clamp(k0 + (G.on[c.id] ? 1 : -1) * dt / GDN_TIME, 0, 1);
+    if (k1 > 0) G.k[c.id] = k1; else delete G.k[c.id];
+    if (G.on[c.id]) {
+      c.stability = Math.min(100, c.stability + (82 - c.stability) * .03 * k1 * dt);
+      if (k1 >= .6 && !(sd & 2)) { G.said[c.id] = (G.said[c.id] || 0) | 2; log(fillT('The cities of {civ} have shrunk to towns and villages among the trees. Rooftops are gardens, and deer graze at the edge of the squares.', nm), 'nature'); }
+      if (k1 >= 1 && !(sd & 4)) { G.said[c.id] = (G.said[c.id] || 0) | 4; log(fillT('{Civ} live as gardeners of their land: few, unhurried and content. Their children have never seen a city.', nm), 'nature'); }
+    }
+  }
+  for (const id in G.k) if (!civById(+id) || !civById(+id).alive) { delete G.k[id]; delete G.on[id]; }
+  // the most people living at once, for the ending's story
+  { const tot = alive().filter(c => !c.machine).reduce((a, c) => a + c.pop, 0); if (tot > (G.top || 0)) G.top = tot; }
+  gdnEndTick(dt);
+}
+// GDN-02 the Garden ending: every living people (two or more) far along the Garden path, no wars, and the world's nature thriving
+// (forests GDN_FOREST, wild animals GDN_WILD), held for GDN_HOLD sim s, ends history in peace (reachEnding 'garden'). The Garden future
+// no longer ends with the Garden ending on its drive alone (FATES.garden.ready).
+const GDN_PULL = .5, GDN_ALL_K = .8, GDN_FOREST = .7, GDN_WILD = .6, GDN_HOLD = 30;
+function gdnAll() {
+  const cs = alive().filter(c => !c.machine); if (cs.length < 2 || W.wars.length || !V.planet) return false;
+  return cs.every(c => W.gdn.on[c.id] && gdnOf(c) >= GDN_ALL_K) && V.planet.forest >= GDN_FOREST && V.planet.wild >= GDN_WILD;
+}
+const gdnReady = () => !!(W.gdn && W.gdn.hold >= GDN_HOLD);
+function gdnEndTick(dt) {
+  const G = W.gdn; if (W.fates.ended) return;
+  if (gdnAll()) {
+    if (!G.hold && W.simTime - (G.sayT || -1e9) > 60 && (G.sayT = W.simTime)) log('Every people on the world now lives as gardeners. The last cities are villages, the forests are full and no army marches anywhere. The world holds its breath.', 'nature');
+    G.hold = (G.hold || 0) + dt;
+    if (G.hold >= GDN_HOLD) {
+      const cs = alive().filter(c => !c.machine), peak = Math.max(G.peak || 0, ...cs.map(c => c.pop));
+      G.end = { y: Math.round(W.year), f: +V.planet.forest.toFixed(3), w: +V.planet.wild.toFixed(3), pop: Math.round(cs.reduce((a, c) => a + c.pop, 0)), peak: Math.round(G.top || 0), peace: Math.round(clockYear(W.simTime) - clockYear(W.lastWarT || 0)), peoples: cs.map(c => c.name).slice(0, 12) };
+      if (W.fates.active.some(a => a.id === 'garden')) endFate('garden', 'ending'); else reachEnding('garden');
+    }
+  } else if (G.hold) { const say = G.hold > 3 && W.simTime - (G.sayT || -1e9) > 60; G.hold = 0; if (say && (G.sayT = W.simTime)) log('The quiet breaks: not every people will stay small, and the world goes on growing.', 'nature'); }
+}
+function gardenRows(row) {
+  const E = W.gdn && W.gdn.end; if (!E) return '';
+  return row('Gardeners', E.peoples.join(', ')) + row('Forests', Math.round(E.f * 100) + '% of what the land can hold') + row('Wild animals', Math.round(E.w * 100) + '%') + (E.peak ? row('People', `${fmtPop(E.pop)}, down from ${fmtPop(E.peak)} at the height of the cities`) : row('People', fmtPop(E.pop))) + row('At peace for', fmtSpan(Math.max(1, E.peace)));
+}
+function gardenStory() {
+  const E = W.gdn && W.gdn.end; if (!E) return '';
+  const n = E.peoples.length;
+  return `No one decided it all at once. One people after another chose to grow no larger, until the last of the ${n > 1 ? n + ' peoples' : 'peoples'} let its towers come down. Now the roads are footpaths, the old harbours are reefs, and the herds move across the plains as they did before the first fields. The ${E.peoples.slice(0, 3).join(', the ')} still sing, build, argue and dream; they simply do it under the trees.`;
+}
+// a building of a Garden people: green roof, hanging plants, flowers; fields become garden rows. Fixed order: the same ones first
+function drawGarden(b, k) {
+  const sd = b.s | 0; if (h01((sd ^ 0x6a1) + 3) >= k) return;
+  const y = b.base, top = y - b.h, w = b.w;
+  if (b.t === 'field') { for (let x = b.x + 2; x < b.x + w - 2; x += 5) { R(x, y - 3, 3, 2.4, '#5d8f45'); Ci(x + 1.5, y - 3.6, 1.1, ['#e8c547', '#d9739a', '#f2efe4', '#a98ae0'][(x + sd) & 3]); } return; }
+  R(b.x - 1, top - 2.5, w + 2, 3.2, '#5f9a48'); for (let k2 = 0; k2 < Math.max(2, w / 7); k2++) Ci(b.x + h01(sd + k2 * 13) * w, top - 2.5, 1.6 + h01(sd + k2) * 1.6, k2 % 3 ? '#6aa84f' : '#4f8a3c');
+  for (let k2 = 0; k2 < Math.min(4, w / 10); k2++) { const vx = b.x + 2 + h01(sd + k2 * 41) * (w - 4), vl = Math.min(b.h * .5, 6 + h01(sd + k2 * 7) * 16); Ln(vx, top, vx, top + vl, 'rgba(84,140,62,.9)', 1.1); Ci(vx, top + vl, 1.3, '#d9739a'); }
+  El(b.x + w / 2, y + 1, w / 2 + 3, 3, 'rgba(96,150,70,.75)', Math.PI, 6.2832);
+}
 const SUN_LINES = ['The Sun rises a little wider and a little redder each year. The days grow hot and the noon light has turned to gold.',
   'The Sun now looks half as wide again as it did. Harvests wilt, the snows retreat up the mountains and the seas creep onto the coasts.',
   'A swollen orange Sun fills a broad piece of the sky. Noon is a furnace; the old blue of the sky has gone to amber.',
@@ -2719,6 +2804,10 @@ function endFate(id, outcome) {
   if (outcome === 'ending' && ENDINGS[eid]) { log(`<b>${esc(ENDINGS[eid].name)}.</b> ${esc(ENDINGS[eid].text)}`, 'fate'); return true; }
   log(`<b>${esc(FATES[id].name)}.</b> ${esc(endTxt)}`, 'fate');
   return true;
+}
+function sanGdnEnd(e) {
+  if (!e || typeof e !== 'object') return null; const n = (v, a, b) => Number.isFinite(+v) ? clamp(+v, a, b) : a;
+  return { y: n(e.y, -60000, 1e6) | 0, f: n(e.f, 0, 1), w: n(e.w, 0, 1), pop: n(e.pop, 0, 1e13), peak: n(e.peak, 0, 1e13), peace: n(e.peace, 0, 1e7), peoples: (Array.isArray(e.peoples) ? e.peoples : []).slice(0, 12).map(x => String(x).slice(0, 20)) };
 }
 function sanHold(d) {
   const out = {}; if (!d || typeof d !== 'object') return out;
@@ -3430,15 +3519,18 @@ function sitesOf(c) {
   if (!out.length) out.push(c.x);
   return out;
 }
-const tierOf = c => clamp(Math.round(Math.log10(Math.max(10, c.pop)) - 2.8), 0, 5);
+// GDN-01: a Garden people lives in smaller places than its numbers alone would build (up to 2.5 tiers down)
+const tierOf = c => clamp(Math.round(Math.log10(Math.max(10, c.pop)) - 2.8 - (W.gdn ? 2.5 * gdnOf(c) : 0)), 0, 5);
 const hasRes = (c, t) => W.elements.some(e => e.type === t && e.x >= c.l && e.x <= c.r);
 function coastSide(c) { const L = landOf(c.x); return (c.l <= L.l + 220 ? 1 : 0) + (c.r >= L.r - 220 ? 2 : 0); }
 function ensureLayout(c) {
   const tier = tierOf(c), st = sitesOf(c);
-  const sig = `${c.machine ? 'M' : c.merged ? 'N' : ''}${c.era}|${tier}|${st.join(',')}|${Math.round(c.l / 90)}|${Math.round(c.r / 90)}|${V.tver}|${hasRes(c, 'uranium')}|${coastSide(c)}`;
+  const sig = `${c.machine ? 'M' : c.merged ? 'N' : ''}${c.era}|${tier}|${st.join(',')}|${Math.round(c.l / 90)}|${Math.round(c.r / 90)}|${V.tver}|${hasRes(c, 'uranium')}|${coastSide(c)}|${W.gdn ? Math.round(gdnOf(c) * 4) : 0}`;
   if (c._.sig === sig) return;
   c._.sig = sig;
   buildLayout(c, tier, st);
+  // GDN-01: a Garden people's towers come down to the height of the trees, in quarter steps
+  const gq = W.gdn ? Math.round(gdnOf(c) * 4) / 4 : 0; if (gq > 0 && c._.items) for (const b of c._.items) if (b.h > 34) b.h = Math.round(Math.max(34, b.h * (1 - .7 * gq)));
 }
 function buildLayout(c, tier, st) {
   const items = [], plan = c.machine ? MPLAN : c.merged ? neuralPlan(c.era) : PLAN[c.era], hasU = hasRes(c, 'uranium'), sea = seaY();
@@ -3806,7 +3898,7 @@ function drawNature(x0, x1, sea, snowY) {
   for (let i = iA; i <= iB; i++) {
     if (V.seaCell[i]) continue;
     const cap = V.cap[i], nT = Math.round(N.f[i] * 9), own = V.cellOwner[i], nCap = own && own.era >= 1 ? Math.round(cap * 9) : nT;
-    const near = own ? own._.sitesV : null, ag = own && W.asc ? ascWild(own) : 0, clr = own ? (60 + own._.tierV * 22) * (1 - .85 * ag) : 0;
+    const near = own ? own._.sitesV : null, ag = own ? Math.max(W.asc ? ascWild(own) : 0, W.gdn ? .6 * gdnOf(own) : 0) : 0, clr = own ? (60 + own._.tierV * 22) * (1 - .85 * ag) : 0;
     for (let k = 0; k < Math.max(nT, nCap); k += lod) {
       const tx = i * CELL + h01(i * 131 + k * 7) * CELL; if (tx < x0 - 30 || tx > x1 + 30) continue;
       const ty = gy(tx); if (ty >= sea - 1 || inRiver(tx)) continue;
@@ -4072,7 +4164,8 @@ function drawWorld(o, x0, x1) {
     for (const bx of [c.l, c.r]) { if (bx < x0 || bx > x1) continue; const by = gy(bx); pk(bx - 3, by - 15, bx + 7, by, 1, 'flag', { name: 'Border marker', c }); Ln(bx, by, bx, by - 14, '#3a3028', 1.2); P([bx, by - 14, bx + 6, by - 12, bx, by - 10], c.color); }
     const rd = c._.road;
     if (rd && rd[1] > x0 && rd[0] < x1) { const a0 = Math.max(rd[0], x0), a1 = Math.min(rd[1], x1); o.strokeStyle = c.era < 8 ? '#8b7a5d' : c.era < 10 ? '#2f2b29' : '#4a4d52'; o.lineWidth = c.era < 8 ? 1.6 : 2.4; o.beginPath(); for (let x = a0; x <= a1; x += 6) { const y = gy(x) - .4; x === a0 ? o.moveTo(x, y) : o.lineTo(x, y); } o.stroke(); if (c.era >= 8 && c.era < 10) for (let x = a0; x <= a1; x += 5) R(x, gy(x) - 1.2, 1, 2.2, '#5a4636'); }
-    for (const b of c._.items) { if (b.x + b.w < x0 || b.x > x1) continue; if (c.ruin > .05 && b.t !== 'field' && h01(b.s ^ 0x5bd1) < c.ruin) drawRuin(b, c); else if (W.asc && ascDark(c, b)) { DARKB = true; const nL = LT.length, nG = GL.length; (DRAW[b.t] || DRAW.hut)(b, c); LT.length = nL; GL.length = nG; DARKB = false; o.save(); o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(14,16,22,.55)'; o.fillRect(b.x - 2, b.base - b.h - 4, b.w + 4, b.h + 4); o.restore(); const ov = ascOver(c, b); if (ov > .02) drawOvergrowth(b, ov); } else (DRAW[b.t] || DRAW.hut)(b, c); }
+    const gk = W.gdn ? gdnOf(c) : 0;
+    for (const b of c._.items) { if (b.x + b.w < x0 || b.x > x1) continue; if (c.ruin > .05 && b.t !== 'field' && h01(b.s ^ 0x5bd1) < c.ruin) drawRuin(b, c); else if (W.asc && ascDark(c, b)) { DARKB = true; const nL = LT.length, nG = GL.length; (DRAW[b.t] || DRAW.hut)(b, c); LT.length = nL; GL.length = nG; DARKB = false; o.save(); o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(14,16,22,.55)'; o.fillRect(b.x - 2, b.base - b.h - 4, b.w + 4, b.h + 4); o.restore(); const ov = ascOver(c, b); if (ov > .02) drawOvergrowth(b, ov); } else { (DRAW[b.t] || DRAW.hut)(b, c); if (gk) drawGarden(b, gk); } }
     if (W.asc && ascOf(c) > 0) drawDatacentre(c);
     if (c._.train) { drawTrain(c._.train, c.era); const tn = c._.train; pk(Math.min(tn.x, tn.x - tn.dir * 52) - 8, gy(tn.x) - 13, Math.max(tn.x, tn.x - tn.dir * 52) + 8, gy(tn.x), 0, 'train', { name: c.era >= 10 ? 'High-speed train' : 'Steam train', c }); }
     for (const a of c._.agents) if (a.x > x0 - 20 && a.x < x1 + 20) drawAgent(a, c);
@@ -5496,6 +5589,8 @@ function sanitizeWorld(d) {
   w.eng = d.eng && typeof d.eng === 'object' ? { by: Object.fromEntries(Object.entries(d.eng.by && typeof d.eng.by === 'object' ? d.eng.by : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, 0, 1)])), said: n(d.eng.said, 0, 15) | 0, stall: !!d.eng.stall, done: !!d.eng.done } : null;
   { const A0 = d.asc && typeof d.asc === 'object' ? d.asc : null, nm = (o, a, b) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, a, b)]));
     w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 63)).map(([k, v]) => [k, v | 0])), pop: {}, green: nm(A0.green, 0, 1), hold: sanHold(A0.hold) } : null; }
+  { const G0 = d.gdn && typeof d.gdn === 'object' ? d.gdn : null, nm = (o, a, b) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, a, b)]));
+    w.gdn = G0 ? { on: Object.fromEntries(Object.entries(nm(G0.on, 0, 1)).filter(([k, v]) => v > 0).map(([k]) => [k, 1])), k: nm(G0.k, 0, 1), said: Object.fromEntries(Object.entries(nm(G0.said, 0, 7)).map(([k, v]) => [k, v | 0])), hold: Number.isFinite(+G0.hold) ? clamp(+G0.hold, 0, 1e4) : 0, top: Number.isFinite(+G0.top) ? clamp(+G0.top, 0, 1e13) : 0, end: sanGdnEnd(G0.end) } : null; }
   w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 511) | 0, done: !!d.voy.done, out: ['arrive', 'lost'].includes(d.voy.out) ? d.voy.out : null, dest: n(d.voy.dest, 0, NEWSUN.length - 1) | 0, t1: d.voy.t1 != null && Number.isFinite(+d.voy.t1) ? n(d.voy.t1, -1e9, 1e12) : null, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
@@ -5698,6 +5793,7 @@ function tipBody(t) {
   { const sh = (W.ships || []).filter(x => x.civ === c.id), stc = (W.stars || []).filter(x => x.civ === c.id); if (sh.length) h += row('Ships in flight', sh.map(x => `${x.name} to ${XSTARS[x.star][0]} (${Math.round((W.simTime - x.t0) / x.dur * 100)}%)`).join(', ')); if (stc.length) h += row('Star colonies', stc.map(x => XSTARS[x.star][0]).join(', ')); }
   if (W.asc && (ascOf(c) > 0 || (W.asc.said[c.id] & 8))) h += row('Uploaded', ascOf(c) > 0 ? `${Math.round(ascOf(c) * 100)}% (${fmtPop(ascMinds(c))} minds in the machines)` : 'refuses the upload');
   if (ascHold(c)) h += row('Holdouts', ascHoldText(c));
+  if (W.gdn && (W.gdn.on[c.id] || gdnOf(c) > 0)) h += row('Garden path', W.gdn.on[c.id] ? `${Math.round(gdnOf(c) * 100)}% of the way to a garden land` : 'left it; the cities grow back');
   { const bs = basesOf(c); if (bs.length) h += row('Off-world', bs.map(b => `${b.name} on ${BODY[b.body].name} (${fmtPop(b.pop)})`).join(', ')); }
   if ((c.bunker || 0) > .05) h += row(c.trait === 'Devout' ? 'Deep vaults' : 'Bunkers', Math.round(c.bunker * 100) + '% built' + (c.bunker >= .5 ? ', enough to shelter them through a nuclear winter' : ''));
   if (W.pandemic && W.pandemic.inf[c.id] > 0) h += row('Plague', Math.round(W.pandemic.inf[c.id] * 100) + '% of the people sick' + (c.closed > W.simTime ? ', borders closed' : ''));
@@ -5987,7 +6083,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, gdnTick, gdnOf, gdnAll, gdnReady, gdnEndTick, gardenRows, gardenStory, sanGdnEnd, showEpilogue, gdnFit, gdnCan, gdnOnF, gdnPeoples, drawGarden, GDN: { GDN_PULL, GDN_ALL_K, GDN_FOREST, GDN_WILD, GDN_HOLD, GDN_TIME, GDN_K, GDN_JOIN, GDN_DRIFT, GDN_DRIFT_ERA, GDN_TRAIT }, policyOf, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
