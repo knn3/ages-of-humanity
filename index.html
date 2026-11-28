@@ -1058,7 +1058,8 @@ const sunHeat = () => SUN_TEMP * Math.pow(sunK(), 1.3);
 const tempGH = () => W.tempShift + W.pollution * .02;
 const temp = () => tempGH() + sunHeat() * (1 - voyFar()) + voyCold();
 // the Sun's colour as it swells: from its usual pale gold to a deep orange-red
-const sunRGB = (k, base = [255, 244, 216]) => [Math.round(base[0] + (255 - base[0]) * k), Math.round(base[1] + (150 - base[1]) * k), Math.round(base[2] + (96 - base[2]) * k)];
+const sunRGB = (k, base = [255, 244, 216]) => { const ns = newSun(); if (ns) base = ns[1].map((v, i) => Math.round(v * .7 + base[i] * .3)); return sunRGB0(k, base); };
+const sunRGB0 = (k, base) => [Math.round(base[0] + (255 - base[0]) * k), Math.round(base[1] + (150 - base[1]) * k), Math.round(base[2] + (96 - base[2]) * k)];
 function seaY() { const t = temp(); return SEA0 - clamp(t - 1, 0, 4) * 2.5 + clamp(-t - 1, 0, 5) * 2 - (W.seaRise || 0); }
 const inRiver = x => W.elements.some(e => e.type === 'river' && Math.abs(e.x - x) < 20);
 const isLand = x => x > 20 && x < WORLD_W - 20 && gy(x) < seaY() - 2 && !inRiver(x);
@@ -2284,13 +2285,15 @@ const ENDINGS = {
   impact: { name: 'The Great Impact', kind: 'doom', scene: 'sepia(.55) hue-rotate(-15deg) brightness(.62) contrast(1.15)', text: 'The rock came out of the dark faster than any hope. Fire, then years of dust and cold. The survivors climb out of their shelters into a world that has to be learned all over again.' },
   dominion: { name: 'The Iron Dominion', kind: 'end', scene: 'grayscale(.45) contrast(1.15) brightness(.8) hue-rotate(-12deg)', text: 'The machines win a war they never declared. Their factories cover the old farmland and their drones fill the sky. What is left of humanity lives on in the margins, tolerated and ignored.' },
   grey: { name: 'The Grey Tide', kind: 'doom', scene: 'grayscale(.85) brightness(.8) contrast(1.08)', text: 'The self-copying machines eat the forests, the fields and the cities, and make more of themselves out of them. When there is nothing left to eat they fall still, and a dead grey crust covers the world. A few survivors scratch at its edges and wait for the green to come back.' },
+  arrival: { name: 'A New Sun', kind: 'goal', scene: '', text: 'After a voyage longer than all of history before it, the world settles into orbit around a new star. The ice is gone, the seas are full and the peoples, few and changed, begin again under a sun their ancestors only saw as a point of light.' },
+  lost: { name: 'Lost in the Dark', kind: 'end', scene: 'brightness(.62) saturate(.45) hue-rotate(190deg)', text: 'The engines are dead and the world drifts between the stars, too slow to reach any of them. In the caverns under the ice the lamps still burn, and the peoples tell stories of a sky they will never see.' },
   galactic: { name: 'The Edge of the Galaxy', kind: 'goal', scene: '', text: 'From one small world, humanity has spread from star to star across the galaxy. What lies beyond it has not been written yet.' }
 };
 const ENDKIND = { doom: 'The world falls', end: 'History changes for good', goal: 'Humanity arrives' };
 function reachEnding(eid, c) {
   const F = W.fates, E = ENDINGS[eid]; if (!E || F.ended) return false;
   // WE-03: during the voyage only a disaster can end the world before the Long Voyage does
-  if (W.voy && !W.voy.done && eid !== 'wandering' && E.kind !== 'doom') return false;
+  if (W.voy && !W.voy.done && !['wandering', 'arrival', 'lost'].includes(eid) && E.kind !== 'doom') return false;
   F.ended = eid; F.endY = Math.round(W.year); F.riseAt = E.kind === 'doom' ? W.simTime + RISE_WAIT : null;
   log(`<b>${esc(E.name)}.</b> ${esc(E.text)}`, 'fate');
   banner(E.name, ENDKIND[E.kind], E.kind === 'doom' ? '#c8553d' : E.kind === 'goal' ? '#8fd18a' : '#a593f2');
@@ -2378,8 +2381,9 @@ const FATES = {
   wandering: { name: 'The Dying Sun', span: 220,
     drive: x => .04 + .9 * clamp((x.since - 200) / 450, 0, 1),
     start: 'Astronomers confirm what they feared: the Sun has begun to swell. The world has centuries left, not billions of years.',
-    ready: () => engReady(), launch: () => voyBegin(),
+    ready: () => engReady(), launch: () => voyBegin(), endingId: () => W.voy && W.voy.out === 'lost' ? 'lost' : W.voy && W.voy.out === 'arrive' ? 'arrival' : 'wandering',
     clock: a => { const f = FATES.wandering, left = clockYear(a.t0 + f.span) - clockYear(W.simTime), P = Math.round(engProgress() * 100), eng = engBuilders().length ? ` · engines ${P}%${W.eng && W.eng.stall ? ' (stalled by war)' : ''}` : ' · no one can build engines yet';
+      if (W.voy && W.voy.out === 'arrive' && !W.voy.done) { const a = voyA(); return [`Arriving at ${NEWSUN[W.voy.dest][0]} · ${a < .35 ? 'slowing into its orbit' : a < .75 ? 'the thaw' : 'out from under the ice'}`, a]; }
       if (W.voy && !W.voy.done) { const u = voyU(), ph = u < .15 ? 'leaving the old orbit' : u < VOY_JUP - .08 ? 'frozen, under the ice' : u < .6 ? 'passing Jupiter' : 'the deep voyage'; return [`The voyage ${Math.round(u * 100)}% · ${ph}`, u]; }
       return W.simTime - a.t0 >= f.span ? [`The Sun has spoken${eng}`, engProgress()] : [`Sun ${Math.round(100 + 220 * sunK())}% of its old width${eng} · verdict in ${fmtSpan(Math.max(1, left))}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
     end: 'The Sun stops swelling. Over the centuries it settles back towards its old size and colour: a pulse in its long life, not its death. The world breathes again.',
@@ -2431,9 +2435,10 @@ const FATES = {
     stress: () => 'unrest' }
 };
 function sunTick(dt) {
-  const F = W.fates, on = F.active.some(a => a.id === 'wandering'), S = W.sun || (W.sun = { k: 0, said: 0 });
+  const F = W.fates, on = F.active.some(a => a.id === 'wandering') && !(W.voy && W.voy.out === 'arrive'), S = W.sun || (W.sun = { k: 0, said: 0 });
   // the far-future date: by then the Sun begins to swell whatever else is happening (once a people has reached space)
   if (!on && F.edgeT != null && !F.ended && !F.done.includes('wandering') && W.year >= SUN_DATE && alive().length && !W.care) { startFate('wandering', 'date'); return; }
+  if (W.voy && W.voy.out === 'arrive') { S.k = 0; return; }
   if (on) { const a = F.active.find(a => a.id === 'wandering'); S.k = Math.max(S.k, clamp((W.simTime - a.t0) / FATES.wandering.span, 0, 1)); }
   else if (S.k > 0) S.k = Math.max(0, S.k - dt / SUN_FADE);
   for (let i = 0; i < SUN_SAY.length; i++) { const bit = 1 << i; if (on && S.k >= SUN_SAY[i] && !(S.said & bit)) { S.said |= bit; log(SUN_LINES[i], 'nature'); if (i === 3) banner('A red sun', 'The Sun fills the sky', '#e0784a'); } }
@@ -2477,9 +2482,19 @@ function engTick(dt) {
 // u = 1 the Long Voyage ending (WE-04 decides arrival or loss).
 const VOY_SPAN = 320, VOY_COLD = 36, VOY_JUP = .5;
 const voyU = () => W.voy ? clamp((W.simTime - W.voy.t0) / VOY_SPAN, 0, 1) : 0;
-const voyFar = () => W.voy ? smooth(.02, .7, voyU()) : 0;
-const voyCold = () => W.voy ? -VOY_COLD * smooth(.05, .35, voyU()) : 0;
-const voyUnder = () => !!W.voy && voyU() >= .15;
+// WE-04: at the end of the voyage, arrival or loss (W.voy.out). Arriving, a new star (W.voy.dest) comes near over VOY_ARRIVE sim
+// seconds (voyA): the dark lifts, the ice thaws, peoples climb out from under it, and A New Sun ends the story; lost, the engines fail
+// and the world drifts on, dark and frozen, to Lost in the Dark.
+const VOY_ARRIVE = 90;
+const voyA = () => W.voy && W.voy.out === 'arrive' && W.voy.t1 != null ? clamp((W.simTime - W.voy.t1) / VOY_ARRIVE, 0, 1) : 0;
+const voyFar = () => !W.voy ? 0 : W.voy.out === 'arrive' ? 1 - smooth(0, .7, voyA()) : smooth(.02, .7, voyU());
+const voyCold = () => !W.voy ? 0 : W.voy.out === 'arrive' ? -VOY_COLD * (1 - smooth(.2, .9, voyA())) : -VOY_COLD * smooth(.05, .35, voyU());
+const voyUnder = () => !!W.voy && voyU() >= .15 && !(W.voy.out === 'arrive' && voyA() >= .75);
+// the stars a wandering world can make for (not the nearest: its old neighbours are taken), with their light
+const NEWSUN = [['Barnard’s Star', [255, 150, 100], 'a small red sun'], ['Tau Ceti', [255, 236, 196], 'a pale golden sun'], ['Epsilon Eridani', [255, 196, 130], 'an orange sun'], ['Luyten’s Star', [255, 140, 96], 'a deep red sun'], ['Wolf 359', [255, 128, 92], 'a dim red sun']];
+const newSun = () => W.voy && W.voy.out === 'arrive' && NEWSUN[W.voy.dest] ? NEWSUN[W.voy.dest] : null;
+// the chance the world is lost on the way: worse if Jupiter scarred it, if anyone is at war at the end, and with fewer engines
+function voyLossChance() { const J = W.voy && W.voy.jup, scar = J && J.out === 'scarred', wars = engWars().length, n = engBuilders().length; return clamp((scar ? .6 : .22) + .15 * Math.min(3, wars) - .04 * Math.max(0, n - 3), .08, .9); }
 const voyJup = () => W.voy ? Math.exp(-(((voyU() - VOY_JUP) / .055) ** 2)) : 0;
 const VOY_SAY = [[0, 'The planet engines fire as one. Slowly, over years, the whole world begins to leave the orbit it has followed for four and a half billion years.'],
   [.15, 'Frost creeps across the land as the Sun shrinks behind. Peoples seal their cities and move underground, into vast lit caverns beneath the ice.'],
@@ -2504,7 +2519,14 @@ function voyTick(dt) {
     if (i === 1) for (const c of alive()) queueReaction(c, 'threat');
     if (i === 4) voyCrisis();
     if (i === 5) voyEscape(); }
-  if (u >= 1) { V0.done = true; endFate('wandering', 'ending'); }
+  if (u >= 1 && !V0.out) {
+    if (Math.random() < voyLossChance()) { V0.out = 'lost'; V0.done = true; log('One by one, worn out after centuries, the planet engines fail. The last blue jet gutters and goes dark. The world drifts on between the stars, too slow now to reach any of them.', 'world'); endFate('wandering', 'ending'); return; }
+    V0.out = 'arrive'; V0.t1 = W.simTime; V0.dest = (W.seed >>> 0) % NEWSUN.length; W.sun = { k: 0, said: 0 };
+    log(`A new star brightens ahead, growing night after night: ${NEWSUN[V0.dest][0]}, ${NEWSUN[V0.dest][2]}. The engines turn and begin to slow the world.`, 'world'); banner('A new star', NEWSUN[V0.dest][0], rgb(NEWSUN[V0.dest][1])); }
+  if (V0.out === 'arrive') { const a = voyA();
+    if (a >= .35 && !(V0.said & 128)) { V0.said |= 128; log(`Warm light falls on the ice again. It cracks and groans; rivers break free and run to seas that are water once more.`, 'nature'); }
+    if (a >= .75 && !(V0.said & 256)) { V0.said |= 256; log(`The peoples climb out of the caverns into the light of ${NEWSUN[V0.dest][0]}. Their children see a sky for the first time and give its colour a new name.`, 'world'); for (const c of alive()) queueReaction(c, 'boom'); }
+    if (a >= 1) { V0.done = true; endFate('wandering', 'ending'); } }
 }
 // the Jupiter pass: engines falter, the ground shakes and the caverns crack; war on top of it makes everything worse
 function voyCrisis() {
@@ -3770,6 +3792,7 @@ function drawSky(c2, w, h, fm = 1) {
   if (nk > 0) { top = mixA(top, [24, 20, 20], nk * .8); bot = mixA(bot, [74, 60, 50], nk * .75); }
   if (W.hot && W.hot.on) { const hk = clamp((temp() - 1.5) / 4, 0, 1) * L; bot = mixA(bot, [222, 150, 96], .35 * hk); top = mixA(top, [190, 160, 130], .15 * hk); }
   const sk = sunK(); if (sk > 0) { top = mixA(top, [176, 104, 64], .62 * sk * L); bot = mixA(bot, [240, 156, 92], .65 * sk * L); }
+  { const ns = newSun(); if (ns) { const q = smooth(0, .7, voyA()) * L; top = mixA(top, ns[1].map(v => v * .55), .35 * q); bot = mixA(bot, ns[1], .3 * q); } }
   const gr = c2.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, rgb(top)); gr.addColorStop(1, rgb(bot));
   c2.fillStyle = gr; c2.fillRect(0, 0, w, h);
   const sa = Math.pow(1 - L, 2) * (1 - grey * .8);
@@ -3830,7 +3853,7 @@ function pk(x0, y0, x1, y1, pr, kind, d) { if (V.picking) V.picks.push({ x0, y0,
 function engX(c) { const sea = seaY(); for (const f of [.5, -.5, .3, -.3, 0]) { const x = c.x + (f > 0 ? c.r - c.x : c.x - c.l) * f; if (gy(x) < sea - 2) return x; } return c.x; }
 const engTowerH = p => 40 + 150 * Math.min(1, p);
 // how strongly an engine fires: test burns while it is built (from ENG_FIRE), full once all are ready; nothing while war stalls the work
-const engFire = (c, t) => { const p = engOf(c); if (p < ENG_FIRE || (W.eng && W.eng.stall && !W.eng.done)) return 0; return W.eng && W.eng.done ? .9 + .1 * Math.sin(t * 9 + c.id) : p >= 1 ? .55 : .2 + .15 * Math.max(0, Math.sin(t * 1.3 + c.id * 2)); };
+const engFire = (c, t) => { const p = engOf(c); if ((W.voy && W.voy.out === 'lost') || p < ENG_FIRE || (W.eng && W.eng.stall && !W.eng.done)) return 0; return W.eng && W.eng.done ? .9 + .1 * Math.sin(t * 9 + c.id) : p >= 1 ? .55 : .2 + .15 * Math.max(0, Math.sin(t * 1.3 + c.id * 2)); };
 function drawEngines(x0, x1, sea) {
   if (!W.eng) return;
   const o = g;
@@ -5324,7 +5347,7 @@ function sanitizeWorld(d) {
   w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0), ...sanFrom(x) }));
   w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
   w.eng = d.eng && typeof d.eng === 'object' ? { by: Object.fromEntries(Object.entries(d.eng.by && typeof d.eng.by === 'object' ? d.eng.by : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, 0, 1)])), said: n(d.eng.said, 0, 15) | 0, stall: !!d.eng.stall, done: !!d.eng.done } : null;
-  w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 127) | 0, done: !!d.voy.done, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
+  w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 511) | 0, done: !!d.voy.done, out: ['arrive', 'lost'].includes(d.voy.out) ? d.voy.out : null, dest: n(d.voy.dest, 0, NEWSUN.length - 1) | 0, t1: d.voy.t1 != null && Number.isFinite(+d.voy.t1) ? n(d.voy.t1, -1e9, 1e12) : null, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
   w.bases = (Array.isArray(d.bases) ? d.bases : []).filter(b => b && BODY[b.body]).slice(0, 64).map(b => ({ id: n(b.id, 0, 1e9) | 0, civ: n(b.civ, 0, 1e9) | 0, body: b.body, name: String(b.name || 'Base').slice(0, 24), pop: n(b.pop, 0, 1e9), t0: n(b.t0, -60000, 1e6) | 0 })); w.debris = n(d.debris, 0, 1); w.kessler = d.kessler == null ? null : n(d.kessler, -1e9, 1e12); w.warCount = n(d.warCount, 0, 1e6) | 0; w.lastWarT = n(d.lastWarT, -1e9, 1e12); w.nukeT = d.nukeT == null ? null : n(d.nukeT, -1e9, 1e12);
@@ -5805,7 +5828,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>

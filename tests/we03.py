@@ -84,14 +84,15 @@ async def main():
         # the deep voyage, then the Long Voyage ending
         r = json.loads(await ev(AT, .8)); r = json.loads(await ev(AT, 1.0))
         txt = await ev("() => { const A = window.__aoh; return [A.W.hist.filter(e => /Children are born in the caverns/.test(e.h)).length, A.ENDINGS.wandering.text]; }")
-        check('the deep voyage is told, and at its end comes the Long Voyage', r['ended'] == 'wandering' and txt[0] == 1 and 'caverns' in txt[1], str(r) + ' ' + str(txt))
+        out = await ev("() => window.__aoh.W.voy.out")
+        check('the deep voyage is told, and at its end the world arrives or is lost (WE-04)', txt[0] == 1 and out in ('arrive', 'lost') and (r['ended'] == 'lost' if out == 'lost' else r['ended'] is None), str(r) + ' ' + str(out))
         await ev("() => { const m = document.querySelector('#modal'); if (m) m.classList.remove('open'); }")
         # saving, garbage, old saves, a new cycle
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; W.voy = { t0: 123.5, y0: 40100, said: 7, done: false, jup: { wars: 1, out: 'clear' } }; const d = A.serialize(), back = A.sanitizeWorld(JSON.parse(JSON.stringify(d)));
           const bad = JSON.parse(JSON.stringify(d)); bad.voy = { t0: 'x' }; const b1 = A.sanitizeWorld(bad); const bad2 = JSON.parse(JSON.stringify(d)); bad2.voy = { t0: 5, said: 999, jup: { out: 'boom', wars: -3 } }; const b2 = A.sanitizeWorld(bad2);
           const old = JSON.parse(JSON.stringify(d)); delete old.voy; const o2 = A.sanitizeWorld(old); A.loadWorld(d); const loaded = A.W.voy; A.W.fates.ended = 'collapse'; A.riseAgain(); return JSON.stringify({ back: back.voy, loaded, b1: b1.voy, b2: b2.voy, old: o2.voy, cycle: A.W.voy }); }'''))
-        check('the voyage is saved and loaded back', r['back'] == {'t0': 123.5, 'y0': 40100, 'said': 7, 'done': False, 'jup': {'wars': 1, 'out': 'clear'}} and r['loaded'] == r['back'], str(r['back']))
-        check('bad values are dropped or clamped; old saves have no voyage; a new cycle starts without it', r['b1'] is None and r['b2'] == {'t0': 5, 'y0': 0, 'said': 127, 'done': False, 'jup': {'wars': 0, 'out': None}} and r['old'] is None and r['cycle'] is None, str(r))
+        check('the voyage is saved and loaded back', r['back'] == {'t0': 123.5, 'y0': 40100, 'said': 7, 'done': False, 'out': None, 'dest': 0, 't1': None, 'jup': {'wars': 1, 'out': 'clear'}} and r['loaded'] == r['back'], str(r['back']))
+        check('bad values are dropped or clamped; old saves have no voyage; a new cycle starts without it', r['b1'] is None and r['b2'] == {'t0': 5, 'y0': 0, 'said': 511, 'done': False, 'out': None, 'dest': 0, 't1': None, 'jup': {'wars': 0, 'out': None}} and r['old'] is None and r['cycle'] is None, str(r))
         print('errors:', errs[:3] if errs else 'no errors')
         print(f'{sum(results)}/{len(results)} passed')
         await b.close()
