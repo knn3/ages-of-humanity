@@ -71,8 +71,8 @@ async def main():
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; W.asc = { up: { 5: .25 }, minds: { 5: 3e8 }, said: { 5: 3 }, pop: {} }; const d = A.serialize(), back = A.sanitizeWorld(JSON.parse(JSON.stringify(d)));
           const bad = JSON.parse(JSON.stringify(d)); bad.asc = { up: { 5: 9, x: .2, 6: 'q' }, minds: { 5: -4 }, said: { 5: 99 } }; const b2 = A.sanitizeWorld(bad); const b3 = A.sanitizeWorld(Object.assign(JSON.parse(JSON.stringify(d)), { asc: 7 }));
           const old = JSON.parse(JSON.stringify(d)); delete old.asc; const o2 = A.sanitizeWorld(old); A.loadWorld(d); const loaded = A.W.asc; A.W.fates.ended = 'collapse'; A.riseAgain(); return JSON.stringify({ back: back.asc, loaded, bad: b2.asc, b3: b3.asc, old: o2.asc, cycle: A.W.asc }); }'''))
-        check('the upload is saved and loaded back', r['back'] == {'up': {'5': .25}, 'minds': {'5': 3e8}, 'said': {'5': 3}, 'pop': {}, 'green': {}} and r['loaded'] == r['back'], str(r['back']))
-        check('bad values are dropped or clamped; old saves have none; a new cycle starts without it', r['bad'] == {'up': {'5': 1}, 'minds': {'5': 0}, 'said': {'5': 63}, 'pop': {}, 'green': {}} and r['b3'] is None and r['old'] is None and r['cycle'] is None, str(r))
+        check('the upload is saved and loaded back', r['back'] == {'up': {'5': .25}, 'minds': {'5': 3e8}, 'said': {'5': 3}, 'pop': {}, 'green': {}, 'hold': {}} and r['loaded'] == r['back'], str(r['back']))
+        check('bad values are dropped or clamped; old saves have none; a new cycle starts without it', r['bad'] == {'up': {'5': 1}, 'minds': {'5': 0}, 'said': {'5': 63}, 'pop': {}, 'green': {}, 'hold': {}} and r['b3'] is None and r['old'] is None and r['cycle'] is None, str(r))
         print('errors:', errs[:3] if errs else 'no errors')
         print(f'{sum(results)}/{len(results)} passed')
         await b.close()

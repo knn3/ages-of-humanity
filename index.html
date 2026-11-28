@@ -1224,7 +1224,7 @@ function eraUp(c) {
   c.culture = Math.min(100, c.culture + 5);
   for (const r of CUSTOM.rules) if (r.cond === 'era' && +r.val === c.era) { const st = ruleState(r); if (!st.done && W.simTime >= st.next) fireRule(r, st, c); }
 }
-function strength(c) { const r = c._.res; return (c.machine ? MW_EDGE : 1) * Math.log10(c.pop + 10) * (.5 + c.military / 100) * (1 + .3 * c.era) * (.8 + c.stability / 250) * (1 + .25 * (r ? r.def : 0)); }
+function strength(c) { const r = c._.res; return (c.machine ? MW_EDGE : 1) * (W.asc ? (1 + ASC_DRONE * ascOf(c)) * (ascHold(c) && W.wars.some(w => (w.a === c.id || w.b === c.id) && ascHoldWar(civById(w.a), civById(w.b))) ? ASC_ZEAL : 1) : 1) * Math.log10(c.pop + 10) * (.5 + c.military / 100) * (1 + .3 * c.era) * (.8 + c.stability / 250) * (1 + .25 * (r ? r.def : 0)); }
 function applyFx(c, fx, sc) {
   if (!fx || !c.alive) return;
   if (fx.pop) c.pop = Math.max(30, c.pop * (1 + fx.pop * sc));
@@ -1332,6 +1332,7 @@ function endWar(w, how, win, lose) {
   else if (how === 'victory' && lose.machine) log(fillT('{Civ} drive the machines of {other} back and blow up the factories they leave behind.', names(win, lose)), 'war');
   else if (how === 'victory') log(fillT('The war ends in victory for {civ}. {Other} hand over land and grain.', names(win, lose)), 'war');
   else log(fillT(txt(PEACE_TXT, Math.max(a.era, b.era)), names(a, b)), 'war');
+  if (W.asc) ascWarEnd(how === 'victory' ? 'victory' : 'treaty', win || a, lose || b);
 }
 function conquer(win, lose) {
   if (landIdx(win.x) !== landIdx(lose.x)) {
@@ -1344,6 +1345,7 @@ function conquer(win, lose) {
     log(fillT('{Civ} land on the shores of {other} and occupy their cities. Tribute flows across the sea.', names(win, lose)), 'war');
     queueReaction(lose, 'unrest'); queueReaction(win, 'boom'); return;
   }
+  if (W.asc) ascWarEnd('conquer', win, lose);
   lose.alive = false; lose.fell = Math.round(W.year); lose.fellTo = win.name; leaveRuins(lose, 3);
   if (!win.machine && !lose.machine) win.pop += lose.pop * .5; win.expandUntil = W.simTime + 20;
   W.wars = W.wars.filter(w => w.a !== lose.id && w.b !== lose.id);
@@ -1372,7 +1374,7 @@ function updateWars(dt) {
       else { endWar(w, 'victory', win, lose); lose.food = Math.max(0, lose.food - 15); win.food = Math.min(100, win.food + 10); win.expandUntil = W.simTime + 20; }
       continue;
     }
-    if (!a.machine && !b.machine && w.t > 28 && Math.random() < .025 * dt * (1 + (a.stability < 20) + (b.stability < 20))) { endWar(w, 'treaty'); continue; }
+    if (!a.machine && !b.machine && w.t > 28 && Math.random() < .025 * dt * (1 + (a.stability < 20) + (b.stability < 20)) * (W.asc && ascHoldWar(a, b) ? ASC_TRUCE : 1)) { endWar(w, 'treaty'); continue; }
     if (engOn() && !E_DONE() && !a.machine && !b.machine && w.t > 6 && Math.random() < .05 * dt) { endWar(w, 'treaty'); log('With the engines waiting, the two sides lay down their arms.', 'world'); continue; }
     if (UI.random && hasBomb(a) && hasBomb(b) && w.t > 15 && (doomsday() || 9) <= 2 && Math.random() < .002 * dt) nuclearWar('escalation');
   }
@@ -1474,7 +1476,7 @@ const RUN = {
     if (foe && !atWar(best, foe) && relGet(best, c) > relGet(best, foe)) V.later.push({ at: W.simTime + 2, fn() {
       if (best.alive && foe.alive && !atWar(best, foe) && !careBlocks(best, foe)) { W.wars.push({ a: best.id, b: foe.id, t: 0, adv: 0 }); log(fillT('{Civ} join the war against {other}.', names(best, foe)), 'war'); } } });
     return best; },
-  appease(c) { const w = warsOf(c)[0]; if (!w) return null; const e = enemyOf(w, c); if (e && e.machine) return e; if (Math.random() < .6) V.later.push({ at: W.simTime + 1.5, fn() { if (W.wars.includes(w)) endWar(w, 'treaty'); } }); return e; }
+  appease(c) { const w = warsOf(c)[0]; if (!w) return null; const e = enemyOf(w, c); if (e && e.machine) return e; if (Math.random() < .6 * (W.asc && e && ascHoldWar(c, e) ? ASC_TRUCE : 1)) V.later.push({ at: W.simTime + 1.5, fn() { if (W.wars.includes(w)) endWar(w, 'treaty'); } }); return e; }
 };
 function doReaction(c, s) {
   if (W.simTime - c.lastReact < 3 || careOf(c) || c.machine) return;
@@ -2391,7 +2393,7 @@ const FATES = {
   ascension: { name: 'The Great Upload', span: 160,
     drive: x => Math.max(0, .12 + .35 * clamp((x.stab - 45) / 25, 0, 1) + .3 * x.share.Curious + .2 * x.share.Mercantile + .3 * (x.top >= 13) - .5 * Math.min(1, x.wars)),
     start: 'The first minds leave their bodies for the machines. Whole neighbourhoods empty as people move into the glow of the data centres.',
-    clock: a => { const f = FATES.ascension, left = clockYear(a.t0 + f.span) - clockYear(W.simTime); return [`${Math.round(ascShare() * 100)}% of humanity uploaded${W.simTime - a.t0 < f.span ? ' · wave peaks in ' + fmtSpan(Math.max(1, left)) : ''}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
+    clock: a => { const f = FATES.ascension, left = clockYear(a.t0 + f.span) - clockYear(W.simTime); const nh = W.asc && W.asc.hold ? Object.keys(W.asc.hold).filter(k => { const h = civById(+k); return h && h.alive; }).length : 0; return [`${Math.round(ascShare() * 100)}% of humanity uploaded${nh ? ` · ${nh} holdout ${nh > 1 ? 'peoples' : 'people'}` : ''}${W.simTime - a.t0 < f.span ? ' · wave peaks in ' + fmtSpan(Math.max(1, left)) : ''}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
     end: 'The rush to upload slows. Most people still choose to keep their bodies.',
     stress: c => c.trait === 'Devout' ? 'unrest' : 'boom' },
   garden: { name: 'The Garden', span: 160,
@@ -2554,7 +2556,7 @@ const ASC_TIME = 170, ASC_K = .95, ASC_RATE = { Merged: 1.5, Curious: 1.3, Merca
 const ascOn = () => !!W.fates && W.fates.active.some(a => a.id === 'ascension') && !W.fates.ended;
 const ascOf = c => (W.asc && W.asc.up[c.id]) || 0;
 const ascMinds = c => (W.asc && W.asc.minds[c.id]) || 0;
-const ascCan = c => !!(c && c.alive && !c.machine && c.era >= FUTURE && !(W.care && careOf(c)));
+const ascCan = c => !!(c && c.alive && !c.machine && c.era >= FUTURE && !(W.care && careOf(c)) && !ascHold(c));
 const ascRate = c => ASC_RATE[c.trait] == null ? 1 : ASC_RATE[c.trait];
 // a building is dark once its people has uploaded past its own fixed share
 const ascDark = (c, b) => { const u = ascOf(c); return u > 0 && h01((b.s ^ 0x2f1d) + 13) < u; };
@@ -2567,15 +2569,80 @@ const ascGreen = c => (W.asc && W.asc.green && W.asc.green[c.id]) || 0;
 // how far the wild has come into the town itself: never past the share that has left, so a mostly living town stays cleared
 const ascWild = c => Math.min(ascGreen(c), ascOf(c));
 const ascOver = (c, b) => ascDark(c, b) ? clamp((ascGreen(c) - .45 * h01((b.s ^ 0x1c3) + 7)) * 1.8, 0, 1) : 0;
+// ASC-03: the holdouts. When a people has uploaded past ASC_SPLIT, those who refuse break away on one edge of its land as a
+// people of their own (ascSplit); Devout peoples who refused are holdouts from the start. W.asc.hold[id] = { from, ten, out, said,
+// foe, end }: tension with the nearest uploaded people grows over ASC_TEN sim s (faster for the Warlike and across a border) and
+// ends in war or an uneasy peace (ascResolve). In war the uploaded fly drones (strength × 1 + ASC_DRONE × up); holdouts who win
+// pull the plugs on the data centres and minds are lost (ascWarEnd).
+const ASC_SPLIT = .6, ASC_TEN = 120, ASC_DRONE = .2, ASC_TEN_TRAIT = { Warlike: 1.6, Devout: 1.25, Curious: .9, Mercantile: .75, Merged: .8 };
+const HOLD_NAMES = ['Hearthfolk', 'Earthbound', 'Breathers', 'Rootborn', 'Kinfolk', 'Flesh-Keepers', 'Lamplit', 'Unsevered'];
+const ascHold = c => !!(c && W.asc && W.asc.hold && W.asc.hold[c.id]);
+// the uploaded people a holdout people faces: the one it broke from while it still stands, else the nearest one at least half gone
+function ascFoe(h) {
+  const H = W.asc.hold[h.id], p = H && H.from != null ? civById(H.from) : null;
+  if (p && p.alive && ascOf(p) >= .5) return p;
+  let best = null, bd = 1e9; for (const c of alive()) { if (ascHold(c) || c.machine || ascOf(c) < .5) continue; const d = Math.abs(c.x - h.x); if (d < bd) { bd = d; best = c; } }
+  return best;
+}
+function ascSplit(p) {
+  const w = p.r - p.l; if (w < 160 || alive().length >= 9 || p.pop < 1e5) return null;
+  const side = (p.r - p.x) >= (p.x - p.l) ? 1 : -1, hw = clamp(w * .35, 80, 420), hx = side > 0 ? p.r - hw / 2 : p.l + hw / 2;
+  const used = new Set(W.civs.map(c => c.name));
+  const h = makeCiv(hx, { era: p.era, trait: p.trait === 'Warlike' ? 'Warlike' : 'Devout', name: HOLD_NAMES.find(n => !used.has(n)) || 'Holdouts', pop: p.pop * .6, tech: p.tech });
+  Object.assign(h, { culture: p.culture, military: Math.max(p.military, 40), stability: 65, nuclear: p.nuclear, govt: p.govt, policy: 'protect' });
+  for (const e in p.reached) if (+e <= p.era) h.reached[e] = p.reached[e];
+  if (side > 0) { h.r = p.r; h.l = p.r - hw; p.r = h.l - 6; } else { h.l = p.l; h.r = p.l + hw; p.l = h.r + 6; }
+  p.pop *= .4; relSet(p, h, -10);
+  W.asc.hold[h.id] = { from: p.id, ten: 0, out: null, said: 0, foe: null, end: null };
+  log(fillT('Not all of {civ} will go. Those who refuse the upload break away and call themselves the ' + h.name + '. They keep their bodies, their children and the old ways, at the edge of the dark cities.', names(p)), 'world');
+  banner('The holdouts', `The ${h.name} break away from the ${p.name}`, h.color);
+  buildCivCards(true); floater(hx, 'holdouts break away', h.color, true);
+  return h;
+}
+function ascHoldTick(dt) {
+  const S = W.asc, Hs = S.hold || (S.hold = {});
+  if (ascOn()) for (const c of alive()) { const sd = S.said[c.id] || 0; if (!ascHold(c) && !c.machine && ascOf(c) >= ASC_SPLIT && !(sd & 64)) { S.said[c.id] = sd | 64; ascSplit(c); } }
+  for (const id in Hs) {
+    const H = Hs[id], h = civById(+id); if (!h || !h.alive || H.out) continue;
+    const u = ascFoe(h); if (!u) continue;
+    const k = (ASC_TEN_TRAIT[h.trait] || 1) * (borders(h, u) ? 1.4 : .8) * (relGet(h, u) < -40 ? 1.3 : 1);
+    H.ten = Math.min(1, H.ten + dt * k / ASC_TEN); relAdd(h, u, -.12 * dt);
+    const nm = names(h, u);
+    if (H.ten >= .35 && !(H.said & 1)) { H.said |= 1; log(fillT('{Civ} call the data centres of {other} tombs, and their preachers say the minds inside are only echoes. {Other} call {civ} the stubborn dead.', nm), 'world'); }
+    if (H.ten >= .7 && !(H.said & 2)) { H.said |= 2; S.minds[u.id] = (S.minds[u.id] || 0) * .97; log(fillT('Saboteurs from {civ} cut the power lines to a data centre of {other}. Whole halls of minds go dark for a night before the backups wake them.', nm), 'war'); floater(ascDCX(u), 'sabotage', '#e36a55'); queueReaction(u, 'threat'); }
+    if (H.ten >= 1) ascResolve(h, u, H);
+  }
+}
+// the holdouts' own war: a war of belief, slow to end in a treaty (updateWars × ASC_TRUCE)
+const ASC_TRUCE = .1, ASC_ZEAL = 1.15;
+const ascHoldWar = (a, b) => !!(W.asc && W.asc.hold) && [[a, b], [b, a]].some(([h, u]) => { const H = W.asc.hold[h.id]; return !!H && H.out === 'war' && !H.end && H.foe === u.id; });
+const ascWarChance = (h, u) => clamp(.45 + (h.trait === 'Warlike' ? .25 : 0) + (u.trait === 'Warlike' ? .1 : 0) - (h.trait === 'Mercantile' || u.trait === 'Mercantile' ? .2 : 0) - (W.tradeUntil > W.simTime ? .15 : 0) + (relGet(h, u) < -60 ? .1 : 0), .1, .9);
+function ascResolve(h, u, H, force) {
+  H.foe = u.id; const war = force ? force === 'war' : Math.random() < ascWarChance(h, u);
+  if (war && !careBlocks(h, u)) { H.out = 'war'; log(fillT('{Civ} march on the data centres of {other}. The uploaded wake their drones to meet them: a war between those who kept their bodies and those who left them.', names(h, u)), 'war'); banner('The holdouts rise', `The ${h.name} against the ${u.name}`, '#c8553d'); startWar(h, u); }
+  else { H.out = 'peace'; relSet(h, u, 10); h.stability = Math.min(100, h.stability + 6); log(fillT('{Civ} and {other} sign an uneasy peace. The holdouts keep their villages and their dead; the uploaded keep their data centres, and a guarded line runs between them.', names(h, u)), 'world'); }
+}
+// a war between holdouts and the uploaded ends: who won decides what becomes of the minds in the machines
+function ascWarEnd(how, win, lose) {
+  if (!W.asc || !W.asc.hold || !win || !lose) return;
+  const [h, u] = ascHold(win) ? [win, lose] : ascHold(lose) ? [lose, win] : [null, null]; if (!h || ascOf(u) <= 0) return;
+  const H = W.asc.hold[h.id], S = W.asc;
+  // only the holdouts' own war (from ascResolve) ends this way, once; ordinary wars between the same peoples are ordinary
+  if (H.out !== 'war' || H.end || H.foe !== u.id) return;
+  if (how === 'treaty') { H.end = 'treaty'; return; }
+  if (win === h) { H.end = 'won'; const m = S.minds[u.id] || 0, lost = how === 'conquer' ? m : m * .4; S.minds[u.id] = m - lost;
+    log(fillT(how === 'conquer' ? '{Civ} take the last data centre of {other} and pull the plugs. The minds inside are gone, and the halls fall silent for ever.' : '{Civ} storm the data centres of {other} and pull the plugs on whole halls. Millions of uploaded lives end in an instant.', names(h, u)), 'war'); }
+  else { H.end = 'lost'; log(fillT('Drones flown by the uploaded minds of {civ} drive {other} back into the hills. The holdouts make peace on the machines’ terms.', names(u, h)), 'war'); }
+}
 const ascShare = () => { let up = 0, all = 0; for (const c of alive()) { if (c.machine) continue; const m = ascMinds(c); up += m; all += m + c.pop; } return all ? up / all : 0; };
 function ascTick(dt) {
-  if (W.asc) ascGreenTick(dt);
+  if (W.asc) { ascGreenTick(dt); ascHoldTick(dt); }
   if (!ascOn()) return;
-  const S = W.asc || (W.asc = { up: {}, minds: {}, said: {}, pop: {}, green: {} });
+  const S = W.asc || (W.asc = { up: {}, minds: {}, said: {}, pop: {}, green: {}, hold: {} });
   for (const c of alive()) {
     if (!ascCan(c)) continue;
     const said = S.said[c.id] || 0, r = ascRate(c);
-    if (r === 0) { if (!(said & 8)) { S.said[c.id] = said | 8; log(fillT('{Civ} refuse the upload as a sin against the soul. They will keep their bodies, whatever the others do.', names(c)), 'world'); } continue; }
+    if (r === 0) { if (!(said & 8)) { S.said[c.id] = said | 8; log(fillT('{Civ} refuse the upload as a sin against the soul. They will keep their bodies, whatever the others do.', names(c)), 'world'); const Hs = S.hold || (S.hold = {}); if (!Hs[c.id]) Hs[c.id] = { from: null, ten: 0, out: null, said: 0, foe: null, end: null }; } continue; }
     if (warsOf(c).length) continue;
     const u0 = S.up[c.id] || 0; if (u0 >= 1) continue;
     const u1 = Math.min(1, u0 + r * dt / ASC_TIME); S.up[c.id] = u1;
@@ -2652,6 +2719,13 @@ function endFate(id, outcome) {
   if (outcome === 'ending' && ENDINGS[eid]) { log(`<b>${esc(ENDINGS[eid].name)}.</b> ${esc(ENDINGS[eid].text)}`, 'fate'); return true; }
   log(`<b>${esc(FATES[id].name)}.</b> ${esc(endTxt)}`, 'fate');
   return true;
+}
+function sanHold(d) {
+  const out = {}; if (!d || typeof d !== 'object') return out;
+  const n = (v, a, b, def = 0) => Number.isFinite(+v) ? clamp(+v, a, b) : def, id = v => v == null || !Number.isFinite(+v) ? null : clamp(+v, 0, 1e9) | 0;
+  for (const [k, H] of Object.entries(d).slice(0, 40)) { if (!/^\d+$/.test(k) || !H || typeof H !== 'object') continue;
+    out[k] = { from: id(H.from), ten: n(H.ten, 0, 1), out: ['war', 'peace'].includes(H.out) ? H.out : null, said: n(H.said, 0, 3) | 0, foe: id(H.foe), end: ['won', 'lost', 'treaty'].includes(H.end) ? H.end : null }; }
+  return out;
 }
 function sanitizeFates(d) {
   const f = freshFates(); if (!d || typeof d !== 'object') return f;
@@ -5421,7 +5495,7 @@ function sanitizeWorld(d) {
   w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
   w.eng = d.eng && typeof d.eng === 'object' ? { by: Object.fromEntries(Object.entries(d.eng.by && typeof d.eng.by === 'object' ? d.eng.by : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, 0, 1)])), said: n(d.eng.said, 0, 15) | 0, stall: !!d.eng.stall, done: !!d.eng.done } : null;
   { const A0 = d.asc && typeof d.asc === 'object' ? d.asc : null, nm = (o, a, b) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, a, b)]));
-    w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 63)).map(([k, v]) => [k, v | 0])), pop: {}, green: nm(A0.green, 0, 1) } : null; }
+    w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 63)).map(([k, v]) => [k, v | 0])), pop: {}, green: nm(A0.green, 0, 1), hold: sanHold(A0.hold) } : null; }
   w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 511) | 0, done: !!d.voy.done, out: ['arrive', 'lost'].includes(d.voy.out) ? d.voy.out : null, dest: n(d.voy.dest, 0, NEWSUN.length - 1) | 0, t1: d.voy.t1 != null && Number.isFinite(+d.voy.t1) ? n(d.voy.t1, -1e9, 1e12) : null, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
@@ -5577,6 +5651,13 @@ function orbitTipBody(q) {
   if (q.kind === 'station' && c) h += row('Bases off-world', String(basesOf(c).length));
   return [esc(I[0]) + (c ? ` · <span style="color:${c.color}">${esc(c.name)}</span>` : ''), h];
 }
+function ascHoldText(c) {
+  const H = W.asc.hold[c.id], from = H.from != null ? civById(H.from) : null, foe = civById(H.foe) || (c.alive ? ascFoe(c) : null);
+  const head = from ? `broke away from the ${from.name}` : 'kept their bodies';
+  if (H.out === 'war') return `${head}; ${H.end === 'won' ? 'pulled the plugs on the data centres of the ' : H.end === 'lost' ? 'beaten back by the drones of the ' : H.end === 'treaty' ? 'made peace with the ' : 'at war with the '}${foe ? foe.name : 'uploaded'}`;
+  if (H.out === 'peace') return `${head}; an uneasy peace with the ${foe ? foe.name : 'uploaded'}`;
+  return `${head}; tension ${Math.round(H.ten * 100)}%${foe ? ' with the ' + foe.name : ''}`;
+}
 function tipBody(t) {
   if (t.orb) return orbitTipBody(t.orb);
   const row = (l, v) => `<span><b>${esc(l)}:</b> ${esc(v)}</span>`;
@@ -5592,7 +5673,7 @@ function tipBody(t) {
     else if (q.kind === 'crater') h = row('Width', Math.round(d.r * 2) + ' paces') + row('Left by', 'a blast from the sky');
     else if (q.kind === 'ruin') h = row('Left by', 'the ' + (d.r.by || 'old world') + ', ' + ERAS[d.r.era].name) + row('Overgrown', Math.round(ruinOv(d.r) * 100) + '%') + row('Scavenged by', (civAt(d.r.x) && civAt(d.r.x).era < d.r.era - 1) ? 'the ' + civAt(d.r.x).name + ', who learn faster from it' : 'no one yet');
     else if (q.kind === 'flag') h = row('Marks the edge of', 'the lands of the ' + c.name);
-    else if (q.kind === 'datacentre') h = `<span>Racks of thinking machines where the uploaded minds of the ${esc(c.name)} now live.</span>` + row('Minds inside', fmtPop(ascMinds(c))) + row('Uploaded', Math.round(ascOf(c) * 100) + '% of the people') + row('Still in their bodies', fmtPop(c.pop));
+    else if (q.kind === 'datacentre') h = `<span>Racks of thinking machines where the uploaded minds of the ${esc(c.name)} now live.</span>` + row('Minds inside', fmtPop(ascMinds(c))) + row('Uploaded', Math.round(ascOf(c) * 100) + '% of the people') + row('Still in their bodies', fmtPop(c.pop)) + (W.asc && W.asc.hold ? Object.entries(W.asc.hold).filter(([k, H]) => { const h = civById(+k); return h && h.alive && (H.from === c.id || H.foe === c.id); }).map(([k]) => row('Holdouts', 'the ' + civById(+k).name + ' — ' + ascHoldText(civById(+k)))).join('') : '');
     else if (q.kind === 'undercity') h = `<span>Sealed caverns where the ${esc(c.name)} live through the voyage: homes, schools and lamp-lit farms, deep under the frozen surface.</span>` + row('People', fmtPop(c.pop)) + row('On the surface', Math.round(temp()) + ' °C');
     else if (q.kind === 'engine') h = `<span>A tower of steel and fusion fire, one of the engines that must push the whole world away from its dying Sun.</span>` + row('Built', Math.round(Math.min(1, engOf(c)) * 100) + '%') + row('All engines', Math.round(engProgress() * 100) + '%') + row('Now', W.eng && W.eng.done ? 'firing with all the others' : W.eng && W.eng.stall ? 'work stopped: there is war' : warsOf(c).length ? 'work stopped: its people are at war' : engOf(c) >= 1 ? 'finished, waiting for the others' : engOf(c) >= ENG_FIRE ? 'building, with test burns' : 'building');
     else if (q.kind === 'soldier') h = row('Fights for', 'the ' + c.name) + row('Against', 'the ' + (d.foe ? d.foe.name : 'enemy'));
@@ -5616,6 +5697,7 @@ function tipBody(t) {
   if (W.tb && W.tb.stances[c.id]) h += row('Facing the Hevari', TB_STANCE[W.tb.stances[c.id]][0] + ': they ' + TB_STANCE[W.tb.stances[c.id]][1]) + (W.tb.strat === c.id ? row('Secret', 'their leaders hold a plan no one else knows') : '');
   { const sh = (W.ships || []).filter(x => x.civ === c.id), stc = (W.stars || []).filter(x => x.civ === c.id); if (sh.length) h += row('Ships in flight', sh.map(x => `${x.name} to ${XSTARS[x.star][0]} (${Math.round((W.simTime - x.t0) / x.dur * 100)}%)`).join(', ')); if (stc.length) h += row('Star colonies', stc.map(x => XSTARS[x.star][0]).join(', ')); }
   if (W.asc && (ascOf(c) > 0 || (W.asc.said[c.id] & 8))) h += row('Uploaded', ascOf(c) > 0 ? `${Math.round(ascOf(c) * 100)}% (${fmtPop(ascMinds(c))} minds in the machines)` : 'refuses the upload');
+  if (ascHold(c)) h += row('Holdouts', ascHoldText(c));
   { const bs = basesOf(c); if (bs.length) h += row('Off-world', bs.map(b => `${b.name} on ${BODY[b.body].name} (${fmtPop(b.pop)})`).join(', ')); }
   if ((c.bunker || 0) > .05) h += row(c.trait === 'Devout' ? 'Deep vaults' : 'Bunkers', Math.round(c.bunker * 100) + '% built' + (c.bunker >= .5 ? ', enough to shelter them through a nuclear winter' : ''));
   if (W.pandemic && W.pandemic.inf[c.id] > 0) h += row('Plague', Math.round(W.pandemic.inf[c.id] * 100) + '% of the people sick' + (c.closed > W.simTime ? ', borders closed' : ''));
@@ -5905,7 +5987,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
