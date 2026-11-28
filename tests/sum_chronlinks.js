@@ -1,7 +1,7 @@
 () => { const A = window.__aoh, W = A.W, V = A.V; scrollTo(0, 0);
   const lines = (W.hist || []).filter(e => e.sh != null), ids = [...new Set(lines.map(e => e.sh))], out = { lines: lines.length, ships: ids.length, ship: 0, lost: 0, world: 0, none: 0, bad: [] };
   // every ship line in the chronicle panel is a link
-  const lis = [...document.querySelectorAll('#log li')], linked = lis.filter(li => li.classList.contains('shiplink')).length, shipish = lis.filter(li => /generation ship|Mutiny aboard|Plague aboard|forgotten they are on a ship|falls silent|reaches [A-Z]/.test(li.innerText)).length;
+  const lis = [...document.querySelectorAll('#log li')], linked = lis.filter(li => li.classList.contains('shiplink')).length, shipish = lis.filter(li => /generation ship|Mutiny aboard|Plague aboard|forgotten they are on a ship|falls silent|reaches [A-Z]/.test(li.innerText) && !/A mission launched/.test(li.innerText)).length;
   out.panel = linked + '/' + shipish;
   for (const id of ids) {
     const k = A.shipFocus(id, true); A.render();
