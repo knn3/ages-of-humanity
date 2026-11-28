@@ -1241,7 +1241,7 @@ function updateCiv(c, dt) {
   for (let i = c.mods.length - 1; i >= 0; i--) { const m = c.mods[i]; if (m.until <= W.simTime) { c.mods.splice(i, 1); continue; } mFood += m.food || 0; mTech *= m.techMul || 1; mStab += m.stab || 0; }
   const width = Math.max(100, c.r - c.l);
   const climate = clamp(1 - Math.abs(t) * (c.era >= 10 ? .05 : .09), .35, 1.1);
-  const K = ERAS[c.era].K * clamp(.35 + .65 * r.food, .3, 3) * Math.pow(width / 400, .7) * climate;
+  const K = ERAS[c.era].K * clamp(.35 + .65 * r.food, .3, 3) * Math.pow(width / 400, .7) * climate * (1 - ASC_K * ascOf(c));
   c._.K = K;
   const nW = warsOf(c).length, p = c.pop / K;
   const foodT = clamp(95 - 45 * p, 3, 100) + mFood - Math.abs(t) * 4 - nW * 6 + (pol === 'exploit' ? 5 : pol === 'protect' ? -4 : 0);
@@ -1904,7 +1904,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -2331,7 +2331,7 @@ function riseAgain() {
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
-  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
   log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
@@ -2391,6 +2391,7 @@ const FATES = {
   ascension: { name: 'The Great Upload', span: 160,
     drive: x => Math.max(0, .12 + .35 * clamp((x.stab - 45) / 25, 0, 1) + .3 * x.share.Curious + .2 * x.share.Mercantile + .3 * (x.top >= 13) - .5 * Math.min(1, x.wars)),
     start: 'The first minds leave their bodies for the machines. Whole neighbourhoods empty as people move into the glow of the data centres.',
+    clock: a => { const f = FATES.ascension, left = clockYear(a.t0 + f.span) - clockYear(W.simTime); return [`${Math.round(ascShare() * 100)}% of humanity uploaded${W.simTime - a.t0 < f.span ? ' · wave peaks in ' + fmtSpan(Math.max(1, left)) : ''}`, clamp((W.simTime - a.t0) / f.span, 0, 1)]; },
     end: 'The rush to upload slows. Most people still choose to keep their bodies.',
     stress: c => c.trait === 'Devout' ? 'unrest' : 'boom' },
   garden: { name: 'The Garden', span: 160,
@@ -2544,6 +2545,36 @@ function voyEscape() {
   J.out = clean ? 'clear' : 'scarred';
   if (clean) log('The engines hold. Firing together, they drag the world clear of Jupiter and out towards the stars.', 'world');
   else { for (const c of alive()) c.pop *= .85; log('The world tears free of Jupiter, but only just: part of its air is stripped away into the giant’s storms, and many in the caverns do not live to see it.', 'world'); }
+}
+// ASC-01: mind upload. While the Great Upload runs, Future Age peoples move their minds into data centres: W.asc.up[id] (0..1) grows
+// at a speed set by character (ASC_RATE; the Devout refuse), never during a war of their own. The land then feeds only the bodies
+// left (updateCiv: K × (1 − ASC_K × up)), so the living population falls; those who left are counted in W.asc.minds[id]. Their
+// buildings go dark one by one in a fixed order (ascDark), and a data centre grows beside the capital.
+const ASC_TIME = 170, ASC_K = .95, ASC_RATE = { Merged: 1.5, Curious: 1.3, Mercantile: 1, Warlike: .6, Devout: 0 };
+const ascOn = () => !!W.fates && W.fates.active.some(a => a.id === 'ascension') && !W.fates.ended;
+const ascOf = c => (W.asc && W.asc.up[c.id]) || 0;
+const ascMinds = c => (W.asc && W.asc.minds[c.id]) || 0;
+const ascCan = c => !!(c && c.alive && !c.machine && c.era >= FUTURE && !(W.care && careOf(c)));
+const ascRate = c => ASC_RATE[c.trait] == null ? 1 : ASC_RATE[c.trait];
+// a building is dark once its people has uploaded past its own fixed share
+const ascDark = (c, b) => { const u = ascOf(c); return u > 0 && h01((b.s ^ 0x2f1d) + 13) < u; };
+const ascShare = () => { let up = 0, all = 0; for (const c of alive()) { if (c.machine) continue; const m = ascMinds(c); up += m; all += m + c.pop; } return all ? up / all : 0; };
+function ascTick(dt) {
+  if (!ascOn()) return;
+  const S = W.asc || (W.asc = { up: {}, minds: {}, said: {}, pop: {} });
+  for (const c of alive()) {
+    if (!ascCan(c)) continue;
+    const said = S.said[c.id] || 0, r = ascRate(c);
+    if (r === 0) { if (!(said & 8)) { S.said[c.id] = said | 8; log(fillT('{Civ} refuse the upload as a sin against the soul. They will keep their bodies, whatever the others do.', names(c)), 'world'); } continue; }
+    if (warsOf(c).length) continue;
+    const u0 = S.up[c.id] || 0; if (u0 >= 1) continue;
+    const u1 = Math.min(1, u0 + r * dt / ASC_TIME); S.up[c.id] = u1;
+    // those who leave: the share of the living that this step's upload takes
+    const moved = c.pop * clamp((u1 - u0) / Math.max(.02, 1 - u0), 0, 1) * .9; c.pop -= moved; S.minds[c.id] = (S.minds[c.id] || 0) + moved;
+    if (u0 === 0) { S.said[c.id] = (S.said[c.id] || 0) | 1; log(fillT('{Civ} begin to upload their minds. Queues of the old and the dying form outside the data centres, and then everyone else’s.', names(c)), 'world'); }
+    if (u1 >= .5 && !((S.said[c.id] || 0) & 2)) { S.said[c.id] |= 2; log(fillT('Half of {civ} now live in the machines. Whole districts stand empty, their windows dark.', names(c)), 'world'); }
+    if (u1 >= 1 && !((S.said[c.id] || 0) & 4)) { S.said[c.id] |= 4; log(fillT('The last of {civ} who wanted to go have left their bodies. Their cities are dark; only the data centres hum.', names(c)), 'world'); banner('Minds in the machine', c.name + ' have uploaded', c.color); }
+  }
 }
 const SUN_LINES = ['The Sun rises a little wider and a little redder each year. The days grow hot and the noon light has turned to gold.',
   'The Sun now looks half as wide again as it did. Harvests wilt, the snows retreat up the mountains and the seas creep onto the coasts.',
@@ -3411,7 +3442,8 @@ function P(a, c) { g.fillStyle = c; g.beginPath(); g.moveTo(a[0], a[1]); for (le
 function Ln(x1, y1, x2, y2, c, w) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
 function Ci(x, y, r, c) { g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill(); }
 function El(x, y, rx, ry, c, a0 = 0, a1 = 6.2832) { g.fillStyle = c; g.beginPath(); g.ellipse(x, y, rx, ry, 0, a0, a1); g.fill(); }
-function win(b, x, y, w, h, i, p) { if (V.N > .3 && h01(b.s + i * 7919) < p * (.6 + .4 * V.N)) LT.push(x, y, w, h); else R(x, y, w, h, V.N > .3 ? '#262b33' : '#4a5866'); }
+let DARKB = false;
+function win(b, x, y, w, h, i, p) { if (!DARKB && V.N > .3 && h01(b.s + i * 7919) < p * (.6 + .4 * V.N)) LT.push(x, y, w, h); else R(x, y, w, h, V.N > .3 ? '#262b33' : '#4a5866'); }
 function flag(x, y, c) { Ln(x, y, x, y - 10, '#3a3028', 1); const w = Math.sin(V.t * 4 + x) * 1.2; P([x, y - 10, x + 7, y - 8.5 + w, x, y - 7], c); }
 function crenel(x, y, w, c) { for (let xx = x; xx < x + w - 1; xx += 4) R(xx, y - 3, 2.2, 3, c); }
 function blink(x, y, c) { if (Math.sin(V.t * 3.2 + x * .1) > .2) GL.push({ x, y, r: 4, c, a: .95 }); }
@@ -3892,6 +3924,16 @@ function drawUndercities(x0, x1) {
     pk(cx - half, top, cx + half, top + H, 1, 'undercity', { name: 'City under the ice', c });
   }
 }
+// ASC-01: the data centre beside the capital, growing as more minds move in; its racks blink cyan
+function ascDCX(c) { const sea = seaY(); for (const f of [-.35, .35, -.2, .2]) { const x = c.x + (f > 0 ? c.r - c.x : c.x - c.l) * f; if (gy(x) < sea - 2) return x; } return c.x; }
+function drawDatacentre(c) {
+  const o = g, u = ascOf(c), x = ascDCX(c), y = gy(x), w = 26 + 34 * u, h = 20 + 16 * u, l = x - w / 2;
+  o.fillStyle = '#1b2230'; o.fillRect(l, y - h, w, h + 2); o.fillStyle = '#2c3648'; o.fillRect(l, y - h, w, 3);
+  const cols = Math.floor(w / 5), rows = Math.floor((h - 6) / 4);
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) { const on = Math.sin(V.t * 3 + i * 1.7 + j * 2.3 + c.id) > -.2; o.fillStyle = on ? 'rgba(110,230,255,.95)' : 'rgba(40,80,100,.8)'; o.fillRect(l + 2 + i * 5, y - h + 5 + j * 4, 3, 1.6); }
+  GL.push({ x, y: y - h / 2, r: 30 + 30 * u, c: '110,230,255', a: (.18 + .2 * u).toFixed(3) });
+  pk(l, y - h, l + w, y, 0, 'datacentre', { name: 'Data centre', c });
+}
 function drawWorld(o, x0, x1) {
   g = o;
   const i0 = Math.max(0, Math.floor(x0 / STEP)), i1 = Math.min(NCOL - 1, Math.ceil(x1 / STEP)), sea = seaY(), snowY = snowLine();
@@ -3926,7 +3968,8 @@ function drawWorld(o, x0, x1) {
     for (const bx of [c.l, c.r]) { if (bx < x0 || bx > x1) continue; const by = gy(bx); pk(bx - 3, by - 15, bx + 7, by, 1, 'flag', { name: 'Border marker', c }); Ln(bx, by, bx, by - 14, '#3a3028', 1.2); P([bx, by - 14, bx + 6, by - 12, bx, by - 10], c.color); }
     const rd = c._.road;
     if (rd && rd[1] > x0 && rd[0] < x1) { const a0 = Math.max(rd[0], x0), a1 = Math.min(rd[1], x1); o.strokeStyle = c.era < 8 ? '#8b7a5d' : c.era < 10 ? '#2f2b29' : '#4a4d52'; o.lineWidth = c.era < 8 ? 1.6 : 2.4; o.beginPath(); for (let x = a0; x <= a1; x += 6) { const y = gy(x) - .4; x === a0 ? o.moveTo(x, y) : o.lineTo(x, y); } o.stroke(); if (c.era >= 8 && c.era < 10) for (let x = a0; x <= a1; x += 5) R(x, gy(x) - 1.2, 1, 2.2, '#5a4636'); }
-    for (const b of c._.items) { if (b.x + b.w < x0 || b.x > x1) continue; if (c.ruin > .05 && b.t !== 'field' && h01(b.s ^ 0x5bd1) < c.ruin) drawRuin(b, c); else (DRAW[b.t] || DRAW.hut)(b, c); }
+    for (const b of c._.items) { if (b.x + b.w < x0 || b.x > x1) continue; if (c.ruin > .05 && b.t !== 'field' && h01(b.s ^ 0x5bd1) < c.ruin) drawRuin(b, c); else if (W.asc && ascDark(c, b)) { DARKB = true; const nL = LT.length, nG = GL.length; (DRAW[b.t] || DRAW.hut)(b, c); LT.length = nL; GL.length = nG; DARKB = false; o.save(); o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(14,16,22,.55)'; o.fillRect(b.x - 2, b.base - b.h - 4, b.w + 4, b.h + 4); o.restore(); } else (DRAW[b.t] || DRAW.hut)(b, c); }
+    if (W.asc && ascOf(c) > 0) drawDatacentre(c);
     if (c._.train) { drawTrain(c._.train, c.era); const tn = c._.train; pk(Math.min(tn.x, tn.x - tn.dir * 52) - 8, gy(tn.x) - 13, Math.max(tn.x, tn.x - tn.dir * 52) + 8, gy(tn.x), 0, 'train', { name: c.era >= 10 ? 'High-speed train' : 'Steam train', c }); }
     for (const a of c._.agents) if (a.x > x0 - 20 && a.x < x1 + 20) drawAgent(a, c);
     for (const s of c._.ships) if (s.x > x0 - 40 && s.x < x1 + 40) { drawShip(s, c.era, c.color); pk(s.x - 24, seaY() - 30, s.x + 24, seaY() + 4, 0, 'ship', { name: shipName(c.era), c }); }
@@ -5347,6 +5390,8 @@ function sanitizeWorld(d) {
   w.ships = (Array.isArray(d.ships) ? d.ships : []).filter(x => x && XSTARS[x.star]).slice(0, 40).map(x => ({ id: n(x.id, 0, 1e9) | 0, civ: n(x.civ, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, name: String(x.name || 'Ship').slice(0, 24), t0: n(x.t0, -1e9, 1e12), dur: n(x.dur, 10, 1e5, 200), crew: n(x.crew, 0, 1e9), y0: n(x.y0, -60000, 1e6) | 0, told: n(x.told, 0, 3) | 0, forgot: !!x.forgot, crew0: n(x.crew0, 1, 1e9, 1e5), log: sanVlog(x.log, n(x.y0, -60000, 1e6) | 0), ...sanFrom(x) }));
   w.lost = (Array.isArray(d.lost) ? d.lost : []).filter(x => x && XSTARS[x.star]).slice(-LOST_MAX).map(x => ({ id: n(x.id, 0, 1e9) | 0, star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, f: n(x.f, 0, 1), t: n(x.t, -1e9, 1e12), name: String(x.name || 'Ship').slice(0, 24), log: sanVlog(x.log, null), ...sanFrom(x, 1) }));
   w.eng = d.eng && typeof d.eng === 'object' ? { by: Object.fromEntries(Object.entries(d.eng.by && typeof d.eng.by === 'object' ? d.eng.by : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, 0, 1)])), said: n(d.eng.said, 0, 15) | 0, stall: !!d.eng.stall, done: !!d.eng.done } : null;
+  { const A0 = d.asc && typeof d.asc === 'object' ? d.asc : null, nm = (o, a, b) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(+v)).slice(0, 60).map(([k, v]) => [k, clamp(+v, a, b)]));
+    w.asc = A0 ? { up: nm(A0.up, 0, 1), minds: nm(A0.minds, 0, 1e12), said: Object.fromEntries(Object.entries(nm(A0.said, 0, 15)).map(([k, v]) => [k, v | 0])), pop: {} } : null; }
   w.voy = d.voy && typeof d.voy === 'object' && Number.isFinite(+d.voy.t0) ? { t0: n(d.voy.t0, -1e9, 1e12), y0: n(d.voy.y0, -60000, 1e6) | 0, said: n(d.voy.said, 0, 511) | 0, done: !!d.voy.done, out: ['arrive', 'lost'].includes(d.voy.out) ? d.voy.out : null, dest: n(d.voy.dest, 0, NEWSUN.length - 1) | 0, t1: d.voy.t1 != null && Number.isFinite(+d.voy.t1) ? n(d.voy.t1, -1e9, 1e12) : null, jup: d.voy.jup && typeof d.voy.jup === 'object' ? { wars: n(d.voy.jup.wars, 0, 99) | 0, out: ['clear', 'scarred'].includes(d.voy.jup.out) ? d.voy.jup.out : null } : null } : null;
   w.sun = d.sun && typeof d.sun === 'object' ? { k: n(d.sun.k, 0, 1), said: n(d.sun.said, 0, 15) | 0 } : { k: 0, said: 0 };
   w.stars = (Array.isArray(d.stars) ? d.stars : []).filter(x => x && XSTARS[x.star]).slice(0, 60).map(x => ({ star: n(x.star, 0, XSTARS.length - 1) | 0, civ: n(x.civ, 0, 1e9) | 0, name: String(x.name || 'Ship').slice(0, 24), pop: n(x.pop, 0, 1e10), t0: n(x.t0, -60000, 1e6) | 0, forgot: !!x.forgot, log: sanVlog(x.log, null), sid: x.sid != null && Number.isFinite(+x.sid) ? n(x.sid, 0, 1e9) | 0 : null, world: typeof x.world === 'string' && x.world ? String(x.world).slice(0, 28) : WORLDN[(n(x.star, 0, 99) | 0) * 7 % WORLDN.length], ...sanFrom(x) }));
@@ -5517,6 +5562,7 @@ function tipBody(t) {
     else if (q.kind === 'crater') h = row('Width', Math.round(d.r * 2) + ' paces') + row('Left by', 'a blast from the sky');
     else if (q.kind === 'ruin') h = row('Left by', 'the ' + (d.r.by || 'old world') + ', ' + ERAS[d.r.era].name) + row('Overgrown', Math.round(ruinOv(d.r) * 100) + '%') + row('Scavenged by', (civAt(d.r.x) && civAt(d.r.x).era < d.r.era - 1) ? 'the ' + civAt(d.r.x).name + ', who learn faster from it' : 'no one yet');
     else if (q.kind === 'flag') h = row('Marks the edge of', 'the lands of the ' + c.name);
+    else if (q.kind === 'datacentre') h = `<span>Racks of thinking machines where the uploaded minds of the ${esc(c.name)} now live.</span>` + row('Minds inside', fmtPop(ascMinds(c))) + row('Uploaded', Math.round(ascOf(c) * 100) + '% of the people') + row('Still in their bodies', fmtPop(c.pop));
     else if (q.kind === 'undercity') h = `<span>Sealed caverns where the ${esc(c.name)} live through the voyage: homes, schools and lamp-lit farms, deep under the frozen surface.</span>` + row('People', fmtPop(c.pop)) + row('On the surface', Math.round(temp()) + ' °C');
     else if (q.kind === 'engine') h = `<span>A tower of steel and fusion fire, one of the engines that must push the whole world away from its dying Sun.</span>` + row('Built', Math.round(Math.min(1, engOf(c)) * 100) + '%') + row('All engines', Math.round(engProgress() * 100) + '%') + row('Now', W.eng && W.eng.done ? 'firing with all the others' : W.eng && W.eng.stall ? 'work stopped: there is war' : warsOf(c).length ? 'work stopped: its people are at war' : engOf(c) >= 1 ? 'finished, waiting for the others' : engOf(c) >= ENG_FIRE ? 'building, with test burns' : 'building');
     else if (q.kind === 'soldier') h = row('Fights for', 'the ' + c.name) + row('Against', 'the ' + (d.foe ? d.foe.name : 'enemy'));
@@ -5539,6 +5585,7 @@ function tipBody(t) {
   { const sw = W.dyson && W.dyson.by[c.id], cy = (W.megas || []).filter(m => m.civ === c.id).length; if (sw || cy) h += row('Megastructures', [sw ? `${Math.round(sw / SWARM_FULL * 100)}% of the Sun's swarm` : '', cy ? `${cy} space cylinder${cy > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ')); }
   if (W.tb && W.tb.stances[c.id]) h += row('Facing the Hevari', TB_STANCE[W.tb.stances[c.id]][0] + ': they ' + TB_STANCE[W.tb.stances[c.id]][1]) + (W.tb.strat === c.id ? row('Secret', 'their leaders hold a plan no one else knows') : '');
   { const sh = (W.ships || []).filter(x => x.civ === c.id), stc = (W.stars || []).filter(x => x.civ === c.id); if (sh.length) h += row('Ships in flight', sh.map(x => `${x.name} to ${XSTARS[x.star][0]} (${Math.round((W.simTime - x.t0) / x.dur * 100)}%)`).join(', ')); if (stc.length) h += row('Star colonies', stc.map(x => XSTARS[x.star][0]).join(', ')); }
+  if (W.asc && (ascOf(c) > 0 || (W.asc.said[c.id] & 8))) h += row('Uploaded', ascOf(c) > 0 ? `${Math.round(ascOf(c) * 100)}% (${fmtPop(ascMinds(c))} minds in the machines)` : 'refuses the upload');
   { const bs = basesOf(c); if (bs.length) h += row('Off-world', bs.map(b => `${b.name} on ${BODY[b.body].name} (${fmtPop(b.pop)})`).join(', ')); }
   if ((c.bunker || 0) > .05) h += row(c.trait === 'Devout' ? 'Deep vaults' : 'Bunkers', Math.round(c.bunker * 100) + '% built' + (c.bunker >= .5 ? ', enough to shelter them through a nuclear winter' : ''));
   if (W.pandemic && W.pandemic.inf[c.id] > 0) h += row('Plague', Math.round(W.pandemic.inf[c.id] * 100) + '% of the people sick' + (c.closed > W.simTime ? ', borders closed' : ''));
@@ -5828,7 +5875,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ASC: { ASC_TIME, ASC_K, ASC_RATE }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
