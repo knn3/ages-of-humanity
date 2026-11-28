@@ -90,11 +90,12 @@ async def main():
         r = json.loads(await ev(r'''() => { const A = window.__aoh, W = A.W; const d = A.serialize(), back = A.sanitizeWorld(JSON.parse(JSON.stringify(d)));
           const bad = JSON.parse(JSON.stringify(d)); bad.occ = { towers: [{ x: 99999, g: 7, name: '<b>x</b>'.repeat(9), state: 'zz', s: -4 }, 5, { y: 2 }], src: 'q', said: 99 }; const b2 = A.sanitizeWorld(bad);
           const b3 = A.sanitizeWorld(Object.assign(JSON.parse(JSON.stringify(d)), { occ: 7 })), b4 = A.sanitizeWorld(Object.assign(JSON.parse(JSON.stringify(d)), { occ: { towers: [] } }));
-          const old = JSON.parse(JSON.stringify(d)); delete old.occ; const o2 = A.sanitizeWorld(old); A.loadWorld(d); const loaded = JSON.parse(JSON.stringify(A.W.occ)); A.W.fates.ended = 'collapse'; A.riseAgain();
-          return JSON.stringify({ same: JSON.stringify(back.occ) === JSON.stringify(d.occ), loaded: JSON.stringify(loaded) === JSON.stringify(d.occ), bad: b2.occ, b3: b3.occ, b4: b4.occ, old: o2.occ, cycle: A.W.occ }); }'''))
+          const old = JSON.parse(JSON.stringify(d)); delete old.occ; const o2 = A.sanitizeWorld(old); A.loadWorld(d); const loaded = JSON.parse(JSON.stringify(A.W.occ)); A.W.tb = { t0: 0, lock: true }; A.W.fates.ended = 'collapse'; A.riseAgain();
+          return JSON.stringify({ same: JSON.stringify(back.occ) === JSON.stringify(d.occ), loaded: JSON.stringify(loaded) === JSON.stringify(d.occ), bad: b2.occ, b3: b3.occ, b4: b4.occ, old: o2.occ, cycle: A.W.occ, tb: A.W.tb, locked: !!(A.W.tb && A.W.tb.lock) }); }'''))
         bt = r['bad']['towers'] if r['bad'] else []
         check('the colonies are saved and loaded back exactly', r['same'] and r['loaded'], str(r)[:160])
         check('bad values are dropped or clamped; old saves have none; a new cycle starts without them', len(bt) == 1 and bt[0]['x'] == 11999 and bt[0]['g'] == 1 and bt[0]['state'] == 'grow' and len(bt[0]['name']) <= 24 and r['bad']['src'] == 'tb' and r['bad']['said'] == 15 and r['b3'] is None and r['b4'] is None and r['old'] is None and r['cycle'] is None, str(r['bad'])[:200])
+        check('a new cycle also clears a running Three-Sun Signal (no orphaned physics lock)', r['tb'] is None and not r['locked'], str({'tb': r['tb']}))
         print('errors:', errs[:3] if errs else 'no errors'); results.append(not errs)
         print(f'{sum(results)}/{len(results)} passed')
         await b.close()

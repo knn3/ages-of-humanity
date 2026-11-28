@@ -2403,7 +2403,7 @@ function riseAgain() {
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
-  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null; W.occ = null;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null; W.occ = null; W.tb = null;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
   log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
