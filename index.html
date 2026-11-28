@@ -901,6 +901,7 @@ EVENTS.push({ id: 'uprising', name: 'Machine Uprising', g: '⛭', cat: 'Modern',
 EVENTS.push({ id: 'grey', name: 'Grey Spread', g: '▦', cat: 'Modern', scope: 'local', r: 300, minEra: 11, special: 'grey', sub: 'Self-copying machines escape' },
   { id: 'greyburn', name: 'Burn the Grey', g: '♨', cat: 'Modern', scope: 'local', r: 600, minEra: 9, special: 'greyburn', sub: 'Fire and counter-swarms' });
 EVENTS.push({ id: 'bioplague', name: 'Engineered Plague', g: '☣', cat: 'Modern', scope: 'target', minEra: 11, special: 'bioplague', sub: 'A lab-made pandemic' });
+EVENTS.push({ id: 'landing', name: 'The Landing', g: '⟁', cat: 'Futures', scope: 'global', minEra: 12, special: 'landing', sub: 'The Hevari come down to stay' });
 EVENTS.push({ id: 'broadcast', name: 'Broadcast the Coordinates', g: '⌁', cat: 'Futures', scope: 'global', minEra: 12, special: 'broadcast', sub: 'Reveal both worlds to the galaxy' });
 // each future can be started by hand once a people reaches the Planetary Age
 for (const [fid, name, gl] of [['threebody', 'Answer the Signal', '✺'], ['collapse', 'Push to Collapse', '☄'], ['agi', 'Unchain the AI', '⚙'], ['wandering', 'The Sun Swells', '☀'],
@@ -1559,6 +1560,15 @@ const SPECIAL = {
   greyburn: { run(ev, x) { if (!greyOn()) { toast('There is no grey to burn.'); return false; } const b = greyBurnAt(x, ev.r || 600); if (b < .01) { toast('There is no grey here. Click on the grey.'); return false; } log(`Fire and counter-swarms sweep through the grey${civAt(x) ? ' in the lands of the ' + esc(civAt(x).name) : ''}, and the land underneath shows through.`, 'event'); return true; } },
   merge: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} are already one with their machines.`); return false; } if (c.era < 11) { toast('Only a people in the Future Age or later can merge with its machines.'); return false; } return mergeCiv(c, 'event'); } },
   uprising: { run(ev, x) { const c = civAt(x); if (!c || c.machine) { toast('Click inside the lands of a human people.'); return false; } if (c.merged) { toast(`The ${c.name} and their machines are one mind: there is nothing to rise.`); return false; } if (c.era < 10) { toast('Only a people in the Information Age or later has machines that could rise.'); return false; } if (W.mw) { toast(W.mw.done ? 'The machines have already risen once in this cycle.' : 'The machines are already at war.'); return false; } if (W.care) { toast('The caretakers already run the world.'); return false; } if (alive().length >= 8) { toast('Eight peoples is the most this world holds.'); return false; } return machineRise(c, 'event'); } },
+  landing: { run() {
+    if (occLive()) { toast('The Hevari have already landed.'); return false; }
+    if (W.tb && W.tb.strikeT) { toast('The strike is coming. The Hevari will not land on a world about to be flattened.'); return false; }
+    if (W.tb && W.tb.occ) return occLand('event');
+    if (!W.tb && !startFate('threebody', 'event')) { toast('The Hevari cannot come now.'); return false; }
+    const T = W.tb, a = W.fates.active.find(a => a.id === 'threebody'); if (!T || !a) return false;
+    T.lock = true; T.probe = true; T.deterTried = true; T.deter = null; T.landing = true; a.t0 = W.simTime - FATES.threebody.span;
+    log('The Hevari do not wait. Their fleet drops out of the dark centuries ahead of every forecast.', 'fate');
+    tbAdvanced(a, 0); return true; } },
   broadcast: { run() { if (!W.tb) { toast('There is no one to deter yet: start the Three-Sun Signal first.'); return false; } if (W.tb.strikeT) { toast('The coordinates are already out.'); return false; } return tbBroadcast(W.tb.deter ? civById(W.tb.deter.holder) : null); } },
   flare: { run() {
     W.flareUntil = W.simTime + 40;
@@ -1906,7 +1916,7 @@ function step(dt) {
       for (const c of alive()) if (c.era >= 10) { addTech(c, -12); c.stability = Math.max(0, c.stability - 8); }
     }
     if (W.kessler && W.simTime > W.kessler) W.debris = Math.max(0, W.debris - .004 * dt); }
-  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); gdnTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
+  W._fateT = (W._fateT || 0) + dt; if (W._fateT >= 1) { endTick(W._fateT); fateTick(W._fateT); ascTick(W._fateT); occTick(W._fateT); gdnTick(W._fateT); sunTick(W._fateT); engTick(W._fateT); voyTick(W._fateT); spaceTick(W._fateT); W._fateT = 0; }
 }
 
 /* ---------- space: bases on the Moon and Mars ---------- */
@@ -2212,7 +2222,7 @@ function tbBroadcast(by) {
 function tbClock(a) {
   const T = W.tb; if (!T) return null;
   if (T.strikeT) return ['Strike due in ' + fmtSpan(Math.max(1, clockYear(T.strikeT) - clockYear(W.simTime))), clamp(1 - (T.strikeT - W.simTime) / 60, 0, 1)];
-  if (T.occ) return ['Occupation: resistance ' + Math.round(T.occ.res) + ' against ' + Math.round(T.occ.foe), clamp((W.simTime - T.occ.t0) / 120, 0, 1)];
+  if (T.occ) { const nc = W.occ ? W.occ.towers.filter(t => t.state === 'grow').length : 0; return ['Occupation: resistance ' + Math.round(T.occ.res) + ' against ' + Math.round(T.occ.foe) + (nc ? ` · ${nc} Hevari ${nc > 1 ? 'colonies' : 'colony'}` : ''), clamp((W.simTime - T.occ.t0) / 120, 0, 1)]; }
   if (T.deter) { const h = civById(T.deter.holder); return ['Deterrence holds · the ' + (h ? h.name : '?') + ' hold the switch', 1]; }
   return null;
 }
@@ -2240,6 +2250,7 @@ function tbAdvanced(a, dt) {
     log('The Hevari fleet arrives. Its ships darken the sky, and every army on the ground lays down its weapons in a single afternoon.', 'fate');
     banner('The fleet arrives', 'The occupation begins', '#c8553d');
     for (const c of alive()) { c.military *= .3; c.stability = Math.max(0, c.stability - 15); queueReaction(c, 'threat'); }
+    occLand(T.landing ? 'event' : 'tb'); T.landing = false;
   }
   if (T.occ) {
     const O = T.occ;
@@ -2247,7 +2258,7 @@ function tbAdvanced(a, dt) {
     O.res += dt * (T.ark || 0) * .05;
     if (Math.random() < dt * .04) { const c = pick(alive()); if (c) log(fillT(c.trait === 'Devout' ? 'Some of {civ} kneel to the Hevari; others hide the old books.' : '{Civ} strike at a Hevari outpost and vanish into the hills.', names(c)), 'fate'); }
     if (W.simTime - O.t0 >= 120) {
-      if (O.res > O.foe * rand(.6, 1.1)) { T.endTxt = 'The resistance wins. Battered and puzzled, the Hevari fleet withdraws to wait for a better century.'; endFate('threebody', 'faded'); }
+      if (O.res > O.foe * rand(.6, 1.1)) { T.endTxt = 'The resistance wins. Battered and puzzled, the Hevari fleet withdraws to wait for a better century.'; occWithdraw(); endFate('threebody', 'faded'); }
       else { T.endAs = 'occupation'; endFate('threebody', 'ending'); }
     }
   }
@@ -2260,6 +2271,65 @@ function tbFinish(outcome) {
 }
 // a people cannot cross into a new age while the physics lock holds
 const tbLocked = () => !!(W.tb && W.tb.lock);
+
+/* ---------- Occupied Earth: the Hevari land and stay (OCC-01) ---------- */
+// When the Hevari fleet arrives (TB-08), or from the Landing event, landers plant seed towers on the most fertile land, spaced
+// OCC_GAP apart. W.occ = { t0, y0, src: 'tb'|'event', towers: [{ x, t0, y0, g, s, name, state: 'grow'|'empty' }], said }.
+// Each tower grows (g 0..1 over OCC_GROW sim s) from a seed tower into an outpost, a colony and a colony city with its own look:
+// pale violet-white spires marked with three suns. If the resistance drives the fleet off, the towers stand empty.
+const OCC_GROW = 110, OCC_GAP = 650, OCC_MAX = 6, OCC_STAGE = ['Seed tower', 'Outpost', 'Colony', 'Colony city'];
+const OCC_NAMES = ['Vael Toru', 'Hesk Amar', 'Ilun Sev', 'Taro Veyn', 'Quessa', 'Ombra Hal', 'Sul Ithe', 'Varn Kesh', 'Eloth', 'Myrr Ana', 'Ket Avel', 'Oruun'];
+const occStage = t => t.g < .25 ? 0 : t.g < .5 ? 1 : t.g < .8 ? 2 : 3;
+const occLive = () => !!(W.occ && W.occ.towers.some(t => t.state === 'grow'));
+const occPop = t => t.state === 'grow' ? Math.round(2e4 + 6e6 * Math.pow(t.g, 1.6)) : 0;
+const occWd = (a, b) => { const d = Math.abs(a - b) % WORLD_W; return Math.min(d, WORLD_W - d); };
+// the richest land: good soil where forests could grow, wide enough to build on, clear of every capital
+function occSites(n) {
+  const N = W.nat, cand = [], out = [], cs = alive();
+  for (let i = 0; i < NCELL; i++) {
+    if (V.seaCell && V.seaCell[i]) continue; const x = (i + .5) * CELL;
+    if (!isLand(x) || !isLand(x - 45) || !isLand(x + 45) || cs.some(c => occWd(c.x, x) < 140)) continue;
+    cand.push([(N && N.s ? N.s[i] : .6) * (.4 + (V.cap ? V.cap[i] : .5)) * (.75 + .25 * h01((W.seed | 0) ^ (i * 7349))), x]);
+  }
+  cand.sort((a, b) => b[0] - a[0]);
+  for (const [, x] of cand) { if (out.length >= n) break; if (out.every(o => occWd(o, x) >= OCC_GAP)) out.push(x); }
+  return out;
+}
+function occLand(src) {
+  if (occLive()) return false;
+  const xs = occSites(clamp(3 + Math.floor(alive().length / 2), 3, OCC_MAX)); if (!xs.length) return false;
+  const S = W.occ = { t0: W.simTime, y0: Math.round(W.year), src: src === 'event' ? 'event' : 'tb', towers: [], said: 0 }, used = new Set();
+  xs.forEach((x, i) => { let nm = OCC_NAMES[(h01((W.seed | 0) + i * 911) * OCC_NAMES.length) | 0]; for (let k = 0; used.has(nm) && k < OCC_NAMES.length; k++) nm = OCC_NAMES[(OCC_NAMES.indexOf(nm) + 1) % OCC_NAMES.length]; used.add(nm);
+    S.towers.push({ x: Math.round(x), t0: W.simTime, y0: Math.round(W.year), g: 0, s: (h01((W.seed | 0) ^ (i * 104729 + 77)) * 4294967295) >>> 0, name: nm, state: 'grow' }); });
+  log(`Hevari landers come down through the clouds and plant ${S.towers.length} seed towers on the richest land of the world: ${S.towers.map(t => esc(t.name)).join(', ')}. They have come to stay.`, 'fate');
+  const hit = new Map(); for (const t of S.towers) { const c = civAt(t.x); if (c) { if (!hit.has(c)) hit.set(c, []); hit.get(c).push(t.name); } }
+  for (const [c, ns] of hit) { c.stability = Math.max(0, c.stability - 6); log(fillT(`${ns.length > 1 ? 'Hevari seed towers rise' : 'A Hevari seed tower rises'} at ${ns.map(esc).join(' and ')}, in the lands of {civ}. No one can get near ${ns.length > 1 ? 'them' : 'it'}.`, names(c)), 'fate'); }
+  banner('The landing', `${S.towers.length} Hevari seed towers`, '#a593f2');
+  return true;
+}
+const OCC_SAY = [null, 'The seed tower at {t} splits into an outpost. New spires climb beside it, and Hevari craft come and go.', '{T} is a Hevari colony now. Pale domes spread around its spires, and the first Hevari walk on the world.', '{T} has grown into a colony city of the Hevari, its spires taller than any tower humans have built.'];
+function occTick(dt) {
+  const S = W.occ; if (!S) return;
+  for (const t of S.towers) {
+    if (t.state !== 'grow') continue;
+    const s0 = occStage(t); t.g = Math.min(1, t.g + dt / OCC_GROW); const s1 = occStage(t), c = civAt(t.x);
+    // the first tower to reach each stage is told; every colony city is told
+    if (s1 > s0 && (s1 === 3 || !(S.said & (1 << s1)))) { S.said |= 1 << s1; log(OCC_SAY[s1].replace('{t}', esc(t.name)).replace('{T}', esc(t.name)), 'fate'); }
+    if (c) c.stability = Math.max(0, c.stability - dt * .02 * (1 + s1));
+  }
+}
+function occWithdraw() {
+  const S = W.occ; if (!S) return false; const live = S.towers.filter(t => t.state === 'grow'); if (!live.length) return false;
+  for (const t of live) t.state = 'empty';
+  log(`The Hevari leave their colonies behind. The spires at ${live.map(t => esc(t.name)).join(', ')} stand dark and empty.`, 'fate');
+  return true;
+}
+function sanOcc(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.towers)) return null; const n = (v, a, b, def = 0) => Number.isFinite(+v) ? clamp(+v, a, b) : def;
+  const towers = d.towers.filter(t => t && typeof t === 'object' && Number.isFinite(+t.x)).slice(0, 12).map(t => ({ x: n(t.x, 0, WORLD_W - 1) | 0, t0: n(t.t0, -1e9, 1e12), y0: n(t.y0, -60000, 1e6) | 0, g: n(t.g, 0, 1), s: n(t.s, 0, 4294967295) >>> 0, name: String(t.name || 'Hevari colony').slice(0, 24), state: t.state === 'empty' ? 'empty' : 'grow' }));
+  if (!towers.length) return null;
+  return { t0: n(d.t0, -1e9, 1e12), y0: n(d.y0, -60000, 1e6) | 0, src: d.src === 'event' ? 'event' : 'tb', towers, said: n(d.said, 0, 15) | 0 };
+}
 
 /* ---------- fates: what the future becomes ---------- */
 // Once a people completes the Future Age, each fate builds pressure from the state of the world.
@@ -2333,7 +2403,7 @@ function riseAgain() {
   for (const c of alive()) { const k = keepStart(c); c.era = k.era; c.tech = k.tech; c.pop = rand(1500, 4000) * k.popK; c.food = k.food; c.fallEra = null; c.stability = 50; c.military = 10; c.culture = 25; c.reached = { [c.era]: Math.round(W.year) }; c.threshold = false; c.nuclear = false; c.bunker = 0; c.closed = 0; c.mods = []; c.ruin = 0; c.mach = 0; c.machSaid = 0; c.aiBan = 0; c.aiNext = null; }
   if (W.grey) { W.grey.live = false; if (!W.grey.done) W.grey.done = 'fell'; }
   W.wars = []; W.mw = null; W.topEra = 0; W.thresholdNoted = false; W.pollution = 0; W.tempShift *= .3; W.sig = null; W.nukeT = null; W.acts = 0; W.lastWarT = W.simTime;
-  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null;
+  W.winter = null; W.pandemic = null; W.hot = { on: false, acc: 0, t0: 0, nextMig: 0 }; W.seaRise = W.seaRise || 0; W.eng = null; W.voy = null; W.asc = null; W.gdn = null; W.occ = null;
   W.fates = freshFates(); W.fates.cycle = cyc; W.fates.hist = hist;
   const nm = (ORD[Math.min(7, cyc)] || 'next').toLowerCase();
   log(`The ${nm} rise of humanity begins among the ruins of the old world.${nr ? ' Their old cities stand empty around them, slowly sinking under the green.' : ''}`, 'world');
@@ -4130,6 +4200,43 @@ function drawDatacentre(c) {
   GL.push({ x, y: y - h / 2, r: 30 + 30 * u, c: '110,230,255', a: (.18 + .2 * u).toFixed(3) });
   pk(l, y - h, l + w, y, 0, 'datacentre', { name: 'Data centre', c });
 }
+// OCC-01: a Hevari colony. One tall spire (the seed tower), then more around it, pale domes between them, arches high up and
+// craft circling as it grows; violet lights and the three-sun glyph. Fixed offsets and heights per tower (t.s), so it grows steadily.
+function occSpire(o, x, y, w, h, body, side) {
+  o.fillStyle = body; o.beginPath(); o.moveTo(x - w, y + 2); o.quadraticCurveTo(x - w * .55, y - h * .55, x, y - h); o.quadraticCurveTo(x + w * .55, y - h * .55, x + w, y + 2); o.closePath(); o.fill();
+  o.fillStyle = side; o.beginPath(); o.moveTo(x + w * .15, y + 2); o.quadraticCurveTo(x + w * .2, y - h * .5, x, y - h); o.quadraticCurveTo(x + w * .55, y - h * .55, x + w, y + 2); o.closePath(); o.fill();
+}
+function drawOcc(x0, x1) {
+  const S = W.occ; if (!S) return; const o = g, VI = '165,147,242';
+  for (const t of S.towers) {
+    if (t.x < x0 - 260 || t.x > x1 + 260) continue;
+    const st = occStage(t), dead = t.state === 'empty', gg = Math.max(.06, t.g), y = gy(t.x), half = 12 + 78 * gg, nm = `${t.name} · ${dead ? 'Empty colony' : OCC_STAGE[st]}`;
+    const body = dead ? '#6f6b76' : '#e6e0f3', side = dead ? '#4f4b56' : '#aea4cf', pulse = .6 + .4 * Math.sin(V.t * 2.4 + t.s % 7);
+    // the violet ground band of the colony
+    o.strokeStyle = dead ? 'rgba(110,104,120,.7)' : `rgba(${VI},.85)`; o.lineWidth = 2.4; o.beginPath(); for (let x = t.x - half - 8; x <= t.x + half + 8; x += 6) { const yy = gy(x) + 1.5; x === t.x - half - 8 ? o.moveTo(x, yy) : o.lineTo(x, yy); } o.stroke();
+    // domes between the spires (colony and beyond)
+    if (st >= 2) for (const f of [-.75, -.4, .4, .75]) { const dx = t.x + f * half, dy = gy(dx), r = (6 + 9 * gg) * (.8 + .4 * h01(t.s + f * 100)); o.fillStyle = dead ? '#5d5964' : '#cfc7e6'; o.beginPath(); o.ellipse(dx, dy + 1, r, r * .7, 0, Math.PI, 0); o.fill(); o.fillStyle = dead ? 'rgba(40,38,46,.6)' : `rgba(${VI},${(.5 + .3 * V.N).toFixed(3)})`; o.fillRect(dx - 1.5, dy - r * .45, 3, 2); pk(dx - r, dy - r * .7, dx + r, dy + 1, 0, 'occtower', { name: nm, t }); }
+    // the spires: the seed tower first, then pairs further out
+    const n = [1, 3, 5, 7][st], tops = [];
+    for (let k = n - 1; k >= 0; k--) {
+      const ring = Math.ceil(k / 2), side2 = k % 2 ? -1 : 1, off = k ? side2 * ring / Math.max(1, Math.ceil((n - 1) / 2)) * half * .85 : 0;
+      const hk = (k ? .32 + .38 * h01(t.s + k * 131) : 1) * (28 + 200 * gg), wk = k ? 4 + 5 * gg : 6 + 9 * gg, sx = t.x + off, sy = gy(sx);
+      occSpire(o, sx, sy, wk, hk, body, side); tops[k] = [sx, sy - hk];
+      if (!dead) for (let j = 1; j < 1 + hk / 22; j++) { const wy = sy - j * 20; if (wy < sy - hk * .8) break; o.fillStyle = `rgba(${VI},${(.35 + .55 * V.N * (h01(t.s + k * 17 + j) < .7)).toFixed(3)})`; o.fillRect(sx - 1, wy, 2, 5); }
+      pk(sx - wk, sy - hk, sx + wk, sy + 2, 0, 'occtower', { name: nm, t });
+    }
+    // arches between the tops of the city's spires
+    if (st >= 3) { o.strokeStyle = dead ? 'rgba(120,114,128,.7)' : 'rgba(226,220,244,.8)'; o.lineWidth = 1.6; for (const k of [1, 2]) { const [ax, ay] = tops[0], [bx, by] = tops[k]; o.beginPath(); o.moveTo(ax, ay + (tops[0][1] - ay) + 40); o.quadraticCurveTo((ax + bx) / 2, Math.min(ay, by) + 10, bx, by + 6); o.stroke(); } }
+    // the three-sun glyph near the top of the seed tower
+    { const [gx, gyy] = tops[0], gy0 = gyy + 22 + 10 * gg, r0 = 1.6 + 1.6 * gg; o.fillStyle = dead ? '#3e3a44' : `rgba(${VI},${(.75 + .25 * pulse).toFixed(3)})`;
+      for (const [ax, ay] of [[0, -1], [-.87, .5], [.87, .5]]) { o.beginPath(); o.arc(gx + ax * r0 * 1.6, gy0 + ay * r0 * 1.6, r0, 0, 6.2832); o.fill(); }
+      if (!dead) { GL.push({ x: gx, y: gy0, r: 10 + 14 * gg, c: VI, a: (.35 * pulse + .2 * V.N).toFixed(3) }); GL.push({ x: gx, y: gyy, r: 8 + 8 * gg, c: VI, a: (.5 * pulse).toFixed(3) }); } }
+    // Hevari craft circling the colony
+    if (!dead && st >= 1) for (let i = 0; i < st; i++) { const a = V.t * (.35 + .1 * i) + i * 2.1 + t.s % 5, cx = t.x + Math.cos(a) * half * 1.15, cy = y - 50 - 140 * gg - i * 18 + Math.sin(a * 1.7) * 8;
+      o.fillStyle = '#d9d2ee'; o.beginPath(); o.ellipse(cx, cy, 8, 2.4, 0, 0, 6.2832); o.fill(); o.fillStyle = `rgba(${VI},.95)`; o.fillRect(cx - 2, cy - 2.6, 4, 1.6); GL.push({ x: cx, y: cy + 2, r: 7, c: VI, a: '.45' });
+      pk(cx - 9, cy - 4, cx + 9, cy + 3, 0, 'occcraft', { name: 'Hevari craft', t }); }
+  }
+}
 function drawWorld(o, x0, x1) {
   g = o;
   const i0 = Math.max(0, Math.floor(x0 / STEP)), i1 = Math.min(NCOL - 1, Math.ceil(x1 / STEP)), sea = seaY(), snowY = snowLine();
@@ -4178,6 +4285,7 @@ function drawWorld(o, x0, x1) {
     const a = SMOG[c.era] * clamp(W.pollution / 70, 0, 1) * (policyOf(c) === 'exploit' ? 1.25 : policyOf(c) === 'protect' ? .6 : 1);
     if (a > .02) { const gy0 = gy(c.x), gr = o.createLinearGradient(0, gy0 - 260, 0, gy0 + 10); gr.addColorStop(0, 'rgba(122,104,78,0)'); gr.addColorStop(.6, `rgba(122,104,78,${(a * .3).toFixed(3)})`); gr.addColorStop(1, `rgba(110,96,72,${(a * .5).toFixed(3)})`); o.fillStyle = gr; o.fillRect(c.l, gy0 - 260, c.r - c.l, 270); }
   }
+  drawOcc(x0, x1);
   drawEngines(x0, x1, sea);
   drawBirds(x0, x1);
   for (const w of W.wars) drawWar(w, x0, x1);
@@ -4442,6 +4550,10 @@ function buildTex() {
       }
     }
   }
+  // OCC-01: Hevari colonies show as pale violet patches with their own lights
+  if (W.occ) for (const t of W.occ.towers) { const c0 = Math.round(t.x / WORLD_W * tw), sp = 1 + Math.round(t.g * 3), dead = t.state === 'empty', lim = .22 + .25 * t.g;
+    for (let dc = -sp; dc <= sp; dc++) { const cw = (((c0 + dc) % tw) + tw) % tw, fx = 1 - Math.abs(dc) / (sp + 1);
+      for (let r = 0; r < th && LATS[r] < lim; r++) { const idx = r * tw + cw; if (!land[idx]) continue; const k = idx * 3, v = mixA([col[k], col[k + 1], col[k + 2]], dead ? [98, 94, 106] : [214, 204, 242], (.3 + .45 * t.g) * fx); col[k] = v[0]; col[k + 1] = v[1]; col[k + 2] = v[2]; if (!dead) lgt[idx] += .7 * t.g * fx * Math.exp(-LATS[r] / .3); } } }
   for (let i = 0; i < lgt.length; i++) if (lgt[i] > 1.2) lgt[i] = 1.2;
   TEX.at = performance.now(); TEX.tver = V.tver;
 }
@@ -5103,6 +5215,7 @@ const EVINFO = {
   climate: 'The world warms and pollution rises. Stay too hot for too long and the warming feeds itself: the seas rise and drown the coasts until the air is cleaned or the Sun is dimmed.',
   internet: 'Ideas spread at lightning speed for a while, and society is shaken.',
   ai: 'Thinking machines race progress ahead but unsettle society. Each use hands the machines more of the people’s decisions (machine autonomy) and brings them closer to waking.',
+  landing: 'The Hevari fleet arrives now and lands to stay: seed towers come down on the richest land and grow into alien colony cities. Starts the Three-Sun Signal if it is not running.',
   broadcast: 'Only during the Three-Sun Signal. Sends the location of Hevar and of humanity’s world to the whole galaxy. A strike will follow.',
   flare: 'A storm from the Sun. Peoples from the Modern Age on lose some progress and stability, and satellites go dark for a while.',
   cstrike: 'A rock from space hits a base or an off-world people. Needs a colony in space.',
@@ -5604,7 +5717,7 @@ function sanitizeWorld(d) {
   w.winter && (w.winter.kind = ['ash', 'impact'].includes(d.winter.kind) ? d.winter.kind : 'nuke', w.winter.pop0 = n(d.winter.pop0, 0, 1e12));
   w.rock = d.rock && typeof d.rock === 'object' ? { t0: n(d.rock.t0, -1e9, 1e12), eta: n(d.rock.eta, -1e9, 1e12), x: n(d.rock.x, 0, WORLD_W) | 0, size: n(d.rock.size, .3, 1, .7), seen: !!d.rock.seen, tries: n(d.rock.tries, 0, 99) | 0, next: n(d.rock.next, -1e9, 1e12), name: String(d.rock.name || 'Rock').slice(0, 20) } : null;
   w.rockCycle = n(d.rockCycle, 0, 99) | 0; w.svCycle = n(d.svCycle, 0, 99) | 0;
-  w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); w.mw = sanitizeMW(d.mw, w); w.grey = sanitizeGrey(d.grey); w.greyCycle = n(d.greyCycle, 0, 99) | 0; if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
+  w.occ = sanOcc(d.occ); w.fates = sanitizeFates(d.fates); w.care = sanitizeCare(d.care, w); w.mw = sanitizeMW(d.mw, w); w.grey = sanitizeGrey(d.grey); w.greyCycle = n(d.greyCycle, 0, 99) | 0; if (w.tb && !w.fates.active.some(a => a.id === 'threebody')) w.tb = null; if (w.fates.edgeT == null && w.civs.some(c => c.era > FUTURE)) w.fates.edgeT = w.simTime;
   const chronE = e => { const o = { y: n(e.y, -60000, 1e6), k: ['era', 'event', 'react', 'war', 'world', 'rule', 'nature', 'fate'].includes(e.k) ? e.k : 'world', h: sanitizeHTML(e.h) }; if (e.sh != null && Number.isFinite(+e.sh)) o.sh = n(e.sh, 0, 1e9) | 0; return o; };
   w.chron = (Array.isArray(d.chron) ? d.chron : []).slice(0, 260).filter(e => e && typeof e.h === 'string').map(chronE);
   // the full story; saves from before it existed start from the lines the chronicle still holds
@@ -5771,6 +5884,8 @@ function tipBody(t) {
     else if (q.kind === 'datacentre') h = `<span>Racks of thinking machines where the uploaded minds of the ${esc(c.name)} now live.</span>` + row('Minds inside', fmtPop(ascMinds(c))) + row('Uploaded', Math.round(ascOf(c) * 100) + '% of the people') + row('Still in their bodies', fmtPop(c.pop)) + (W.asc && W.asc.hold ? Object.entries(W.asc.hold).filter(([k, H]) => { const h = civById(+k); return h && h.alive && (H.from === c.id || H.foe === c.id); }).map(([k]) => row('Holdouts', 'the ' + civById(+k).name + ' — ' + ascHoldText(civById(+k)))).join('') : '');
     else if (q.kind === 'undercity') h = `<span>Sealed caverns where the ${esc(c.name)} live through the voyage: homes, schools and lamp-lit farms, deep under the frozen surface.</span>` + row('People', fmtPop(c.pop)) + row('On the surface', Math.round(temp()) + ' °C');
     else if (q.kind === 'engine') h = `<span>A tower of steel and fusion fire, one of the engines that must push the whole world away from its dying Sun.</span>` + row('Built', Math.round(Math.min(1, engOf(c)) * 100) + '%') + row('All engines', Math.round(engProgress() * 100) + '%') + row('Now', W.eng && W.eng.done ? 'firing with all the others' : W.eng && W.eng.stall ? 'work stopped: there is war' : warsOf(c).length ? 'work stopped: its people are at war' : engOf(c) >= 1 ? 'finished, waiting for the others' : engOf(c) >= ENG_FIRE ? 'building, with test burns' : 'building');
+    else if (q.kind === 'occtower') { const t = d.t, st = occStage(t), own2 = civAt(t.x); h = `<span>${t.state === 'empty' ? 'A Hevari colony left behind when their fleet withdrew. Its spires stand dark and silent.' : 'A colony of the Hevari, grown from a seed tower dropped from orbit. Its pale spires bear the sign of three suns.'}</span>` + row('Stage', t.state === 'empty' ? 'empty' : OCC_STAGE[st]) + row('Grown', Math.round(t.g * 100) + '%') + row('Hevari colonists', t.state === 'empty' ? 'none' : fmtPop(occPop(t))) + row('Landed', fmtYear(t.y0)) + row('On the land of', own2 ? 'the ' + own2.name : 'no people'); }
+    else if (q.kind === 'occcraft') h = `<span>A Hevari craft, carrying colonists and cargo between the colony and the fleet in orbit.</span>` + row('Serves', d.t.name);
     else if (q.kind === 'soldier') h = row('Fights for', 'the ' + c.name) + row('Against', 'the ' + (d.foe ? d.foe.name : 'enemy'));
     else h = row('Belongs to', 'the ' + c.name) + row('Age', ERAS[c.era].name);
     return [esc(d.name) + own, h];
@@ -6083,7 +6198,7 @@ function boot(data) {
   requestAnimationFrame(frame);
 }
 try { window.claude?.hot?.snapshot?.(() => ({ world: serialize(), custom: CUSTOM, ui: { cam: V.cam, camY: V.camY, zoom: V.zoom, speed: UI.speed } })); } catch (e) { }
-window.__aoh = { get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, gdnTick, gdnOf, gdnAll, gdnReady, gdnEndTick, gardenRows, gardenStory, sanGdnEnd, showEpilogue, gdnFit, gdnCan, gdnOnF, gdnPeoples, drawGarden, GDN: { GDN_PULL, GDN_ALL_K, GDN_FOREST, GDN_WILD, GDN_HOLD, GDN_TIME, GDN_K, GDN_JOIN, GDN_DRIFT, GDN_DRIFT_ERA, GDN_TRAIT }, policyOf, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
+window.__aoh = { isLand, infoContent, occLand, occTick, occSites, occWithdraw, occStage, occPop, occLive, sanOcc, tbAdvanced, OCC: { OCC_GROW, OCC_GAP, OCC_MAX }, get W() { return W; }, V, UI, setZoom, enterFS, exitFS, toggleTools, step, applyEvent, findEvent, EVENTS, render, newWorld, serialize, loadWorld, sanitizeWorld, setTool, worldClick, placeElement, nuclearWar, tipTarget, W2S, S2W, gy, FATES, fateDrives, fateTick, startFate, endFate, tbChoose, tbBroadcast, energyOf, foundBase, spaceTick, placeSpace, spaceKnown, UI, reachEnding, showEpilogue, riseAgain, ENDINGS, updateUI, machNudge, XSTARS, GAL_INFO, lensOn, lensXY, shipCurve, launchShip, nearFreeStar, starsTaken, sanFrom, COL_SHIP: { COL_SHIP_POP, COL_SHIP_AGE, COL_SHIP_RATE, SHIPS_MAX }, lostMarks, LOST_MAX, lensTarget, shipFocus, focusWorld, log, sanitizeHTML, worldLines, WORLDN, LENS_Z, shipTick, shipLog, vlogText, sanVlog, VMARK, STAR_LY, starLy, worldLights, worldLightCount, worldLightK, worldNight, worldLand, orbitTipBody, lensR, lensBox, drawLens, starPos, toggleFsLog, openHistory, HIST_MAX, orbitTarget, bodyAt, focusBody, bodyLines, drawFocus, mergeCiv, canMerge, ensureLayout, machineRise, machineCiv, mwTick, sanitizeMW, careBegin, careTick, careOf, careCiv, sanitizeCare, doReaction, chooseResponse, machRate, machAdd, machTick, fateCtx, keepersOf, keepStart, keepEl, keepersTick, startSupervolcano, startAsteroid, tryDeflect, deflectChance, rockImpact, leaveRuins, ruinBonus, startWinter, startPandemic, tipWarming, endTick, winterK, crisisMeta, temp, tempGH, seaY, sunK, sunHeat, sunTick, sunRGB, updateWars, tipBody, gdnTick, gdnOf, gdnAll, gdnReady, gdnEndTick, gardenRows, gardenStory, sanGdnEnd, showEpilogue, gdnFit, gdnCan, gdnOnF, gdnPeoples, drawGarden, GDN: { GDN_PULL, GDN_ALL_K, GDN_FOREST, GDN_WILD, GDN_HOLD, GDN_TIME, GDN_K, GDN_JOIN, GDN_DRIFT, GDN_DRIFT_ERA, GDN_TRAIT }, policyOf, ascTick, ascOn, ascOf, ascMinds, ascDark, ascShare, ascRate, ascGreen, ascWild, ascOver, ascHold, ascFoe, ascSplit, ascHoldTick, ascResolve, ascWarEnd, ascWarChance, ascHoldText, ascHoldWar, sanHold, strength, startWar, endWar, conquer, HOLD_NAMES, ascGreenTick, natureTick, ASC: { ASC_TIME, ASC_K, ASC_RATE, ASC_GREEN, ASC_REGROW, ASC_SPLIT, ASC_TEN, ASC_DRONE, ASC_TEN_TRAIT, ASC_TRUCE, ASC_ZEAL }, engTick, voyTick, voyBegin, voyCrisis, voyEscape, voyU, voyFar, voyCold, voyUnder, voyJup, voyA, voyLossChance, newSun, NEWSUN, VOY: { VOY_SPAN, VOY_COLD, VOY_JUP, VOY_ARRIVE }, engOn, engOf, engBuilder, engBuilders, engProgress, engReady, engX, engFire, ENG: { ENG_TIME, ENG_WAR, ENG_FIRE }, SUN: { SUN_TEMP, SUN_FADE, SUN_DATE, SUN_SAY }, greyStart, greyTick, greyOn, greyShare, greyOf, greyBurnAt, greyPower, sanitizeGrey, greyClock, buildTex, TEX, sunG, gOmega, panBy, setPan, panW, GYEAR, GBAR_W, GARM_W, GAL, GREY: { GREY_MIN, GREY_RATE, GREY_END, GREY_FLEE, GREY_BURN }, orbAng, YEAR_SEC, PLANETS, skyPh, sunPh, updSky, moonPh, MOON: { MOON_SYN, MOON_ANO, MOON_E, MOON_R } };
 if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data ?? {});
 })();
 </script>
